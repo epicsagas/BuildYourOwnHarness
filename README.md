@@ -6,6 +6,52 @@
 
 ---
 
+## 🦀 구현 상태 (Implementation)
+
+이 저장소는 기획서(`docs/00..04`)를 기반으로 **생성 계층의 Rust 구현체**를 포함한다. 헥사고날 아키텍처(domain / ports / adapters / application / compiler / evolve / templates / deploy / i18n / obs / security / cli).
+
+### 빌드 및 검증
+
+```bash
+cargo build --release            # 단일 바이너리 byoh
+cargo clippy --all-targets -- -D warnings   # 경고 0
+cargo test                       # 단위 + 통합 테스트 (98개)
+./target/release/byoh --help
+```
+
+### CLI 진입점
+
+```bash
+byoh profile init <slug> [--paths ...]   # 초안 프로파일 + (선택) M1 자동분석
+byoh profile interview <slug>            # S2 인터뷰 (Suggest-don't-move + Council)
+byoh profile confirm <slug> --genre <g>  # S3 위자드 확정
+byoh compile <slug> [--dry-run]          # 정적 게이트 + dry-run 게이트 → HarnessBundle
+byoh doctor                              # 의존 실행 계층 도구 검증
+byoh install <slug>                      # 부트스트래퍼 기반 설치
+byoh run <slug>                          # 공통 실행 진입점
+byoh evolve <slug>                       # 3중 안전장치 진화 사이클
+```
+
+### 구현된 요구사항 (R1–R20)
+
+| 영역 | 구현 |
+|------|------|
+| 프로파일 스키마 | `truth`/`candidates`/`derived` 중첩 블록 + 4상태 머신(`draft→interviewed→confirmed→evolving`) |
+| 3단계 취합 | S1 자동분석(비파괴, vector→BM25→grep 폴백) · S2 인터뷰(Suggest + Council 4음성) · S3 위자드(자기-설명 옵션) |
+| 컴파일러 | 4-Ring 골격 자동생성 · MCP 도구 자동생성(B4) · 정적 게이트(3계약) · dry-run 게이트(샌드박스 폴백) · diff 기반 증분 재컴파일(3a/3b/3c) |
+| 장르 템플릿 | base 상속(불변 Ring 0-3 + 3중 안전장치) + developer/creator(MVP) + researcher/business(확장) |
+| 진화 엔진 | Critic(보상해킹 방어) · Seesaw(파괴적 망각) · Stagnation(정체 롤백) 3중 강제 + SkillOpt 패턴 마이닝 |
+| 리콜/압축 | B11 장르별 가중 스마트 리콜 · B13 4단계 적응형 압축(장르별 중요도) |
+| 배포 | install.sh/install.ps1/cargo-binstall 부트스트래퍼 · 정적 레지스트리 · B14 CapabilityProfile 매칭 · B17 ko/en i18n · B9 파일기반 상태(45분 크래시 복구) |
+| 보안 | 시크릿 마스킹(OC=/bearer/api_key/sk-) · 합성 데이터만 · `#![forbid(unsafe_code)]` |
+
+> 외부 실행 계층 도구(obsidian-forge/alcove/epic-harness/claudy)는 BYOH가 재구현하지 않고 `CommandPort` 뒤에서 호출한다 — BYOH는 생성 계층만 담당한다(스펙 §Out).
+
+---
+
+
+---
+
 ## 📖 산출물 네비게이션
 
 본 패키지는 한 편의 기획서처럼 읽히도록 5개 문서로 구성되어 있다. 권장 순서대로 읽으면 "왜 → 무엇 → 어떻게 → 핵심 차별 → 언제"가 완성된다.
