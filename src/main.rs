@@ -68,6 +68,7 @@ fn main() -> anyhow::Result<()> {
         } => run_search(&slug, &query, &genre, &home, k, corpus.as_deref())?,
         Command::Hook { name } => run_hook(&name, &lang)?,
         Command::Render { slug, target, out } => run_render(&slug, &target, &out)?,
+        Command::Vendor { action } => run_vendor(action, &lang)?,
         #[cfg(feature = "mcp")]
         Command::Serve => run_serve(&lang)?,
     }
@@ -76,6 +77,31 @@ fn main() -> anyhow::Result<()> {
 
 /// Render a synthesized harness into a deployable plugin tree.
 /// Loads the profile, synthesizes the bundle, then renders to the target host(s).
+fn run_vendor(action: byoh::cli::VendorAction, _lang: &str) -> anyhow::Result<()> {
+    use byoh::cli::VendorAction;
+    use byoh::domain::genre::Genre;
+    match action {
+        VendorAction::Add { source, genre, id } => {
+            let g: Genre = genre.parse()?;
+            let repo_root = std::env::current_dir()?;
+            let fetched_at = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)?
+                .as_secs()
+                .to_string();
+            let entry = byoh::deploy::vendor_add(&source, g, &id, &repo_root, &fetched_at)?;
+            println!(
+                "vendored '{}' ({}) -> registry/vendored/{}/{}.md (sha256 {}...)",
+                id,
+                g.as_str(),
+                g.as_str(),
+                id,
+                &entry.sha256[..12]
+            );
+        }
+    }
+    Ok(())
+}
+
 fn run_render(slug: &str, target: &str, out: &std::path::Path) -> anyhow::Result<()> {
     let target: byoh::domain::render_target::Target = target.parse()?;
     let profile = byoh::store::load_profile(slug)?;
