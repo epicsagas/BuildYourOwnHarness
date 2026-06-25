@@ -1,0 +1,36 @@
+{
+  "name": "byoh",
+  "version": "0.1.0",
+  "description": "BuildYourOwnHarness — profile → compile → install → evolve a personalized AI agent harness. Synthesis recombines vetted skills/agents by keyword under 3 safety gates.",
+  "author": {
+    "name": "epicsagas",
+    "url": "https://github.com/epicsagas"
+  },
+  "homepage": "https://github.com/epicsagas/BuildYourOwnHarness",
+  "repository": "https://github.com/epicsagas/BuildYourOwnHarness",
+  "license": "Apache-2.0",
+  "keywords": [
+    "harness",
+    "byoh",
+    "synthesis",
+    "skills",
+    "agents",
+    "compile",
+    "evolve"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "BuildYourOwnHarness",
+    "shortDescription": "Personalized AI agent harness builder.",
+    "longDescription": "BYOH generates a unique AI agent harness from a user profile — synthesis recombines vetted skills/agents by keyword tags, enforces 3 safety gates (Critic/Seesaw/Stagnation), and runs compile → render → install → evolve. Community skills can be vendored (offline, sha256-manifest, Ring 3 isolation).",
+    "developerName": "epicsagas",
+    "category": "Harness",
+    "capabilities": [
+      "Read",
+      "Write",
+      "Bash"
+    ],
+    "websiteURL": "https://github.com/epicsagas/BuildYourOwnHarness"
+  }
+}

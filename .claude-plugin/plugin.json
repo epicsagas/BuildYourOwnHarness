@@ -9,5 +9,6 @@
   "license": "Apache-2.0",
   "keywords": ["ai", "agent-harness", "mcp", "profiling", "rag", "harness-compiler"],
   "skills": "./skills/",
-  "agents": ["./agents/byoh-guide.md"]
+  "agents": ["./agents/byoh-guide.md"],
+  "mcp": ".mcp.json"
 }
