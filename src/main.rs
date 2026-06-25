@@ -26,7 +26,7 @@ fn main() -> anyhow::Result<()> {
             profiles_dir,
             out,
             dry_run,
-        } => run_compile(&slug, &profiles_dir, &out, dry_run, &lang)?,
+        } => run_compile(&slug, profiles_dir.as_deref(), &out, dry_run, &lang)?,
         Command::Doctor => run_doctor(&lang)?,
         Command::Install {
             slug,
@@ -166,6 +166,12 @@ fn run_profile(action: ProfileAction, lang: &str) -> anyhow::Result<()> {
             let orch = ProfileOrchestrator::new(&src, &llm, &iv, &wz);
             let g: Genre = genre.parse()?;
             let mut p = load_profile(&slug)?;
+            // CLI confirm may run straight after `init` (Draft). stage3_confirm
+            // requires Interviewed (Draft → Interviewed → Confirmed); advance
+            // automatically so the minimal `init → confirm` path works.
+            if p.status == ProfileStatus::Draft {
+                p.advance(ProfileStatus::Interviewed)?;
+            }
             orch.stage3_confirm(&mut p, g, goal.as_deref())?;
             write_profile(&p)?;
             println!("{} — status: {}", t(Msg::Confirm, lang), p.status);
@@ -180,15 +186,14 @@ fn run_profile(action: ProfileAction, lang: &str) -> anyhow::Result<()> {
 
 fn run_compile(
     slug: &str,
-    profiles_dir: &std::path::Path,
+    profiles_dir: Option<&std::path::Path>,
     out: &std::path::Path,
     do_dry_run: bool,
     lang: &str,
 ) -> anyhow::Result<()> {
-    let path = if profiles_dir.ends_with("profiles") {
-        profiles_dir.join(format!("{slug}.yaml"))
-    } else {
-        profile_path(slug)
+    let path = match profiles_dir {
+        Some(dir) => dir.join(format!("{slug}.yaml")),
+        None => profile_path(slug),
     };
     let body = std::fs::read_to_string(&path)
         .map_err(|e| anyhow::anyhow!("reading profile {}: {e}", path.display()))?;
@@ -238,6 +243,7 @@ fn materialize_bundle(
     out: &std::path::Path,
 ) -> anyhow::Result<()> {
     use byoh::domain::bundle::Ring;
+    std::fs::create_dir_all(out)?;
     let cfg = toml::to_string(&bundle.config())?;
     std::fs::write(out.join("config").with_file_name("harness.toml"), cfg)?;
 
@@ -259,7 +265,9 @@ fn materialize_bundle(
             "reads": h.reads,
         })).collect::<Vec<_>>()
     }))?;
-    std::fs::write(out.join("hooks").join("hooks.json"), hooks_json)?;
+    let hooks_dir = out.join("hooks");
+    std::fs::create_dir_all(&hooks_dir)?;
+    std::fs::write(hooks_dir.join("hooks.json"), hooks_json)?;
 
     std::fs::create_dir_all(out.join("mcp").join("tools"))?;
     for tool in &bundle.mcp_tools {
