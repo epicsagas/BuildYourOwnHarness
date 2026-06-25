@@ -59,6 +59,23 @@ pub struct SkillSpec {
     pub order: Option<u32>,
 }
 
+/// A rendered agent definition (target-renderer input). Becomes
+/// `agents/<name>.md` (Claude Code / agy) or `.codex-plugin/agents/<name>.toml`
+/// (Codex) when rendered to a plugin. `tools` is Claude-only — Codex drops it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AgentSpec {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    /// Markdown body WITHOUT frontmatter (frontmatter is added per-target at
+    /// render time).
+    pub body_markdown: String,
+    /// Claude Code agent tools (e.g. `["Read","Write","Bash"]`). None/empty on
+    /// Codex (its TOML agent schema has no tools key — verified).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tools: Option<Vec<String>>,
+}
+
 /// HookInput required fields (research §2.4.2, ARCH §5.4). A bundle's hooks.json
 /// must declare these — the static gate enforces it (R8/AC7).
 pub const HOOK_REQUIRED_FIELDS: &[&str] = &[
@@ -150,6 +167,11 @@ pub struct HarnessBundle {
     pub skills: Vec<SkillSpec>,
     pub hooks: Vec<HookSpec>,
     pub mcp_tools: Vec<McpTool>,
+    /// Agent definitions rendered to agents/<name>.md (Claude/agy) or
+    /// .codex-plugin/agents/<name>.toml (Codex). Empty by default for
+    /// backward compatibility with pre-agent bundles.
+    #[serde(default)]
+    pub agents: Vec<AgentSpec>,
     /// evolution_policy.toml content (B10). safety_gates MUST be all three.
     pub safety_gates: SafetyGates,
     pub stagnation_limit: u32,

@@ -4,6 +4,7 @@
 //! (`developer`, `creator`, `researcher`, `business`) extend it and override
 //! skill bodies / tool blueprints / domain entity types only (ARCH §6.1).
 
+pub mod agents;
 pub mod base;
 pub mod inherit;
 pub mod library;
