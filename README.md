@@ -17,7 +17,7 @@
 ```bash
 cargo build --release            # 단일 바이너리 byoh
 cargo clippy --all-targets -- -D warnings   # 경고 0
-cargo test                       # 단위 + 통합 테스트 (129개)
+cargo test                       # 단위 + 통합 테스트 (140개)
 ./target/release/byoh --help
 ```
 
@@ -45,6 +45,24 @@ byoh serve                                  # stdio MCP 서버 시작
 ```
 
 **로컬 프리셋 복제**: `registry/presets/<genre>/`의 검증 스킬을 `include_str!`로 임베드(네트워크 없음)해 번들에 주입. 생성(generate)과 복제(clone)가 공존 — id 기반 중복 제거. 4장르 7프리셋(developer: tdd/debug, creator: continuity, researcher: evidence/reproducibility, business: decision/plainlanguage).
+
+### 🧩 고유 하네스 합성 (Synthesis Engine)
+
+고정 장르 템플릿이 아니라, **레지스트리 스킬들을 사용자 프로필 키워드로 재조립**해 고유한 HarnessBundle을 생성한다. 이것이 BYOH의 핵심 가치다.
+
+```mermaid
+flowchart LR
+    P[Confirmed Profile] --> T[profile_tags<br/>장르/전문/목표]
+    T --> M[preset_catalog 매칭]
+    M --> S[SynthesisPlan<br/>순서화된 파이프라인]
+    S --> I["compile_profile (안전 바닥)"]
+    I --> G["static_gate 재통과 강제"]
+    G --> B[고유 HarnessBundle<br/>+ 재현 가능한 plan 기록]
+```
+
+`synthesize(profile)` — 키워드 매칭 → 순서화 주입 → **3중 안전장치 재통과 강제**(게이트 우회 불가) → plan을 `bundle.config.extra["synthesis_plan"]`에 기록(재현성). `compile_profile`은 정적 회귀 baseline으로 유지된다.
+
+> **후속 작업**: 커뮤니티 스킬 페치(awesomeclaudeplugins 등), 장르 enum 일반화, 파이프라인 라이브라이브러리(shorts/research/app-impl), synthesis MCP 도구 노출. 설계는 `docs/ROADMAP_AGENT_LED.md` 참조.
 
 ### 구현된 요구사항 (R1–R20)
 
