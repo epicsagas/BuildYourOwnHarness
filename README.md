@@ -43,9 +43,37 @@ byoh evolve <slug>                       # 3중 안전장치 진화 사이클
 | 진화 엔진 | Critic(보상해킹 방어) · Seesaw(파괴적 망각) · Stagnation(정체 롤백) 3중 강제 + SkillOpt 패턴 마이닝 |
 | 리콜/압축 | B11 장르별 가중 스마트 리콜 · B13 4단계 적응형 압축(장르별 중요도) |
 | 배포 | install.sh/install.ps1/cargo-binstall 부트스트래퍼 · 정적 레지스트리 · B14 CapabilityProfile 매칭 · B17 ko/en i18n · B9 파일기반 상태(45분 크래시 복구) |
+| **자체 RAG** | **llm-kernel 직접 의존** — 임베딩 + 양자화 벡터 인덱스 + CJK 청킹 + 하이브리드 검색(vector→BM25→grep). alcove 없이 BYOH 안에서 완결. `native-rag` cargo feature 게이트 |
 | 보안 | 시크릿 마스킹(OC=/bearer/api_key/sk-) · 합성 데이터만 · `#![forbid(unsafe_code)]` |
 
 > 외부 실행 계층 도구(obsidian-forge/alcove/epic-harness/claudy)는 BYOH가 재구현하지 않고 `CommandPort` 뒤에서 호출한다 — BYOH는 생성 계층만 담당한다(스펙 §Out).
+
+### 🧠 자체 RAG 서브시스템 (Native RAG)
+
+BYOH는 [llm-kernel](https://crates.io/crates/llm-kernel)을 **직접 cargo 의존**하여, alcove 같은 외부 RAG 도구 없이도 프로세스 안에서 완결되는 자체 검색 서브시스템을 갖는다.
+
+```bash
+# 기본 빌드: 경량(Dummy 임베더, 모델 다운로드 없이도 전 기능 동작 + 테스트 green)
+cargo build --release
+
+# native-rag: 로컬 fastembed 모델(multilingual-e5-small) + 양자화 벡터 인덱스
+cargo build --release --features native-rag
+
+# 인덱스 빌드 + 하이브리드 검색
+byoh index <slug> --genre developer --corpus ./docs --home ./.byoh
+byoh search <slug> "rust memory" --genre developer --home ./.byoh --corpus ./docs --k 5
+```
+
+| 컴포넌트 | 설명 |
+|----------|------|
+| `rag::chunk` | CJK/Hangul 청킹 — `native-rag`에서는 llm-kernel의 `chunk_text`, default에서는 폴백 스플리터 |
+| `rag::store` | `InMemoryStore`(cosine, 항상 사용) + `TurbovecStore`(llm-kernel 양자화 ANN, `native-rag`) |
+| `rag::search` | 하이브리드 vector → BM25 → grep 폴백 체인 (ARCH §8.2) |
+| `rag::genre_index` | 장르별 인덱스 + BM25 가중치(developer/researcher/creator/business) |
+| `adapters::embedder` | `EmbedderProvider` trait — Dummy(결정론) / Fastembed(로컬) / OpenAI(opt-in `rag-openai`) |
+
+> **설계 원칙**: default 빌드는 모델 다운로드 없이 RAG 전 기능이 동작한다(Dummy 임베더 + InMemoryStore). `native-rag` feature 켜면 llm-kernel의 실제 임베딩 모델 + 양자화 벡터 인덱스로 전환된다. OpenAI 임베딩은 `rag-openai` 명시 opt-in + 런타임 API key 필요(프로덕션 외부 LLM 호출은 기본 off).
+
 
 ---
 
