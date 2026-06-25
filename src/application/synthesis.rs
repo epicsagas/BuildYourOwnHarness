@@ -15,6 +15,7 @@ use crate::deploy::agent_presets::{agent_catalog, agent_matches, inject_agent, A
 use crate::deploy::presets::{inject_preset, preset_catalog, preset_matches, PresetMeta};
 use crate::domain::bundle::HarnessBundle;
 use crate::domain::error::ByohError;
+use crate::domain::genre::Genre;
 use crate::domain::profile::UserProfile;
 use crate::domain::synthesis::{PipelineDef, PipelineStep, SynthesisPlan};
 use std::collections::HashMap;
@@ -77,16 +78,67 @@ pub fn select_agents(tags: &[String]) -> Vec<&'static AgentPresetMeta> {
     matched
 }
 
+/// Per-genre default domain pipeline — the fallback when no preset matched a
+/// profile, so a no-match profile still yields an ordered pipeline. Steps use
+/// existing catalog skill ids (the M1b vendored overlay can enrich them later).
+pub fn select_domain_pipeline(genre: Genre) -> Option<PipelineDef> {
+    use crate::domain::bundle::Ring;
+    use Genre::*;
+    let step = |id: &str, order: u32, deps: &[&str]| PipelineStep {
+        skill_id: id.to_string(),
+        order,
+        depends_on: deps.iter().map(|d| (*d).to_string()).collect(),
+    };
+    Some(match genre {
+        Developer => PipelineDef {
+            id: "developer-core".into(),
+            ring: Ring::Ring2,
+            steps: vec![step("tdd", 1, &[]), step("debug", 2, &["tdd"])],
+            description: "Developer core: test-first, then systematic debug.".into(),
+        },
+        Researcher => PipelineDef {
+            id: "researcher-core".into(),
+            ring: Ring::Ring2,
+            steps: vec![
+                step("evidence", 1, &[]),
+                step("reproducibility", 2, &["evidence"]),
+            ],
+            description: "Researcher core: evidence tiers, then reproducibility.".into(),
+        },
+        Business => PipelineDef {
+            id: "business-core".into(),
+            ring: Ring::Ring2,
+            steps: vec![
+                step("decision", 1, &[]),
+                step("plainlanguage", 2, &["decision"]),
+            ],
+            description: "Business core: decision framing, then plain language.".into(),
+        },
+        Creator => PipelineDef {
+            id: "creator-core".into(),
+            ring: Ring::Ring2,
+            steps: vec![step("continuity", 1, &[])],
+            description: "Creator core: continuity guard.".into(),
+        },
+    })
+}
+
+/// All per-genre domain pipelines (one per genre).
+pub fn pipeline_catalog() -> Vec<PipelineDef> {
+    Genre::all()
+        .iter()
+        .filter_map(|g| select_domain_pipeline(*g))
+        .collect()
+}
+
 /// Build a SynthesisPlan from matched presets: each matched preset becomes a
 /// single-step pipeline in Ring 2 (quality). Multiple matches → a multi-step
 /// pipeline ordered alphabetically by skill_id (deterministic). Depends_on
 /// chains steps within the pipeline.
-fn build_plan(tags: Vec<String>, matched: &[&PresetMeta]) -> SynthesisPlan {
+fn build_plan(tags: Vec<String>, genre: Option<Genre>, matched: &[&PresetMeta]) -> SynthesisPlan {
     if matched.is_empty() {
-        return SynthesisPlan {
-            tags,
-            pipelines: vec![],
-        };
+        let pipelines = genre.and_then(select_domain_pipeline).into_iter().collect();
+        return SynthesisPlan { tags, pipelines };
     }
 
     let steps: Vec<PipelineStep> = matched
@@ -236,8 +288,9 @@ pub fn synthesize(profile: &UserProfile) -> Result<(HarnessBundle, SynthesisPlan
 
     // 2. Match + plan.
     let tags = profile_tags(profile);
+    let genre = profile.candidates.identity.genre.as_ref().map(|g| g.value);
     let matched = select_presets(&tags);
-    let plan = build_plan(tags, &matched);
+    let plan = build_plan(tags, genre, &matched);
 
     // 3. Validate the plan before mutating the bundle.
     validate_plan(&plan)?;
