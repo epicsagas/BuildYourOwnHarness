@@ -4,7 +4,9 @@
 >
 > epiccounty 워크스페이스의 7개 프로젝트를 레퍼런스로 삼아, 그 검증된 빌딩 블록 위에 **"생성 계층(generation layer)"** 을 추가하는 프로젝트 기획 패키지.
 
----
+<p align="center">
+  <img src="assets/features.png" alt="BYOH Features" />
+</p>
 
 ## 🦀 구현 상태 (Implementation)
 
