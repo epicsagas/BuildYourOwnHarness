@@ -12,6 +12,7 @@ use crate::domain::genre::Genre;
 use crate::Result;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::cell::RefCell;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -57,6 +58,29 @@ fn sha256_hex(body: &[u8]) -> String {
 /// `registry/vendored/` for a given repo root.
 pub fn vendored_dir(repo_root: &Path) -> PathBuf {
     repo_root.join("registry").join("vendored")
+}
+
+thread_local! {
+    static VENDOR_ROOT_OVERRIDE: RefCell<Option<PathBuf>> = const { RefCell::new(None) };
+}
+
+/// Override the vendored root for the current thread (tests). `None` clears it.
+pub fn set_vendor_root_override(path: Option<PathBuf>) {
+    VENDOR_ROOT_OVERRIDE.with(|c| *c.borrow_mut() = path);
+}
+
+/// Resolve the repo root for runtime vendored lookup, in priority order:
+/// thread-local test override → `BYOH_VENDOR_DIR` env → the crate root via
+/// `CARGO_MANIFEST_DIR` (source tree / dev). Vendored files live under
+/// `<root>/registry/vendored/` (see [`vendored_dir`]).
+pub fn vendor_root() -> PathBuf {
+    if let Some(p) = VENDOR_ROOT_OVERRIDE.with(|c| c.borrow().clone()) {
+        return p;
+    }
+    if let Ok(p) = std::env::var("BYOH_VENDOR_DIR") {
+        return PathBuf::from(p);
+    }
+    Path::new(env!("CARGO_MANIFEST_DIR")).to_path_buf()
 }
 
 /// `registry/vendored/MANIFEST.toml` for a given repo root.
