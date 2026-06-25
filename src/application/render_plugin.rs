@@ -4,8 +4,10 @@
 //! writes a deployable plugin into `out`. The output dir is `git init`-ready:
 //! a user can push it and anyone who clones gets a working plugin.
 //!
-//! Formats are grounded in real epiccounty reference projects (korean-law-rag,
-//! epic-harness, Velith, obsidian-forge). See the plan doc for the schema map.
+//! Claude/Codex formats are grounded in real epiccounty reference projects
+//! (korean-law-rag, epic-harness, Velith, obsidian-forge). The agy layout
+//! follows the official Antigravity CLI plugin spec (plugin.json marker +
+//! skills/agents/hooks.json/mcp_config.json/rules). See the plan doc.
 
 use std::path::{Path, PathBuf};
 
@@ -294,16 +296,35 @@ fn codex_config_toml(bundle: &HarnessBundle) -> String {
 
 // ─── agy (Antigravity) ──────────────────────────────────────────────────────
 //
-// agy uses a root layout (no .claude-plugin/): agents/, skills/, hooks/, plus
-// MCP config. File formats are Claude-compatible (same SKILL.md / agent.md /
-// hooks.json). This mirrors the user's stated agy convention and is the most
-// broadly compatible interpretation when official docs are inaccessible.
+// Per the official Antigravity CLI plugin spec, a plugin directory contains:
+//   plugin.json        (REQUIRED marker: only {name, description}+$schema —
+//                        additionalProperties:false, so NO extra keys)
+//   mcp_config.json     (optional MCP servers; remote uses `serverUrl`)
+//   hooks.json          (optional pre/post tool hooks)
+//   skills/             (optional <name>.md skills — frontmatter name+description)
+//   agents/             (optional subagent templates)
+//   rules/              (optional codebase rules)
+// Installed under ~/.gemini/antigravity-cli/plugins/<plugin_name>/. We render
+// that plugin directory into `out`.
 
 fn render_agy(bundle: &HarnessBundle, out: &Path) -> Result<()> {
-    // skills/<id>/SKILL.md
+    // plugin.json — REQUIRED marker. Schema is strict (additionalProperties:false):
+    // ONLY name + description (+ $schema). No version/author/etc.
+    let manifest = json!({
+        "$schema": "https://antigravity.google/schemas/v1/plugin.json",
+        "name": format!("byoh-{}", bundle.slug),
+        "description": format!(
+            "BYOH-generated {} harness for '{}'.",
+            bundle.genre.as_str(),
+            bundle.slug
+        ),
+    });
+    crate::store::write_file(out, "plugin.json", &pretty(&manifest))?;
+
+    // skills/<id>/SKILL.md (frontmatter name+description + body).
     write_skills(bundle, out)?;
 
-    // agents/<id>.md (Claude-compatible).
+    // agents/<id>.md subagent templates (frontmatter name+description[+tools]).
     for agent in &bundle.agents {
         crate::store::write_file(
             &out.join("agents"),
@@ -312,21 +333,21 @@ fn render_agy(bundle: &HarnessBundle, out: &Path) -> Result<()> {
         )?;
     }
 
-    // hooks/hooks.json (Claude-compatible shape; agy honors the same convention).
+    // hooks.json at the plugin root (NOT a hooks/ subdir).
     if !bundle.hooks.is_empty() {
         crate::store::write_file(
-            &out.join("hooks"),
+            out,
             "hooks.json",
             &pretty(&hooks_json(bundle, "${PLUGIN_ROOT}", false)),
         )?;
     }
 
-    // MCP config at root.
+    // mcp_config.json (agy's MCP file name — NOT .mcp.json / mcp.json).
     if !bundle.mcp_tools.is_empty() {
-        crate::store::write_file(out, "mcp.json", &pretty(&mcp_servers(bundle)))?;
+        crate::store::write_file(out, "mcp_config.json", &pretty(&mcp_servers(bundle)))?;
     }
 
-    // AGENTS.md root system prompt.
+    // AGENTS.md root system prompt (still useful as a harness overview).
     crate::store::write_file(out, "AGENTS.md", &root_agents_md(bundle))?;
     Ok(())
 }
@@ -381,7 +402,9 @@ fn write_readme(bundle: &HarnessBundle, out: &Path, target: Target) -> Result<()
          plugin-install flow:\n\n\
          - **Claude Code**: the `.claude-plugin/` manifest is auto-discovered.\n\
          - **Codex**: the `.codex-plugin/` manifest + `.codex/` config are auto-discovered.\n\
-         - **agy (Antigravity)**: agents/skills/hooks live at the repo root.\n\n\
+         - **agy (Antigravity)**: `agy plugin install <this-dir>` (the `plugin.json` \
+         marker + skills/agents/hooks.json/mcp_config.json are staged under \
+         `~/.gemini/antigravity-cli/plugins/`).\n\n\
          ## Contents\n\n\
          - Genre: `{genre}`\n\
          - Skills: {n_skills} · Agents: {n_agents}\n\
@@ -477,25 +500,55 @@ mod tests {
     }
 
     #[test]
-    fn render_agy_emits_root_layout() {
+    fn render_agy_emits_plugin_json_and_dirs() {
         let bundle = compile_profile(&confirmed_profile()).unwrap();
         let dir = tempfile::tempdir().unwrap();
         render_agy(&bundle, dir.path()).unwrap();
 
-        // root agents/ and skills/ — NO .claude-plugin/.
+        // plugin.json is REQUIRED and strict: only $schema + name + description.
+        let manifest: Value =
+            serde_json::from_str(&std::fs::read_to_string(dir.path().join("plugin.json")).unwrap())
+                .unwrap();
+        assert_eq!(manifest["name"], "byoh-dev");
+        assert!(manifest["description"].is_string());
+        // additionalProperties:false — must NOT carry version/author/etc.
+        let obj = manifest.as_object().unwrap();
+        let mut keys: Vec<&str> = obj.keys().map(|s| s.as_str()).collect();
+        keys.sort();
+        assert_eq!(
+            keys,
+            vec!["$schema", "description", "name"],
+            "agy plugin.json must be exactly 3 keys"
+        );
+
+        // agents/ + skills/ dirs.
         assert!(dir.path().join("agents/code-reviewer.md").exists());
-        // at least one skill dir
         assert!(
             std::fs::read_dir(dir.path().join("skills"))
                 .unwrap()
                 .count()
                 > 0
         );
-        assert!(
-            !dir.path().join(".claude-plugin").exists(),
-            "agy must not emit .claude-plugin/"
-        );
+        // NOT a Claude/Codex plugin dir.
+        assert!(!dir.path().join(".claude-plugin").exists());
+        assert!(!dir.path().join(".codex-plugin").exists());
         assert!(dir.path().join("AGENTS.md").exists());
+    }
+
+    #[test]
+    fn render_agy_uses_mcp_config_json_name() {
+        let mut bundle = compile_profile(&confirmed_profile()).unwrap();
+        bundle.mcp_tools = vec![crate::domain::bundle::McpTool {
+            name: "byoh-search".into(),
+            description: "search".into(),
+            input_schema: serde_json::json!({"type": "object"}),
+        }];
+        let dir = tempfile::tempdir().unwrap();
+        render_agy(&bundle, dir.path()).unwrap();
+        // agy's MCP file is mcp_config.json (not .mcp.json / mcp.json).
+        assert!(dir.path().join("mcp_config.json").exists());
+        assert!(!dir.path().join(".mcp.json").exists());
+        assert!(!dir.path().join("mcp.json").exists());
     }
 
     #[test]
