@@ -183,10 +183,10 @@ A의 4개 CLI 스텁이 전부 안전하게 실구현됨 — **생성→설치�
 - 커뮤니티 스킬 페치/캐시 (awesomeclaudeplugins 등 — 오프라인 벤딩 경로)
 - 장르 enum 일반화 (현재 4개 고정; `recall.rs` 편향 하드코딩 회귀 위험)
 - 파이프라인 라이브러리 (shorts/research/app-impl 등 도메인 특화)
-- 정식 DAG 순환 감지 (현재 단순 참조 검증만)
+- ~~정식 DAG 순환 감지~~ ✅ 완료 (PR #9 — 3색 DFS, 순서 무관; forward dependency는 유효)
 - **agy 포맷 실검증**: 공식 매뉴얼 반영 완료(plugin.json/mcp_config.json/hooks.json) — 단 실제 `agy plugin install` 동작은 미테스트
 
-**권장 다음 단계**: 코어 루프 + Issue #6(에이전트 재조립)까지 완료. 남은 것은 C의 확장 작업뿐. 우선순위는 커뮤니티 스킬 페치 → 파이프라인 라이브러리 → 장르 enum 일반화. agy `plugin install` 실동작 검증은 실제 agy 환경 확보 시 진행.
+**권장 다음 단계**: 코어 루프 + Issue #6(에이전트 재조립, PR #8) + 정식 DAG 순환 감지(PR #9)까지 완료. 남은 것은 C의 확장 작업뿐. 우선순위는 커뮤니티 스킬 페치 → 파이프라인 라이브러리 → 장르 enum 일반화. agy `plugin install` 실동작 검증은 실제 agy 환경 확보 시 진행.
 
 ## 8. 참조
 
