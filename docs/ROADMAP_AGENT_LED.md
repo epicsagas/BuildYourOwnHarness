@@ -143,15 +143,22 @@ PR #1~#5 전부 `main`에 merge-commit 병합 완료. 스택 브랜치(원격+�
 
 사용자 경험 사슬: `요청 → 인터뷰/RAG → 합성 → 타겟별 플러그인 렌더 → git push로 공개` 까지 완성.
 
-### ⏳ 잔여 항목 (우선순위순)
+### ✅ 코어 루프 완료 (2026-06-25, orbit `remaining-items`)
 
-**A. 핵심 미구현 — UX 마지막 조각 (CLI 스텁)**
-| 항목 | 위치 | 비고 |
-|------|------|------|
-| `install` 실구현 | `main.rs run_install` (스텁) | 렌더된 플러그인을 실제 설치 위치(`~/.claude/plugins/`, `agy plugin install`, `~/.gemini/antigravity-cli/plugins/`)로 배포. 이게 끝나야 "git push 공개" 외에 "로컬 자동 설치"가 닫힘 |
-| `evolve` CLI/MCP 연결 | `main.rs run_evolve` (스텁) | `evolve::run_cycle`은 lib에 구현됨 — CLI/MCP에서 실제 호출만 하면 자가 진화 활성화 |
-| `run` 실구현 | `main.rs run_run` (스텁) | 실행 계층 도구 위임 (현재 메시지만) |
-| `hook` 디스패처 | `main.rs run_hook` (스텁) | Ring 0 훅 실제 디스패치 (현재 no-op) |
+A의 4개 CLI 스텁이 전부 안전하게 실구현됨 — **생성→설치→진화 루프가 닫힘**.
+
+| 항목 | 결과 |
+|------|------|
+| `install` | ✅ `deploy/install.rs` — render→staging→원자적 rename. 기본 프로젝트-로컬 `dist/`, HOME은 `--host` 옵트인. `.byoh-manifest` 마커로 비-BYOH 디렉토리 보호(`--force` 필요). 슬러그 새니타이즈 |
+| `evolve` | ✅ `evolve/state.rs` + `application/evolve_run.rs` — seesaw/stagnation 상태 영속(cycle 간), 정직한 `EvolutionDecision` 출력, Rejected/RolledBack는 **비-0 exit**(기존 "항상 approved" 거짓 수정). malformed 상태는 백업+거부 |
+| `run` | ✅ thin honest — 설치된 플러그인/매니페스트 경로 보고 |
+| `hook` | ✅ 알려진 훅 디스패치, unknown은 에러(비-0 exit) |
+| 공유 validator | ✅ `store::sanitize_slug` (install/evolve/run 공유) |
+| MCP 노출 | ✅ `install_plugin` 도구 신규 + `evolve_cycle`이 영속 상태 사용 |
+
+검증: default/mcp/native-rag,mcp 빌드 green, clippy -D warnings + fmt clean, 153 단위 + 14 e2e + 6 mcp 테스트, E2E(install→dist HOME 무영향, evolve cycle_n 영속, RolledBack→exit 1) 확인.
+
+### ⏳ 남은 후속 (설계상 연기)
 
 **B. 등록된 이슈**
 - [Issue #6](https://github.com/epicsagas/BuildYourOwnHarness/issues/6): agent 프리셋 카탈로그 + synthesis agent 주입 (스킬 프리셋 패턴 미러)
@@ -163,7 +170,7 @@ PR #1~#5 전부 `main`에 merge-commit 병합 완료. 스택 브랜치(원격+�
 - 정식 DAG 순환 감지 (현재 단순 참조 검증만)
 - **agy 포맷 실검증**: 공식 매뉴얼 반영 완료(plugin.json/mcp_config.json/hooks.json) — 단 실제 `agy plugin install` 동작은 미테스트
 
-**권장 다음 단계**: A의 `install` 실구현 → `evolve` 연결. 이 둘이 끝나면 BYOH 코어 루프(생성→설치→진화)가 완전히 닫힘.
+**권장 다음 단계**: 코어 루프가 닫혔으므로, 남은 것은 B/C의 확장 작업뿐. 우선순위는 Issue #6(agent 카탈로그) → 커뮤니티 스킬 페치 → 파이프라인 라이브러리. agy `plugin install` 실동작 검증은 실제 agy 환경 확보 시 진행.
 
 ## 8. 참조
 
