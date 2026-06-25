@@ -57,6 +57,13 @@ indexmap = { version = "2", features = ["serde"] }
 # light (no fastembed/ort model download). Maps to spec R1.
 llm-kernel = { version = "0.9.1", optional = true }
 
+# MCP server (PR #3) — expose BYOH capabilities as a stdio MCP server (`byoh serve`).
+# OPTIONAL: only pulled in via the `mcp` feature so default builds stay light
+# (no async runtime). rmcp = official Rust MCP SDK; schemars = its JSON-schema dep.
+rmcp = { version = "1.8", optional = true, features = ["server", "macros", "transport-io"] }
+tokio = { version = "1", optional = true, features = ["full"] }
+schemars = { version = "1", optional = true }
+
 [dev-dependencies]
 tempfile = "3"
 pretty_assertions = "1"
@@ -70,4 +77,10 @@ native-rag = ["dep:llm-kernel", "llm-kernel/embedding", "llm-kernel/embedding-fa
 # Opt-in: use OpenAI embeddings instead of/in addition to local fastembed.
 # Requires an API key at runtime; off by default (no external LLM calls in default builds).
 rag-openai = ["native-rag", "llm-kernel/embedding-openai"]
+
+# NEW (PR #3): expose BYOH capabilities as a stdio MCP server (`byoh serve`).
+# Pulls in the tokio runtime + rmcp SDK + schemars for tool-param schemas.
+# Default builds stay light (no async runtime) — this is opt-in, inverting
+# control so an LLM agent drives BYOH via MCP tools instead of the CLI.
+mcp = ["dep:rmcp", "dep:tokio", "dep:schemars"]
 

@@ -1,0 +1,22 @@
+# Codex configuration for BYOH.
+# BYOH is driven via its stdio MCP server (`byoh serve`).
+
+[mcp_servers.byoh]
+command = "byoh"
+args = ["serve"]
+
+[instructions]
+instructions = """
+When the user asks to build, create, or customize their own AI agent harness,
+drive the BYOH MCP server (the `byoh` tools): profile_create → profile_scan →
+profile_interview → profile_confirm → rag_index/rag_search → compile →
+compile_dry_run → (optional) registry_clone_skill → (later) evolve_cycle.
+
+Rules:
+- The conversation IS the interview/wizard. Translate the user's natural
+  answers into tool parameters.
+- Do NOT shell out to the `byoh` CLI directly. Only call the MCP tools.
+- Mask anything that looks like a secret before echoing material back.
+- If a tool returns dependency_missing, it is a graceful fallback — explain and
+  continue, do not treat it as a hard error.
+"""

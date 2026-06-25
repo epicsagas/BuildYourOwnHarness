@@ -60,3 +60,44 @@ src/
 
 Rust edition 2021, rust-version 1.82. 주요 크레이트: `clap`(derive), `serde`/`serde_yaml`/`serde_json`/`toml`,
 `anyhow`/`thiserror`, `sha2`, `regex`, `walkdir`, `chrono`, `tracing`. dev: `tempfile`, `pretty_assertions`.
+
+## 7. Agent-Led Mode (PR #3 — 제어권 역전)
+
+BYOH는 **CLI 주도 → LLM 에이전트 주도**로 전환된다. 빈 자리였던 stdio MCP 서버를
+`mcp` cargo 피처로 추가했다.
+
+```
+목표:  LLM 에이전트가 주도 ──호출──> byoh(MCP 도구 = 보조)
+```
+
+### 진입점
+
+- `byoh serve` — stdio MCP 서버. 12개 도구 노출(`profile_*`, `rag_*`, `genre_list`,
+  `compile`, `compile_dry_run`, `evolve_cycle`, `registry_clone_skill`).
+- 플러그인 매니페스트: `.mcp.json`(Claude Code), `.claude-plugin/plugin.json` +
+  `skills/build-harness/SKILL.md`(진입 감지), `.codex/config.toml`(Codex).
+
+### 핵심 규칙
+
+- **대화 = 인터뷰/위자드.** LLM 에이전트와의 대화로 사용자 답변을 수집해 도구에
+  전달한다. 별도 인터랙티브 UI는 구축하지 않는다(스펙 §Out).
+- **에이전트는 CLI를 직접 호출하지 않는다.** MCP 도구만 호출.
+- **복제는 로컬 프리셋 주입만.** `registry/presets/<genre>/<id>.md`를 `include_str!`로
+  임베드 → `inject_preset`이 id 기반 중복 제거(증강/클론). 네트워크 git clone은 제외.
+
+### 모듈
+
+- `src/store.rs` — 영속화 + corpus + embedder 팩토리(binary/lib 공유).
+- `src/mcp/{server,params}.rs` — rmcp 서버(`#[cfg(feature="mcp")]`).
+- `src/deploy/presets.rs` — 로컬 프리셋 로더/인젝터.
+- 도메인 타입은 `Serialize`만 있으므로 MCP 응답은 opaque `serde_json::Value`로 반환
+  (도메인 derive 변경 없음).
+
+### 검증 매트릭스
+
+```bash
+cargo build && cargo test                       # 기본 (비동기 의존 없음)
+cargo build --features mcp && cargo test --features mcp
+cargo build --features native-rag,mcp           # fastembed 경로
+```
+

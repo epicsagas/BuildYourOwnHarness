@@ -4,7 +4,9 @@
 >
 > epiccounty 워크스페이스의 7개 프로젝트를 레퍼런스로 삼아, 그 검증된 빌딩 블록 위에 **"생성 계층(generation layer)"** 을 추가하는 프로젝트 기획 패키지.
 
----
+<p align="center">
+  <img src="assets/features.png" alt="BYOH Features" />
+</p>
 
 ## 🦀 구현 상태 (Implementation)
 
@@ -15,7 +17,7 @@
 ```bash
 cargo build --release            # 단일 바이너리 byoh
 cargo clippy --all-targets -- -D warnings   # 경고 0
-cargo test                       # 단위 + 통합 테스트 (98개)
+cargo test                       # 단위 + 통합 테스트 (129개)
 ./target/release/byoh --help
 ```
 
@@ -31,6 +33,18 @@ byoh install <slug>                      # 부트스트래퍼 기반 설치
 byoh run <slug>                          # 공통 실행 진입점
 byoh evolve <slug>                       # 3중 안전장치 진화 사이클
 ```
+
+### 🤖 에이전트 주도 모드 (MCP 서버)
+
+`byoh serve`(`--features mcp`)가 stdio MCP 서버를 띄워 **LLM 에이전트가 BYOH를 주도**한다 — CLI는 보조로 전환된다(제어권 역전). 12개 도구(`profile_*`, `rag_*`, `genre_list`, `compile`, `compile_dry_run`, `evolve_cycle`, `registry_clone_skill`)를 Claude Code/Cursor/Codex가 `tools/list`로 발견해 호출한다. **대화 자체가 인터뷰/위자드** — 별도 인터랙티브 UI 불필요.
+
+```bash
+cargo build --release --features mcp        # MCP 서버 포함 빌드 (opt-in, 기본은 경량)
+byoh serve                                  # stdio MCP 서버 시작
+# .mcp.json / .claude-plugin/ / .codex/ 매니페스트로 Claude Code·Codex 연결
+```
+
+**로컬 프리셋 복제**: `registry/presets/<genre>/`의 검증 스킬을 `include_str!`로 임베드(네트워크 없음)해 번들에 주입. 생성(generate)과 복제(clone)가 공존 — id 기반 중복 제거. 4장르 7프리셋(developer: tdd/debug, creator: continuity, researcher: evidence/reproducibility, business: decision/plainlanguage).
 
 ### 구현된 요구사항 (R1–R20)
 

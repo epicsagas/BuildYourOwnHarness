@@ -33,10 +33,13 @@ pub mod deploy;
 pub mod domain;
 pub mod evolve;
 pub mod i18n;
+#[cfg(feature = "mcp")]
+pub mod mcp;
 pub mod obs;
 pub mod ports;
 pub mod rag;
 pub mod security;
+pub mod store;
 pub mod templates;
 
 pub use domain::error::{ByohError, Result};
