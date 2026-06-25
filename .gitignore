@@ -327,3 +327,7 @@ $RECYCLE.BIN/
 # End of https://www.toptal.com/developers/gitignore/api/windows,macos,linux,dotenv,visualstudiocode,intellij+all,dotenv,node
 
 stitch-designs/
+
+# Rust build artifacts (BYOH implementation)
+/target/
+**/*.rs.bk

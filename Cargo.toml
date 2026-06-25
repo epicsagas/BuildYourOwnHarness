@@ -1,0 +1,60 @@
+[package]
+name = "byoh"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.82"
+description = "BuildYourOwnHarness — interactive profiling + harness compiler + evolution engine. Generates a personalized AI agent harness from a user's tacit knowledge, data sources, genre, and goals."
+license = "Apache-2.0"
+repository = "https://github.com/epicsagas/BuildYourOwnHarness"
+homepage = "https://github.com/epicsagas/BuildYourOwnHarness"
+readme = "README.md"
+keywords = ["ai", "agent-harness", "compiler", "profiling", "mcp"]
+categories = ["command-line-utilities", "config"]
+
+[[bin]]
+name = "byoh"
+path = "src/main.rs"
+
+[lib]
+name = "byoh"
+path = "src/lib.rs"
+
+[dependencies]
+# CLI
+clap = { version = "4.5", features = ["derive", "env"] }
+
+# Serialization (YAML frontmatter profiles, JSON bundles/MCP, TOML configs)
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+toml = "0.8"
+
+# Errors
+anyhow = "1"
+thiserror = "1"
+
+# Paths / globbing / walk for non-destructive autoscan
+walkdir = "2"
+
+# Regex (citation extraction, secret masking)
+regex = "1"
+
+# Time (timestamps, decay/recency, crash staleness)
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+
+# Hashing (source_profile_hash, provenance)
+sha2 = "0.10"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Misc
+indexmap = { version = "2", features = ["serde"] }
+
+[dev-dependencies]
+tempfile = "3"
+pretty_assertions = "1"
+
+[features]
+default = []
