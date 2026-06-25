@@ -144,25 +144,33 @@ fn render_hook(id: &str) -> HookSpec {
 }
 
 fn render_mcp_tool(bp: &str, genre: Genre) -> McpTool {
+    // B4: self-describing description that also tells the agent WHERE results
+    // come from. After RAG integration, every genre tool resolves through BYOH's
+    // native RAG (`byoh search`) — no external alcove dependency required.
     let description = match (bp, genre) {
         ("search_draft_continuity", Genre::Creator) => {
             "Search the novel draft for character/setting/plot continuity. Call this when the \
-             user asks about foreshadowing or a character's arc. Results come from the creator \
-             genre RAG index."
+             user asks about foreshadowing or a character's arc. Backed by BYOH native RAG \
+             (creator genre index via `byoh search --genre creator`)."
                 .to_string()
         }
         ("search_code", Genre::Developer) => {
             "Search the codebase for symbols/definitions. Call this when the user asks 'where is \
-             X defined'. Results come from the developer genre index."
+             X defined'. Backed by BYOH native RAG (developer genre index via `byoh search \
+             --genre developer`)."
                 .to_string()
         }
         ("search_citations", Genre::Researcher) => {
-            "Search indexed citations for a claim. Call this when verifying a source.".to_string()
+            "Search indexed citations for a claim. Call this when verifying a source. Backed by \
+             BYOH native RAG (researcher genre index)."
+                .to_string()
         }
         ("search_decisions", Genre::Business) => {
-            "Search the decision log. Call this when reviewing past ROI decisions.".to_string()
+            "Search the decision log. Call this when reviewing past ROI decisions. Backed by \
+             BYOH native RAG (business genre index)."
+                .to_string()
         }
-        _ => format!("Tool blueprint {bp} for {genre}."),
+        _ => format!("Tool blueprint {bp} for {genre}. Backed by BYOH native RAG."),
     };
     McpTool {
         name: bp.to_string(),

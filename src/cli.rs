@@ -53,6 +53,43 @@ pub enum Command {
     Run { slug: String },
     /// Run one evolution cycle.
     Evolve { slug: String },
+    /// Build a genre RAG index from a corpus directory (BYOH native RAG).
+    Index {
+        /// Slug whose data sources to index.
+        slug: String,
+        /// Genre index to build (developer|creator|researcher|business).
+        #[arg(long)]
+        genre: String,
+        /// Corpus directory of text/markdown files to index.
+        #[arg(long)]
+        corpus: PathBuf,
+        /// BYOH home root (indexes go under <root>/indexes/).
+        #[arg(long, default_value = ".byoh")]
+        home: PathBuf,
+        /// Chunk max-tokens.
+        #[arg(long, default_value_t = 256)]
+        max_tokens: usize,
+        /// Chunk overlap.
+        #[arg(long, default_value_t = 32)]
+        overlap: usize,
+    },
+    /// Hybrid search a genre RAG index (vector → BM25 → grep).
+    Search {
+        /// Slug to search.
+        slug: String,
+        /// Natural-language query.
+        query: String,
+        #[arg(long)]
+        genre: String,
+        #[arg(long, default_value = ".byoh")]
+        home: PathBuf,
+        /// Number of hits to return.
+        #[arg(long, default_value_t = 5)]
+        k: usize,
+        /// Corpus directory (for BM25/grep fallback tiers).
+        #[arg(long)]
+        corpus: Option<PathBuf>,
+    },
     /// Hook dispatcher (called by Ring 0 hooks).
     Hook { name: String },
 }
