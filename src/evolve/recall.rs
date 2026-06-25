@@ -31,39 +31,56 @@ impl RecallWeights {
     pub fn for_genre(genre: Genre) -> Self {
         let mut w = Self::baseline();
         // business/researcher/creator raise importance at recency's expense.
-        let shift = match genre {
-            Genre::Developer => 0.0,
-            Genre::Researcher => 0.05,
-            Genre::Creator => 0.05,
-            Genre::Business => 0.10,
-        };
+        let shift = genre_profile(genre).importance_shift;
         w.importance += shift;
         w.recency -= shift;
         w
     }
 }
 
-/// Per-genre recency half-life in days (ARCH §7.2 table).
-pub fn recency_halflife_days(genre: Genre) -> i64 {
+/// Per-genre recall tuning — single source for the three parameters below.
+#[derive(Debug, Clone, Copy)]
+struct GenreProfile {
+    importance_shift: f64,
+    recency_halflife_days: i64,
+    importance_multiplier: f64,
+}
+
+fn genre_profile(genre: Genre) -> GenreProfile {
     use Genre::*;
     match genre {
-        Developer => 30,
-        Researcher => 90,
-        Creator => 180,
-        Business => 14,
+        Developer => GenreProfile {
+            importance_shift: 0.0,
+            recency_halflife_days: 30,
+            importance_multiplier: 1.0,
+        },
+        Researcher => GenreProfile {
+            importance_shift: 0.05,
+            recency_halflife_days: 90,
+            importance_multiplier: 1.1,
+        },
+        Creator => GenreProfile {
+            importance_shift: 0.05,
+            recency_halflife_days: 180,
+            importance_multiplier: 1.1,
+        },
+        Business => GenreProfile {
+            importance_shift: 0.10,
+            recency_halflife_days: 14,
+            importance_multiplier: 1.2,
+        },
     }
+}
+
+/// Per-genre recency half-life in days (ARCH §7.2 table).
+pub fn recency_halflife_days(genre: Genre) -> i64 {
+    genre_profile(genre).recency_halflife_days
 }
 
 /// Importance defaults per genre (ARCH §7.2). The `importance` input is the
 /// caller-supplied type importance; this returns the genre multiplier.
 pub fn importance_multiplier(genre: Genre) -> f64 {
-    use Genre::*;
-    match genre {
-        Developer => 1.0,
-        Researcher => 1.1,
-        Creator => 1.1,
-        Business => 1.2,
-    }
+    genre_profile(genre).importance_multiplier
 }
 
 /// Compute the composite recall score. All inputs are expected normalized 0..1.
