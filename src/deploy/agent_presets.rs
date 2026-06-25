@@ -174,6 +174,8 @@ pub fn agent_matches(meta: &AgentPresetMeta, tags: &[String]) -> bool {
     })
 }
 
+// NOTE: parse_frontmatter + agent_matches mirror deploy/presets.rs. Extract a
+// shared module when a THIRD preset-style type is added (e.g. hooks/pipeline).
 /// Parse minimal YAML frontmatter (`name:` / `description:`) + markdown body.
 /// Returns `(name, description, body_markdown)`. Falls back to the agent_id and
 /// an empty description if frontmatter is absent. Shared shape with the skill
