@@ -181,9 +181,20 @@ fn parse_frontmatter(raw: &str, fallback_id: &str) -> (String, String, String) {
 /// - **Clone**: otherwise append a new `SkillSpec` in Ring 2 (quality).
 ///
 /// Either way the result is deduplicated by `id` — generate + clone coexist.
+/// Prefer a vendored body for `(genre, skill_id)` (offline file read; files are
+/// committed), else the compiled preset. Lets `byoh vendor add` override or
+/// enrich skills in synthesis.
+fn vendored_or_raw(genre: Genre, skill_id: &str) -> Result<String> {
+    let root = crate::deploy::vendor::vendor_root();
+    if let Some(body) = crate::deploy::vendor::vendored_body(&root, genre, skill_id) {
+        return Ok(body);
+    }
+    Ok(raw_preset(genre, skill_id)?.to_string())
+}
+
 pub fn inject_preset(bundle: &mut HarnessBundle, genre: Genre, skill_id: &str) -> Result<()> {
-    let raw = raw_preset(genre, skill_id)?;
-    let (name, description, body) = parse_frontmatter(raw, skill_id);
+    let raw = vendored_or_raw(genre, skill_id)?;
+    let (name, description, body) = parse_frontmatter(&raw, skill_id);
 
     if let Some(existing) = bundle.skills.iter_mut().find(|s| s.id == skill_id) {
         existing.name = name;
@@ -320,5 +331,36 @@ mod tests {
             .body_markdown
             .to_lowercase()
             .contains("opportunity cost"));
+    }
+
+    #[test]
+    fn inject_prefers_vendored_body() {
+        // Vendored override (thread-local → parallel-safe) should win over the
+        // compiled preset for the same (genre, skill_id).
+        use crate::deploy::vendor::set_vendor_root_override;
+        let dir = tempfile::tempdir().unwrap();
+        let gdir = dir
+            .path()
+            .join("registry")
+            .join("vendored")
+            .join("developer");
+        std::fs::create_dir_all(&gdir).unwrap();
+        std::fs::write(
+            gdir.join("tdd.md"),
+            "---\nname: Vendored TDD\ndescription: override\n---\n# Vendored\n\nrich body",
+        )
+        .unwrap();
+        set_vendor_root_override(Some(dir.path().to_path_buf()));
+        let p = confirmed_developer_profile();
+        let mut bundle = compile_profile(&p).unwrap();
+        inject_preset(&mut bundle, Genre::Developer, "tdd").unwrap();
+        set_vendor_root_override(None);
+        let tdd = bundle.skills.iter().find(|s| s.id == "tdd").unwrap();
+        assert!(
+            tdd.body_markdown.contains("Vendored") || tdd.name == "Vendored TDD",
+            "got name={} body={}",
+            tdd.name,
+            tdd.body_markdown
+        );
     }
 }
