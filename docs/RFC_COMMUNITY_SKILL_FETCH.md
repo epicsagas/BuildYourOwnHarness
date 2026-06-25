@@ -79,14 +79,41 @@ spec §Out "no remote registry"는 **"런타임 원격 조회 없음"**으로 �
 - **M2** — 보안 검증(정적 분석 + 체크섬 + 허용목록).
 - **M3** — awesomeclaueplugins 카탈로그 스키마 매핑(소스 구조 조사 후).
 
-## 9. 구현 전 조사 항목
+## 9. 조사 결과 (2026-06-25)
 
-- **awesomeclaudeplugins** repo의 실제 구조/스키마(marketplace manifest? 단일 스킬 단위?).
-- 라이선스 분포(MIT/Apache/비허가).
-- Claude Code/agi 플러그인 포맷과 BYOH 스킬 포맷(SKILL.md 4섹션)의 매핑.
+`awesomeclaudeplugins`라는 단일 repo는 없다 — **복수 소스 생태계**다. 주요 소스:
+
+| 소스 | ⭐ | 성격 |
+|------|---|------|
+| `anthropics/claude-plugins-official` | 31k | **Anthropic 공식 디렉토리** (1차 신뢰 소스) |
+| `hesreallyhim/awesome-claude-code` | 47k | 큐레이티드 리스트 |
+| `wshobson/agents` | 37k | 멀티하네스 플러그인 마켓플레이스 |
+| `VoltAgent/awesome-claude-code-subagents` | 22k | 서브에이전트 컬렉션 |
+| `travisvn/awesome-claude-skills` | 14k | 스킬 큐레이션 |
+
+### 공식 스키마 (anthropics/claude-plugins-official)
+플러그인 표준 구조:
+```
+plugin-name/
+├── .claude-plugin/plugin.json   # metadata (필수)
+├── skills/  agents/  commands/  # 콘텐츠
+├── .mcp.json                    # (옵션)
+└── README.md
+```
+페치 모델: `source: { source: "git-subdir", url, path, ref, sha }` — git 서브디렉토리 + **sha 고정**(재현성).
+skill-bundle: `plugin.json` 없이 `SKILL.md`만 있는 소스는 마켓플레이스 항목이 `strict: false` + `skills: [...]` 배열로 선언.
+
+### BYOH 호환성
+커뮤니티 스킬 = Claude Code 표준 `SKILL.md` = **BYOH 스킬 형식과 동일**. 변환/래핑 최소 — `SKILL.md`를 그대로 `registry/vendored/<genre>/<id>.md`로 가져올 수 있다.
+
+### M1 설계 고정 (조사 반영)
+- 소스: 공식 디렉토리 우선(`anthropics/claude-plugins-official`), 큐레이션 소스 옵션.
+- 페치: `git-subdir`(url + path + ref + **sha**) → `registry/vendored/` + `MANIFEST.toml`(sha 기록).
+- 매핑: `plugin.json`의 `category`/메타데이터 → BYOH genre 추정(사용자 확인 또는 `--genre`).
+- 라이선스: `plugin.json`/README에서 추출 → MANIFEST 기록.
 
 ## 10. 결론
 
 **옵션 A(빌드 타임 벤더링)**으로 오프라인 원칙을 유지하면서 커뮤니티 스킬을 통합한다.
-보안(Ring 3 격리 · 정적 검증 · 체크섬 · 허용목록)이 구현의 선행 조건이며, M1 직전에
-awesomeclaudeplugins 소스 구조 조사가 필요하다. 런타임 페치(옵션 B)는 기각.
+보안(Ring 3 격리 · 정적 검증 · 체크섬 · 허용목록)이 구현의 선행 조건이다. 소스 구조 조사는
+완료(§9) — M1 설계 고정. 런타임 페치(옵션 B)는 기각.
