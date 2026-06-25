@@ -17,6 +17,8 @@ use crate::domain::bundle::HarnessBundle;
 use crate::domain::error::ByohError;
 use crate::domain::profile::UserProfile;
 use crate::domain::synthesis::{PipelineDef, PipelineStep, SynthesisPlan};
+use std::collections::HashMap;
+
 use crate::Result;
 
 /// Derive keyword tags from a confirmed profile: genre, primary-expertise terms,
@@ -122,17 +124,25 @@ fn validate_plan(plan: &SynthesisPlan) -> Result<()> {
 
     for pipe in &plan.pipelines {
         let step_ids: Vec<&str> = pipe.steps.iter().map(|s| s.skill_id.as_str()).collect();
-        for (i, step) in pipe.steps.iter().enumerate() {
-            if !known.iter().any(|k| *k == step.skill_id) {
+        for step in &pipe.steps {
+            if !known.contains(&step.skill_id.as_str()) {
                 unresolved.push(format!("{}:{}", pipe.id, step.skill_id));
             }
-            // depends_on must reference an earlier step in THIS pipeline.
+            // depends_on must reference a step present in THIS pipeline. Order is
+            // irrelevant — the cycle check below rejects genuine back-edges.
             for dep in &step.depends_on {
-                let earlier = step_ids[..i].iter().any(|id| *id == dep);
-                if !earlier {
+                if !step_ids.contains(&dep.as_str()) {
                     bad_deps.push(format!("{}:{}→{}", pipe.id, step.skill_id, dep));
                 }
             }
+        }
+        // Formal cycle detection (order-independent) over step -> depends_on.
+        if let Some(cycle) = detect_cycle(&pipe.steps) {
+            return Err(ByohError::Other(format!(
+                "synthesis plan invalid — cycle in '{}': {}",
+                pipe.id,
+                cycle.join(" -> ")
+            )));
         }
     }
 
@@ -144,6 +154,67 @@ fn validate_plan(plan: &SynthesisPlan) -> Result<()> {
         )));
     }
     Ok(())
+}
+
+/// Detect a cycle in one pipeline's `step.depends_on` graph (skill_id -> dep).
+/// Returns the cyclic node path (closing the loop) if one exists, else `None`.
+/// Order-independent: a forward or back reference is not a cycle on its own.
+fn detect_cycle(steps: &[PipelineStep]) -> Option<Vec<String>> {
+    let adj: HashMap<&str, Vec<&str>> = steps
+        .iter()
+        .map(|s| {
+            (
+                s.skill_id.as_str(),
+                s.depends_on.iter().map(|d| d.as_str()).collect(),
+            )
+        })
+        .collect();
+    // 3-color DFS: 0 = unvisited, 1 = on-stack (gray), 2 = done (black).
+    let mut color: HashMap<&str, u8> = HashMap::new();
+    let mut path: Vec<&str> = Vec::new();
+    for start in steps.iter().map(|s| s.skill_id.as_str()) {
+        if color.get(start).copied().unwrap_or(0) == 0 {
+            if let Some(cycle) = dfs_cycle(start, &adj, &mut color, &mut path) {
+                return Some(cycle);
+            }
+        }
+    }
+    None
+}
+
+/// DFS step of cycle detection. On a back-edge to a gray (on-stack) node,
+/// returns the closed cycle path, e.g. `["tdd", "debug", "tdd"]`.
+fn dfs_cycle<'a>(
+    node: &'a str,
+    adj: &HashMap<&'a str, Vec<&'a str>>,
+    color: &mut HashMap<&'a str, u8>,
+    path: &mut Vec<&'a str>,
+) -> Option<Vec<String>> {
+    color.insert(node, 1);
+    path.push(node);
+    if let Some(nbrs) = adj.get(node) {
+        for &nb in nbrs {
+            match color.get(nb).copied().unwrap_or(0) {
+                1 => {
+                    // Back-edge to a node on the current stack → cycle.
+                    let start = path.iter().position(|&p| p == nb).unwrap();
+                    let mut cycle: Vec<String> =
+                        path[start..].iter().map(|s| s.to_string()).collect();
+                    cycle.push(nb.to_string()); // close the loop
+                    return Some(cycle);
+                }
+                0 => {
+                    if let Some(c) = dfs_cycle(nb, adj, color, path) {
+                        return Some(c);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    path.pop();
+    color.insert(node, 2);
+    None
 }
 
 /// Assemble a synthesized bundle from a confirmed profile.
@@ -360,12 +431,13 @@ mod tests {
     }
 
     #[test]
-    fn validate_plan_rejects_forward_dependency() {
-        // step 1 depends on step 2 (not earlier) → invalid.
+    fn validate_plan_accepts_forward_dependency() {
+        // A forward reference (step 1 depends on step 2) is NOT a cycle. Order
+        // is irrelevant under formal DAG detection, so this is now valid.
         let plan = SynthesisPlan {
             tags: vec![],
             pipelines: vec![PipelineDef {
-                id: "bad".into(),
+                id: "ok".into(),
                 ring: crate::domain::bundle::Ring::Ring2,
                 steps: vec![
                     PipelineStep {
@@ -382,7 +454,83 @@ mod tests {
                 description: String::new(),
             }],
         };
-        assert!(validate_plan(&plan).is_err());
+        assert!(validate_plan(&plan).is_ok());
+    }
+
+    #[test]
+    fn validate_plan_rejects_direct_cycle() {
+        // tdd -> debug -> tdd is a cycle.
+        let plan = SynthesisPlan {
+            tags: vec![],
+            pipelines: vec![PipelineDef {
+                id: "cyc".into(),
+                ring: crate::domain::bundle::Ring::Ring2,
+                steps: vec![
+                    PipelineStep {
+                        skill_id: "tdd".into(),
+                        order: 1,
+                        depends_on: vec!["debug".into()],
+                    },
+                    PipelineStep {
+                        skill_id: "debug".into(),
+                        order: 2,
+                        depends_on: vec!["tdd".into()],
+                    },
+                ],
+                description: String::new(),
+            }],
+        };
+        let err = validate_plan(&plan).unwrap_err().to_string();
+        assert!(err.contains("cycle"), "got: {err}");
+        // Names both nodes of the cycle.
+        assert!(err.contains("tdd") && err.contains("debug"), "got: {err}");
+    }
+
+    #[test]
+    fn validate_plan_rejects_self_loop() {
+        let plan = SynthesisPlan {
+            tags: vec![],
+            pipelines: vec![PipelineDef {
+                id: "loop".into(),
+                ring: crate::domain::bundle::Ring::Ring2,
+                steps: vec![PipelineStep {
+                    skill_id: "tdd".into(),
+                    order: 1,
+                    depends_on: vec!["tdd".into()],
+                }],
+                description: String::new(),
+            }],
+        };
+        let err = validate_plan(&plan).unwrap_err().to_string();
+        assert!(err.contains("cycle"), "got: {err}");
+    }
+
+    #[test]
+    fn validate_plan_accepts_diamond_order_independent() {
+        // Diamond: a->b, a->c, b->d, c->d. Valid. Steps are listed OUT of order
+        // to prove detection is order-independent — the old earlier-step check
+        // would have rejected d's deps.
+        use crate::domain::bundle::Ring;
+        let mk = |id: &str, order: u32, deps: &[&str]| PipelineStep {
+            skill_id: id.into(),
+            order,
+            depends_on: deps.iter().map(|d| (*d).into()).collect(),
+        };
+        let plan = SynthesisPlan {
+            tags: vec![],
+            pipelines: vec![PipelineDef {
+                id: "diamond".into(),
+                ring: Ring::Ring2,
+                steps: vec![
+                    mk("evidence", 4, &["debug", "continuity"]), // d
+                    mk("tdd", 1, &[]),                           // a
+                    mk("debug", 2, &["tdd"]),                    // b
+                    mk("continuity", 3, &["tdd"]),               // c
+                ],
+                description: String::new(),
+            }],
+        };
+        assert!(validate_plan(&plan).is_ok(), "valid diamond must pass");
     }
 
     #[test]
