@@ -53,12 +53,14 @@ flowchart LR
 ```
 main
  └── PR #1  feat/byoh-full-impl      (생성 계층 — 컴파일러/진화/프로파일)  ← 병합 대기
-      └── PR #2  feat/byoh-native-rag (자체 RAG — llm-kernel 직접 의존)   ← 병합 대기 (이 브랜치)
-           └── PR #3  feat/byoh-agent-led (에이전트 주도 — MCP 서버 + 플러그인 + 복제)  ← 다음
+      └── PR #2  feat/byoh-native-rag (자체 RAG — llm-kernel 직접 의존)   ← 병합 대기
+           └── PR #3  feat/byoh-agent-led (에이전트 주도 — MCP 서버 + 플러그인 + 복제)  ← 병합 대기
+                └── PR #4  orbit-synthesis-engine (합성 엔진 — 레지스트리 재조립)  ← 병합 대기
 ```
 
-- PR #1 머지 → PR #2 자동 main 리베이스 → PR #2 머지 → PR #3 자동 main 리베이스
+- PR #1 머지 → PR #2 자동 main 리베이스 → … → PR #4 자동 main 리베이스
 - 각 PR은 독립된 아키텍처 결정 단위. 합치지 않는다.
+- **PR #4(합성 엔진)**: PR #3의 "에이전트 주도" 위에 "레지스트리 스킬 재조립 → 고유 하네스" 비전의 첫 구현. Council 오르빗으로 생성. 상세는 PR #4 본문.
 
 ## 5. PR #3 상세 — `feat/byoh-agent-led`
 
