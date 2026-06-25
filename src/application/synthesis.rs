@@ -11,6 +11,7 @@
 //! gates. Failures are graceful (`ByohError`), never panics.
 
 use crate::compiler::{compile_profile, static_gate};
+use crate::deploy::agent_presets::{agent_catalog, agent_matches, inject_agent, AgentPresetMeta};
 use crate::deploy::presets::{inject_preset, preset_catalog, preset_matches, PresetMeta};
 use crate::domain::bundle::HarnessBundle;
 use crate::domain::error::ByohError;
@@ -59,6 +60,18 @@ pub fn select_presets(tags: &[String]) -> Vec<&'static PresetMeta> {
         .filter(|m| preset_matches(m, tags))
         .collect();
     matched.sort_by(|a, b| (a.genre.as_str(), a.skill_id).cmp(&(b.genre.as_str(), b.skill_id)));
+    matched
+}
+
+/// Select agent presets from the local catalog whose keywords match any profile
+/// tag. Mirrors [`select_presets`] for agents. Stable-ordered by
+/// (genre, agent_id) for reproducibility.
+pub fn select_agents(tags: &[String]) -> Vec<&'static AgentPresetMeta> {
+    let mut matched: Vec<&AgentPresetMeta> = agent_catalog()
+        .iter()
+        .filter(|m| agent_matches(m, tags))
+        .collect();
+    matched.sort_by(|a, b| (a.genre.as_str(), a.agent_id).cmp(&(b.genre.as_str(), b.agent_id)));
     matched
 }
 
@@ -182,6 +195,17 @@ pub fn synthesize(profile: &UserProfile) -> Result<(HarnessBundle, SynthesisPlan
         }
     }
 
+    // 4b. Recombine the AGENT set (Issue #6). Matched agent presets are
+    //     injected on top of the genre-default agents. inject_agent dedupes by
+    //     id (augment-or-clone), so a matched default agent is enriched with the
+    //     vetted body while a newly-matched agent (e.g. tech-debt-auditor) is
+    //     cloned in. The result is a *recombined* agent set, not just the genre
+    //     default — the same treatment skills already get.
+    let base_agent_count = bundle.agents.len();
+    for meta in select_agents(&plan.tags) {
+        inject_agent(&mut bundle, meta.genre, meta.agent_id)?;
+    }
+
     // 5. Record the plan (reproducibility).
     bundle.config.extra.insert(
         "synthesis_plan".to_string(),
@@ -191,8 +215,15 @@ pub fn synthesize(profile: &UserProfile) -> Result<(HarnessBundle, SynthesisPlan
         "synthesis_base_skill_count".to_string(),
         base_skill_count.to_string(),
     );
+    bundle.config.extra.insert(
+        "synthesis_base_agent_count".to_string(),
+        base_agent_count.to_string(),
+    );
 
     // 6. Re-gate: synthesis must not bypass safety gates (Critic invariant).
+    //    Scope: static_gate checks MCP schema / HookInput / safety-gate presence
+    //    only — it does not inspect agent bodies. So this re-gate guards the
+    //    bundle's structural invariants, not the injected agent content.
     let report = static_gate(&bundle)?;
     if !report.passed() {
         return Err(ByohError::ValidationGateFailed {
@@ -352,6 +383,79 @@ mod tests {
             }],
         };
         assert!(validate_plan(&plan).is_err());
+    }
+
+    #[test]
+    fn select_agents_matches_by_keyword() {
+        let tags = vec!["evidence".into(), "citation".into()];
+        let matched = select_agents(&tags);
+        let ids: Vec<&str> = matched.iter().map(|m| m.agent_id).collect();
+        assert!(
+            ids.contains(&"research-analyst"),
+            "evidence/citation tags should match research-analyst"
+        );
+    }
+
+    #[test]
+    fn select_agents_stable_order() {
+        // Same tags → same order; ordered by (genre, agent_id).
+        let tags = vec!["code".into(), "review".into(), "debug".into()];
+        let a = select_agents(&tags);
+        let b = select_agents(&tags);
+        assert_eq!(
+            a.iter().map(|m| m.agent_id).collect::<Vec<_>>(),
+            b.iter().map(|m| m.agent_id).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn synthesize_recombines_agent_set() {
+        // A developer profile with a "debt/refactor" tag should pull in
+        // tech-debt-auditor — an agent NOT in the genre defaults — proving the
+        // synthesized agent set is recombined, not just the genre default.
+        let p = confirmed_profile(
+            "d",
+            Genre::Developer,
+            &["backend", "rust"],
+            "pay down tech debt and refactor",
+        );
+        let (bundle, plan) = synthesize(&p).expect("synthesis should succeed");
+
+        // tech-debt-auditor matched via "debt"/"refactor" tags → cloned in.
+        assert!(
+            bundle.agents.iter().any(|a| a.id == "tech-debt-auditor"),
+            "recombined agent set should include tech-debt-auditor"
+        );
+        // Plan recorded; base agent count recorded for reproducibility.
+        assert!(bundle.config.extra.contains_key("synthesis_plan"));
+        assert!(bundle
+            .config
+            .extra
+            .contains_key("synthesis_base_agent_count"));
+        // The matched agents are a subset of the plan's tag-driven selection.
+        let selected: Vec<&str> = select_agents(&plan.tags)
+            .iter()
+            .map(|m| m.agent_id)
+            .collect();
+        assert!(!selected.is_empty());
+    }
+
+    #[test]
+    fn synthesize_enriches_genre_default_agent_body() {
+        // A developer profile matches `debugger` (a genre default) → the
+        // default stub body must be augmented with the richer preset body.
+        let p = confirmed_profile("d", Genre::Developer, &["backend"], "debug a failing test");
+        let (bundle, _) = synthesize(&p).expect("synthesis should succeed");
+        let dbg = bundle
+            .agents
+            .iter()
+            .find(|a| a.id == "debugger")
+            .expect("debugger present");
+        assert!(
+            dbg.body_markdown.contains("Reproduce"),
+            "genre-default debugger should be augmented with the preset body"
+        );
+        assert_eq!(dbg.name, "Debugger");
     }
 
     #[test]

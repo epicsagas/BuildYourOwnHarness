@@ -158,10 +158,26 @@ A의 4개 CLI 스텁이 전부 안전하게 실구현됨 — **생성→설치�
 
 검증: default/mcp/native-rag,mcp 빌드 green, clippy -D warnings + fmt clean, 153 단위 + 14 e2e + 6 mcp 테스트, E2E(install→dist HOME 무영향, evolve cycle_n 영속, RolledBack→exit 1) 확인.
 
+### ✅ Issue #6 완료 (2026-06-25) — agent 프리셋 카탈로그 + synthesis 주입
+
+스킬 프리셋 패턴(`deploy/presets.rs`)을 **에이전트**로 미러링. 합성 엔진이 이제 스킬뿐 아니라 **에이전트**도 프로파일 키워드로 재조립한다 — 장르 기본 에이전트 위에 매칭된 에이전트를 augment/clone.
+
+| 항목 | 결과 |
+|------|------|
+| 에이전트 프리셋 마크다운 | ✅ `registry/agents/<genre>/<id>.md` — 7개(developer 3 / creator 2 / researcher 1 / business 1), `include_str!` 컴파일 타임 임베드, SKILL 4섹션 스타일 |
+| `agent_catalog()` + `AgentPresetMeta` | ✅ 키워드 태그 카탈로그(`deploy/agent_presets.rs`) |
+| `inject_agent()` | ✅ id 기반 dedupe — 기존 에이전트는 augment(본문/이름/설명 교체), 미존재는 clone. 멱등 |
+| synthesis 통합 | ✅ `select_agents()` + `synthesize()` 4b 단계에서 매칭 에이전트 주입, `synthesis_base_agent_count` 기록(재현성) |
+| 안전 | ✅ 합성 후 `static_gate` 재실행 유지 — 3중 안전장치 우회 불가 |
+
+부수 수정: `tests/mcp_tools.rs` 가 프로세스 전역 env(`BYOH_HOME`/`BYOH_DIST_DIR`)를 병렬 조작해 간헐 실패하던 숨은 결함을 `serial_test` 직렬화로 정정(main에서 타이밍 운으로 통과했던 것).
+
+검증: default 165 단위 + 14 e2e + (mcp) 6 mcp_tools 전부 green, fmt clean, clippy -D warnings clean(default + mcp), native-rag,mcp 빌드 green.
+
 ### ⏳ 남은 후속 (설계상 연기)
 
 **B. 등록된 이슈**
-- [Issue #6](https://github.com/epicsagas/BuildYourOwnHarness/issues/6): agent 프리셋 카탈로그 + synthesis agent 주입 (스킬 프리셋 패턴 미러)
+- ~~[Issue #6](https://github.com/epicsagas/BuildYourOwnHarness/issues/6): agent 프리셋 카탈로그 + synthesis agent 주입 (스킬 프리셋 패턴 미러)~~ ✅ 완료 (아래 "Issue #6 완료" 섹션 참조)
 
 **C. 합성/렌더러 후속 (설계상 연기)**
 - 커뮤니티 스킬 페치/캐시 (awesomeclaudeplugins 등 — 오프라인 벤딩 경로)
@@ -170,7 +186,7 @@ A의 4개 CLI 스텁이 전부 안전하게 실구현됨 — **생성→설치�
 - 정식 DAG 순환 감지 (현재 단순 참조 검증만)
 - **agy 포맷 실검증**: 공식 매뉴얼 반영 완료(plugin.json/mcp_config.json/hooks.json) — 단 실제 `agy plugin install` 동작은 미테스트
 
-**권장 다음 단계**: 코어 루프가 닫혔으므로, 남은 것은 B/C의 확장 작업뿐. 우선순위는 Issue #6(agent 카탈로그) → 커뮤니티 스킬 페치 → 파이프라인 라이브러리. agy `plugin install` 실동작 검증은 실제 agy 환경 확보 시 진행.
+**권장 다음 단계**: 코어 루프 + Issue #6(에이전트 재조립)까지 완료. 남은 것은 C의 확장 작업뿐. 우선순위는 커뮤니티 스킬 페치 → 파이프라인 라이브러리 → 장르 enum 일반화. agy `plugin install` 실동작 검증은 실제 agy 환경 확보 시 진행.
 
 ## 8. 참조
 

@@ -14,6 +14,7 @@
 use byoh::mcp::params::*;
 use byoh::mcp::server::{ByohContext, ByohServer};
 use rmcp::handler::server::wrapper::Parameters;
+use serial_test::serial;
 use std::collections::HashMap;
 
 fn server() -> ByohServer {
@@ -30,6 +31,7 @@ fn server() -> ByohServer {
     })
 }
 
+#[serial]
 #[tokio::test]
 async fn genre_list_returns_four_genres() {
     let s = server();
@@ -37,6 +39,7 @@ async fn genre_list_returns_four_genres() {
     assert!(!res.is_error.unwrap_or(false));
 }
 
+#[serial]
 #[tokio::test]
 async fn agent_led_flow_create_confirm_compile_clone() {
     let s = server();
@@ -100,6 +103,7 @@ async fn agent_led_flow_create_confirm_compile_clone() {
     );
 }
 
+#[serial]
 #[tokio::test]
 async fn rag_search_grep_tier_without_corpus() {
     let s = server();
@@ -115,6 +119,7 @@ async fn rag_search_grep_tier_without_corpus() {
     assert!(!res.is_error.unwrap_or(false));
 }
 
+#[serial]
 #[tokio::test]
 async fn rag_index_with_small_corpus() {
     let s = server();
@@ -138,6 +143,7 @@ async fn rag_index_with_small_corpus() {
     assert!(!res.is_error.unwrap_or(false), "rag_index should succeed");
 }
 
+#[serial]
 #[test]
 fn evolve_cycle_runs_under_safety_gates() {
     let s = server();
@@ -155,6 +161,7 @@ fn evolve_cycle_runs_under_safety_gates() {
     assert!(!res.is_error.unwrap_or(false));
 }
 
+#[serial]
 #[tokio::test]
 async fn install_plugin_to_dist() {
     let s = server();
