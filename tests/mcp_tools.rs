@@ -142,6 +142,7 @@ async fn rag_index_with_small_corpus() {
 fn evolve_cycle_runs_under_safety_gates() {
     let s = server();
     let res = s.evolve_cycle(Parameters(EvolveCycleParams {
+        slug: "dev".into(),
         genre: "developer".into(),
         edit_type: "AddSkill".into(),
         metric: EvolveMetricParams {
@@ -152,4 +153,38 @@ fn evolve_cycle_runs_under_safety_gates() {
         },
     }));
     assert!(!res.is_error.unwrap_or(false));
+}
+
+#[tokio::test]
+async fn install_plugin_to_dist() {
+    let s = server();
+    // create + confirm a profile first
+    let _ = s.profile_create(Parameters(ProfileCreateParams {
+        slug: "dev".into(),
+        language: Some("en".into()),
+        scan_paths: vec![],
+    }));
+    let _ = s.profile_interview(Parameters(ProfileInterviewParams {
+        slug: "dev".into(),
+        answers: HashMap::new(),
+    }));
+    let _ = s.profile_confirm(Parameters(ProfileConfirmParams {
+        slug: "dev".into(),
+        genre: "developer".into(),
+        goal_30d: Some("ship".into()),
+    }));
+    // install to project-local dist (host=false) — must not touch HOME
+    let dist = tempfile::tempdir().unwrap();
+    std::env::set_var("BYOH_DIST_DIR", dist.path());
+    let res = s
+        .install_plugin(Parameters(InstallPluginParams {
+            slug: "dev".into(),
+            target: "claude".into(),
+            host: false,
+            force: false,
+        }))
+        .await;
+    std::env::remove_var("BYOH_DIST_DIR");
+    assert!(!res.is_error.unwrap_or(false), "install should succeed");
+    assert!(dist.path().join("byoh-dev/.byoh-manifest").exists());
 }

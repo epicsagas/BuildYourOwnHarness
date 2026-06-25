@@ -24,10 +24,8 @@ use crate::domain::bundle::HarnessBundle;
 use crate::domain::error::ByohError;
 use crate::domain::evidence::AbMetric;
 use crate::domain::genre::Genre;
-use crate::domain::genre::GenreEvolutionParams;
 use crate::domain::profile::UserProfile;
-use crate::evolve::gates::SafetyGateSet;
-use crate::evolve::{EditType, EvolutionCycle, EvolutionDecision, SeesawState, StagnationState};
+use crate::evolve::EvolutionDecision;
 
 use super::params::*;
 
@@ -90,18 +88,6 @@ fn orchestrator() -> (
 
 fn parse_genre(s: &str) -> Result<Genre, ByohError> {
     s.parse::<Genre>()
-}
-
-fn parse_edit_type(s: &str) -> Result<EditType, ByohError> {
-    Ok(match s {
-        "AddSkill" => EditType::AddSkill,
-        "ModifyInstinct" => EditType::ModifyInstinct,
-        "ModifyConfig" => EditType::ModifyConfig,
-        "AddGuardRule" => EditType::AddGuardRule,
-        "ModifyPrompt" => EditType::ModifyPrompt,
-        "RemoveSkill" => EditType::RemoveSkill,
-        other => return Err(ByohError::Schema(format!("unknown edit_type '{other}'"))),
-    })
 }
 
 /// Successful tool result carrying a JSON value as a text content block.
@@ -343,14 +329,14 @@ impl ByohServer {
     }
 
     #[tool(
-        description = "Run one Ring-3 evolution cycle (Observe→Analyze→Evolve→Gate) under the 3 safety gates. Returns the decision (Approved/Rejected/RolledBack/AutoTuned)."
+        description = "Run one Ring-3 evolution cycle (Observe→Analyze→Evolve→Gate) under the 3 safety gates, PERSISTING seesaw/stagnation state across runs by slug. Returns the honest decision (Approved/Rejected/RolledBack/AutoTuned) + reason + cycle number."
     )]
     pub fn evolve_cycle(&self, Parameters(p): Parameters<EvolveCycleParams>) -> CallToolResult {
         let genre = match parse_genre(&p.genre) {
             Ok(g) => g,
             Err(e) => return err_result(e),
         };
-        let edit = match parse_edit_type(&p.edit_type) {
+        let edit = match crate::application::evolve_run::parse_edit_type(&p.edit_type) {
             Ok(e) => e,
             Err(e) => return err_result(e),
         };
@@ -360,24 +346,26 @@ impl ByohServer {
             samples_with: p.metric.samples_with,
             samples_without: p.metric.samples_without,
         };
-        let cycle = EvolutionCycle {
-            observations: vec![],
-            proposed_edit: edit,
-            metric: metric.clone(),
-            params: GenreEvolutionParams::for_genre(genre),
-            gates: SafetyGateSet::all(),
-        };
-        let seesaw = SeesawState::new(metric.clone());
-        let stagnation = StagnationState::new(3, 0.02);
-        match crate::evolve::run_cycle(seesaw, stagnation, &cycle) {
-            Ok((decision, _, _)) => {
-                let label = match &decision {
-                    EvolutionDecision::Approved { .. } => "Approved",
-                    EvolutionDecision::Rejected { .. } => "Rejected",
-                    EvolutionDecision::RolledBack { .. } => "RolledBack",
-                    EvolutionDecision::AutoTuned => "AutoTuned",
+        match crate::application::evolve_one_cycle(
+            &crate::store::byoh_home(),
+            &p.slug,
+            genre,
+            edit,
+            metric,
+        ) {
+            Ok((decision, state)) => {
+                let label = crate::application::evolve_run::decision_label(&decision);
+                let reason = match &decision {
+                    EvolutionDecision::Rejected { reason }
+                    | EvolutionDecision::RolledBack { reason } => reason.clone(),
+                    _ => String::new(),
                 };
-                ok_value(json!({ "decision": label, "detail": format!("{decision:?}") }))
+                ok_value(json!({
+                    "decision": label,
+                    "reason": reason,
+                    "cycle_n": state.cycle_n,
+                    "negative": crate::application::evolve_run::decision_is_negative(&decision),
+                }))
             }
             Err(e) => err_result(e),
         }
@@ -420,6 +408,22 @@ impl ByohServer {
             Ok(r) => r,
             Err(join_err) => err_result(crate::domain::error::ByohError::Other(format!(
                 "render task join failed: {join_err}"
+            ))),
+        }
+    }
+
+    #[tool(
+        description = "Install a synthesized harness plugin for a slug. Defaults to a SAFE project-local dist/ ; set host=true to write into the host's real plugin dir (~/.claude etc.). Refuses to overwrite a non-BYOH dir unless force=true. Atomic. Filesystem-heavy: runs via spawn_blocking."
+    )]
+    pub async fn install_plugin(
+        &self,
+        Parameters(p): Parameters<InstallPluginParams>,
+    ) -> CallToolResult {
+        let res = tokio::task::spawn_blocking(move || install_plugin_blocking(&p)).await;
+        match res {
+            Ok(r) => r,
+            Err(join_err) => err_result(crate::domain::error::ByohError::Other(format!(
+                "install task join failed: {join_err}"
             ))),
         }
     }
@@ -467,6 +471,39 @@ fn render_plugin_blocking(p: &RenderPluginParams) -> CallToolResult {
             "skills": bundle.skills.len(),
             "agents": bundle.agents.len(),
             "git_ready": true,
+        })),
+        Err(e) => err_result(e),
+    }
+}
+
+/// Synchronous body of `install_plugin`. Synthesizes then installs the plugin
+/// to the safe dist/ (or host dir if requested), atomically + BYOH-owned-gated.
+fn install_plugin_blocking(p: &InstallPluginParams) -> CallToolResult {
+    let target: crate::domain::render_target::Target = match p.target.parse() {
+        Ok(t) => t,
+        Err(e) => return err_result(e),
+    };
+    let profile = match crate::store::load_profile(&p.slug) {
+        Ok(pr) => pr,
+        Err(e) => return err_result(e),
+    };
+    let (bundle, _plan) = match crate::application::synthesize(&profile) {
+        Ok(b) => b,
+        Err(e) => return err_result(e),
+    };
+    let loc = crate::deploy::InstallLocations::from_env();
+    let dest = if p.host {
+        crate::deploy::InstallDest::Host
+    } else {
+        crate::deploy::InstallDest::Dist
+    };
+    match crate::deploy::install_plugin(&bundle, target, dest, &loc, p.force) {
+        Ok(path) => ok_value(json!({
+            "installed_to": path.to_string_lossy(),
+            "target": target.as_str(),
+            "host": p.host,
+            "skills": bundle.skills.len(),
+            "agents": bundle.agents.len(),
         })),
         Err(e) => err_result(e),
     }

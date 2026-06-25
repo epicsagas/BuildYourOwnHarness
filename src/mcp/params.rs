@@ -90,6 +90,8 @@ pub struct CompileDryRunParams {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct EvolveCycleParams {
+    /// Profile slug — keys the persisted seesaw/stagnation state across runs.
+    pub slug: String,
     pub genre: String,
     /// Edit type: "AddSkill" | "ModifyInstinct" | "ModifyConfig" | "AddGuardRule"
     /// | "ModifyPrompt" | "RemoveSkill".
@@ -124,6 +126,21 @@ pub struct RenderPluginParams {
     pub target: String,
     /// Output directory for the deployable plugin tree.
     pub out: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct InstallPluginParams {
+    pub slug: String,
+    /// Target host: "claude" | "codex" | "agy" | "all" (default "all").
+    #[serde(default = "default_target")]
+    pub target: String,
+    /// Install into the host's real plugin dir (~/.claude etc.) instead of the
+    /// safe project-local `dist/`. Default false.
+    #[serde(default)]
+    pub host: bool,
+    /// Overwrite a non-BYOH directory of the same name. Default false.
+    #[serde(default)]
+    pub force: bool,
 }
 
 fn default_target() -> String {

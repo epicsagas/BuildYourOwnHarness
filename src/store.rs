@@ -17,6 +17,40 @@ fn io_at(path: &Path, e: std::io::Error) -> ByohError {
     ByohError::Other(format!("{}: {}", path.display(), e))
 }
 
+/// Validate a slug before it is used in any filesystem path.
+///
+/// A slug must match `^[a-z0-9][a-z0-9-]*$` (lowercase alphanumerics + dashes,
+/// not leading with a dash). This blocks path traversal (`..`), separators
+/// (`/`, `\`), absolute paths, empty strings, and shell-hostile characters
+/// before the slug is ever joined into a path. Shared by install / evolve / run.
+pub fn sanitize_slug(slug: &str) -> Result<&str> {
+    const MAX: usize = 64;
+    if slug.is_empty() {
+        return Err(ByohError::Schema("slug must not be empty".into()));
+    }
+    if slug.len() > MAX {
+        return Err(ByohError::Schema(format!(
+            "slug too long (>{MAX} chars): '{slug}'"
+        )));
+    }
+    let mut chars = slug.chars();
+    let first = chars.next().unwrap();
+    if !(first.is_ascii_lowercase() || first.is_ascii_digit()) {
+        return Err(ByohError::Schema(format!(
+            "slug must start with [a-z0-9]: '{slug}'"
+        )));
+    }
+    if !slug
+        .chars()
+        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+    {
+        return Err(ByohError::Schema(format!(
+            "slug may only contain [a-z0-9-]: '{slug}'"
+        )));
+    }
+    Ok(slug)
+}
+
 /// The BYOH home directory (`$BYOH_HOME`, default `.byoh`).
 /// Profiles live under `<home>/profiles/`, genre indexes under `<home>/indexes/`.
 pub fn byoh_home() -> PathBuf {
@@ -174,6 +208,33 @@ mod tests {
 
     fn isolate_home(dir: &Path) {
         std::env::set_var("BYOH_HOME", dir);
+    }
+
+    #[test]
+    fn sanitize_slug_accepts_valid() {
+        for s in ["dev", "my-harness", "a1", "x", "team-7-backend"] {
+            assert!(sanitize_slug(s).is_ok(), "should accept '{s}'");
+        }
+    }
+
+    #[test]
+    fn sanitize_slug_rejects_attacks_and_malformed() {
+        for s in [
+            "",           // empty
+            "../etc",     // traversal
+            "..",         // traversal
+            "a/b",        // separator
+            "a\\b",       // backslash
+            "/abs",       // absolute
+            "-leading",   // leading dash
+            "UPPER",      // uppercase
+            "with space", // space
+            "semi;colon", // shell-hostile
+        ] {
+            assert!(sanitize_slug(s).is_err(), "should reject '{s}'");
+        }
+        // too long
+        assert!(sanitize_slug(&"a".repeat(65)).is_err());
     }
 
     #[test]

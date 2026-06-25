@@ -47,12 +47,42 @@ pub enum Command {
     },
     /// Run the doctor: verify dependency tools are installed.
     Doctor,
-    /// Install a bundle by slug.
-    Install { slug: String },
+    /// Install a rendered harness plugin for a slug. Defaults to a safe
+    /// project-local `dist/`; `--host` writes into the host's real plugin dir.
+    Install {
+        slug: String,
+        /// Target host: claude | codex | agy | all.
+        #[arg(long, default_value = "all")]
+        target: String,
+        /// Install into the host's real plugin directory (e.g. ~/.claude/plugins)
+        /// instead of the safe project-local `dist/`.
+        #[arg(long, default_value_t = false)]
+        host: bool,
+        /// Overwrite a non-BYOH directory of the same name (dangerous).
+        #[arg(long, default_value_t = false)]
+        force: bool,
+    },
     /// Run an installed harness by slug (common entry point).
     Run { slug: String },
-    /// Run one evolution cycle.
-    Evolve { slug: String },
+    /// Run one evolution cycle under the 3 safety gates (Critic/Seesaw/Stagnation).
+    Evolve {
+        slug: String,
+        /// Genre: developer | creator | researcher | business.
+        #[arg(long, default_value = "developer")]
+        genre: String,
+        /// Proposed edit: AddSkill|ModifyInstinct|ModifyConfig|AddGuardRule|ModifyPrompt|RemoveSkill.
+        #[arg(long, default_value = "AddSkill")]
+        edit_type: String,
+        /// A/B metric: avg score WITH the evolved edit.
+        #[arg(long, default_value_t = 0.0)]
+        score_with: f64,
+        /// A/B metric: avg score WITHOUT the edit (baseline).
+        #[arg(long, default_value_t = 0.0)]
+        score_without: f64,
+        /// Sample count for each arm.
+        #[arg(long, default_value_t = 1)]
+        samples: u32,
+    },
     /// Build a genre RAG index from a corpus directory (BYOH native RAG).
     Index {
         /// Slug whose data sources to index.
