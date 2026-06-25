@@ -17,7 +17,7 @@
 ```bash
 cargo build --release            # 단일 바이너리 byoh
 cargo clippy --all-targets -- -D warnings   # 경고 0
-cargo test                       # 단위 + 통합 테스트 (140개)
+cargo test                       # 단위 + 통합 테스트 (185개)
 ./target/release/byoh --help
 ```
 
@@ -62,7 +62,25 @@ flowchart LR
 
 `synthesize(profile)` — 키워드 매칭 → 순서화 주입 → **3중 안전장치 재통과 강제**(게이트 우회 불가) → plan을 `bundle.config.extra["synthesis_plan"]`에 기록(재현성). `compile_profile`은 정적 회귀 baseline으로 유지된다.
 
-> **후속 작업**: 커뮤니티 스킬 페치(awesomeclaudeplugins 등), 장르 enum 일반화, 파이프라인 라이브라이브러리(shorts/research/app-impl), synthesis MCP 도구 노출. 설계는 `docs/ROADMAP_AGENT_LED.md` 참조.
+합성은 스킬뿐 아니라 **에이전트**도 재조립한다 — `registry/agents/<genre>/<id>.md`의 7개 검증 에이전트 프리셋(developer: code-reviewer/debugger/tech-debt-auditor, creator: draft-writer/consistency-editor, researcher: research-analyst, business: decision-analyst)을 프로필 키워드로 매칭해 장르 기본 에이전트 위에 augment/clone한다. `inject_agent`는 id 기반 중복 제거(augment 또는 clone, 멱등). 스킬 프리셋 패턴(`deploy/presets.rs`)을 에이전트로 미러링한 것.
+
+### 🚀 코어 루프 + 타겟 렌더러
+
+생성→설치→진화 사슬이 닫혀 있다.
+
+```bash
+byoh compile <slug>                    # 정적 게이트 + dry-run 게이트 → HarnessBundle
+byoh render <slug> --target claude     # 합성 번들 → Claude Code/Codex/agy 플러그인 트리(git-ready)
+byoh install <slug>                    # 안전한 프로젝트-로컬 dist/ 설치(--host로 실제 플러그인 디렉토리)
+byoh run <slug>                        # 설치된 하네스 실행 진입점
+byoh evolve <slug>                     # Critic/Seesaw/Stagnation 3중 게이트 진화(cycle 간 상태 영속)
+```
+
+- **render**(PR #5): `AgentSpec`을 포함한 번들을 Claude Code(`agents/*.md` + `.claude-plugin/`), Codex(`.codex-plugin/agents/*.toml`), agy(`plugin.json`/`mcp_config.json`/`hooks.json`) 각 포맷으로 렌더링. 출력 디렉토리는 git push-ready.
+- **install**(PR #7): render → staging → 원자적 rename. 기본은 안전한 `dist/`(`--host` 옵트인 시에만 실제 플러그인 디렉토리). `.byoh-manifest` 마커로 비-BYOH 디렉토리 보호(`--force` 필요), 슬러그 새니타이즈.
+- **evolve**(PR #7): seesaw/stagnation 상태를 cycle 간 영속, 정직한 `EvolutionDecision` 출력(Rejected/RolledBack는 비-0 exit).
+
+> **후속 작업**: 커뮤니티 스킬 페치(awesomeclaudeplugins 등), 장르 enum 일반화, 파이프라인 라이브러리(shorts/research/app-impl), 정식 DAG 순환 감지, agy `plugin install` 실동작 검증. (에이전트 프리셋 카탈로그 + synthesis 주입은 PR #8로 완료.) 설계는 `docs/ROADMAP_AGENT_LED.md` 참조.
 
 ### 구현된 요구사항 (R1–R20)
 
@@ -126,13 +144,28 @@ byoh search <slug> "rust memory" --genre developer --home ./.byoh --corpus ./doc
 
 ```
 BuildYourOwnHarness/
-├── README.md                      ← 본 파일 (오버뷰 + 네비게이션)
-└── docs/
-    ├── 00_RESEARCH_REPORT.md      ← 근거 (빌딩 블록 카탈로그)
-    ├── 01_PROJECT_PLAN.md         ← 서비스 기획
-    ├── 02_ARCHITECTURE.md         ← 시스템 설계
-    ├── 03_INTERVIEW_DESIGN.md     ← 인터랙티브 취합 설계
-    └── 04_ROADMAP.md              ← 실행 계획
+├── README.md                      ← 본 파일 (오버뷰 + 구현 상태 + 네비게이션)
+├── AGENTS.md                      ← AI 에이전트용 아키텍처 가이드
+├── Cargo.toml                     ← byoh 바이너리/라이브러리 (features: native-rag / mcp)
+├── docs/                          ← 기획서 (읽기 순서대로)
+│   ├── 00_RESEARCH_REPORT.md      ← 근거 (빌딩 블록 카탈로그 B1-B17)
+│   ├── 01_PROJECT_PLAN.md         ← 서비스 기획
+│   ├── 02_ARCHITECTURE.md         ← 시스템 설계
+│   ├── 03_INTERVIEW_DESIGN.md     ← 인터랙티브 취합 설계
+│   ├── 04_ROADMAP.md              ← 실행 계획 (M0-M5)
+│   ├── ANALYSIS_AGENT_LED.md      ← 에이전트 주도 전환 분석
+│   └── ROADMAP_AGENT_LED.md       ← 구현 진행 + 잔여항목 추적
+├── src/                           ← Rust 구현 (헥사고날)
+│   ├── domain/ ports/ adapters/ application/ compiler/ evolve/
+│   ├── templates/ deploy/ i18n/ obs/ security/
+│   ├── mcp/                       ← stdio MCP 서버 (--features mcp)
+│   └── rag/                       ← 자체 RAG 서브시스템
+├── registry/                      ← 컴파일 타임 임베드 프리셋
+│   ├── presets/<genre>/           ← 스킬 프리셋 (7종)
+│   └── agents/<genre>/            ← 에이전트 프리셋 (7종, PR #8)
+├── tests/                         ← 통합 테스트 (end_to_end, mcp_tools)
+├── .mcp.json .claude-plugin/ .codex/ ← 호스트별 플러그인 매니페스트
+└── assets/
 ```
 
 > **통계**: 총 3,615줄, 43개 mermaid 다이어그램, 17개 빌딩 블록 전수 인용 + epic-harness 자산 16종 매핑 + 커뮤니티 플러그인 11종 인용. 작성일 2026-06-24 (레퍼런스 강화 업데이트).
