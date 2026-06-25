@@ -7,6 +7,8 @@
 //! ALL THREE are mandatory (R11). The compiler's static gate and the evolution
 //! lifecycle both enforce their presence.
 
+use serde::{Deserialize, Serialize};
+
 use crate::domain::evidence::AbMetric;
 use crate::domain::genre::SafetyGate;
 
@@ -118,7 +120,7 @@ pub fn critic_review(edit: &EditType, metric: &AbMetric, critic_weight: f64) -> 
 
 /// Seesaw: tracks whether a recent improvement came at the cost of a prior one
 /// (catastrophic forgetting). Regression vs the `without` baseline triggers it.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SeesawState {
     pub last_metric: AbMetric,
     pub regressions: u32,
@@ -152,7 +154,7 @@ impl SeesawState {
 
 /// Stagnation: if N consecutive sessions show no improvement ≥ threshold,
 /// auto-rollback to the last known-good config.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StagnationState {
     pub stagnation_limit: u32,
     pub improvement_threshold: f64,

@@ -6,6 +6,7 @@ pub mod gates;
 pub mod lifecycle;
 pub mod recall;
 pub mod skills;
+pub mod state;
 
 pub use compress::{compress, CompressionTier, ImportanceWeights, Token, TokenKind};
 pub use gates::{
@@ -15,3 +16,4 @@ pub use gates::{
 pub use lifecycle::{run_cycle, EvolutionCycle, EvolutionDecision};
 pub use recall::{recall_score, recency_value, RecallWeights};
 pub use skills::{mine_patterns, SkillSeed};
+pub use state::{EvolveState, EvolveStore};

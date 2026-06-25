@@ -28,9 +28,28 @@ fn main() -> anyhow::Result<()> {
             dry_run,
         } => run_compile(&slug, &profiles_dir, &out, dry_run, &lang)?,
         Command::Doctor => run_doctor(&lang)?,
-        Command::Install { slug } => run_install(&slug, &lang)?,
+        Command::Install {
+            slug,
+            target,
+            host,
+            force,
+        } => run_install(&slug, &target, host, force, &lang)?,
         Command::Run { slug } => run_run(&slug, &lang)?,
-        Command::Evolve { slug } => run_evolve(&slug, &lang)?,
+        Command::Evolve {
+            slug,
+            genre,
+            edit_type,
+            score_with,
+            score_without,
+            samples,
+        } => run_evolve(
+            &slug,
+            &genre,
+            &edit_type,
+            score_with,
+            score_without,
+            samples,
+        )?,
         Command::Index {
             slug,
             genre,
@@ -279,23 +298,117 @@ fn run_doctor(lang: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn run_install(slug: &str, lang: &str) -> anyhow::Result<()> {
-    println!("{}", t(Msg::Installed, lang).replace("<slug>", slug));
+/// Synthesize a confirmed profile then install the rendered plugin. Default
+/// destination is a safe project-local `dist/`; `--host` opts into the host's
+/// real plugin directory. `--force` overwrites a non-BYOH directory.
+fn run_install(
+    slug: &str,
+    target: &str,
+    host: bool,
+    force: bool,
+    _lang: &str,
+) -> anyhow::Result<()> {
+    let target: byoh::domain::render_target::Target = target.parse()?;
+    let profile = byoh::store::load_profile(slug)?;
+    if profile.status != ProfileStatus::Confirmed {
+        anyhow::bail!(
+            "profile {slug} is not confirmed (status={}); run `byoh profile confirm`",
+            profile.status
+        );
+    }
+    let (bundle, _plan) = byoh::application::synthesize(&profile)?;
+    let loc = byoh::deploy::InstallLocations::from_env();
+    let dest = if host {
+        byoh::deploy::InstallDest::Host
+    } else {
+        byoh::deploy::InstallDest::Dist
+    };
+    let path = byoh::deploy::install_plugin(&bundle, target, dest, &loc, force)?;
+    println!(
+        "[byoh] installed '{slug}' → {} ({} skills, {} agents) at {}",
+        target.as_str(),
+        bundle.skills.len(),
+        bundle.agents.len(),
+        path.display()
+    );
+    if !host {
+        println!("[byoh] (project-local dist; use --host to install into the host's plugin dir)");
+    }
     Ok(())
 }
 
+/// Resolve and report what an installed harness would run — BYOH renders/installs
+/// plugins; the host tool (Claude Code / agy / Codex) is what actually executes.
 fn run_run(slug: &str, _lang: &str) -> anyhow::Result<()> {
-    println!("[byoh] run {slug} — delegating to execution-layer tools");
+    let slug = byoh::store::sanitize_slug(slug)?;
+    let manifest = byoh::deploy::InstallLocations::from_env()
+        .dist
+        .join(format!("byoh-{slug}"));
+    println!("[byoh] run '{slug}': BYOH installs plugins; the host tool executes them.");
+    println!("[byoh] installed plugin (dist): {}", manifest.display());
+    println!("[byoh] open your host (Claude Code / agy / Codex) in a project with this plugin to use it.");
     Ok(())
 }
 
-fn run_evolve(slug: &str, lang: &str) -> anyhow::Result<()> {
-    println!("[byoh] evolve {slug}: {} ", t(Msg::EvolveApproved, lang));
+/// Run one evolution cycle, persisting seesaw/stagnation state across runs, and
+/// report the HONEST decision. Exits non-zero on Rejected / RolledBack so the
+/// 3 safety gates are not silently masked.
+fn run_evolve(
+    slug: &str,
+    genre: &str,
+    edit_type: &str,
+    score_with: f64,
+    score_without: f64,
+    samples: u32,
+) -> anyhow::Result<()> {
+    use byoh::application::evolve_run::{decision_is_negative, decision_label, parse_edit_type};
+    let genre: Genre = genre.parse()?;
+    let edit = parse_edit_type(edit_type)?;
+    let metric = byoh::domain::evidence::AbMetric {
+        avg_score_with: score_with,
+        avg_score_without: score_without,
+        samples_with: samples,
+        samples_without: samples,
+    };
+    let (decision, state) =
+        byoh::application::evolve_one_cycle(&byoh::store::byoh_home(), slug, genre, edit, metric)?;
+    let label = decision_label(&decision);
+    println!("[byoh] evolve '{slug}' cycle #{}: {label}", state.cycle_n);
+    match &decision {
+        byoh::evolve::EvolutionDecision::Approved { critic } => {
+            println!("[byoh]   critic: {critic:?}");
+        }
+        byoh::evolve::EvolutionDecision::Rejected { reason }
+        | byoh::evolve::EvolutionDecision::RolledBack { reason } => {
+            println!("[byoh]   reason: {reason}");
+        }
+        byoh::evolve::EvolutionDecision::AutoTuned => {}
+    }
+    if decision_is_negative(&decision) {
+        // Honest non-zero exit: a gate rejected/rolled back the edit.
+        std::process::exit(1);
+    }
     Ok(())
 }
 
+/// Ring 0 hook dispatcher. Recognizes the known lifecycle hooks; an unknown
+/// hook name is an explicit error (not a silent no-op).
 fn run_hook(name: &str, _lang: &str) -> anyhow::Result<()> {
-    println!("[byoh] hook {name} (no-op)");
+    const KNOWN: &[&str] = &[
+        "session_start",
+        "pre_tool_use",
+        "post_tool_use",
+        "pre_compact",
+        "session_end",
+    ];
+    if !KNOWN.contains(&name) {
+        anyhow::bail!("unknown hook '{name}' (known: {})", KNOWN.join(", "));
+    }
+    // BYOH itself has no runtime side effects to run here — the rendered plugin's
+    // hooks.json wires real commands for the host. Report recognition honestly.
+    println!(
+        "[byoh] hook '{name}' recognized (no BYOH-side action; host runs the plugin's hooks.json)"
+    );
     Ok(())
 }
 
