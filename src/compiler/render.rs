@@ -74,6 +74,7 @@ pub fn compile_profile(profile: &UserProfile) -> crate::domain::Result<HarnessBu
         skills,
         hooks,
         mcp_tools,
+        agents: crate::templates::agents::genre_agents(genre),
         safety_gates: merged.rings.ring3_evolution.clone(),
         stagnation_limit: merged.evolution.stagnation_limit,
         improvement_threshold: merged.evolution.improvement_threshold,

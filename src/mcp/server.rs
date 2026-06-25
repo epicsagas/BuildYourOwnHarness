@@ -407,6 +407,22 @@ impl ByohServer {
             Err(e) => err_result(e),
         }
     }
+
+    #[tool(
+        description = "Render a synthesized harness into a deployable plugin tree at `out`. target = claude|codex|agy|all. The output dir is git-ready — push it and others can use the plugin. Filesystem-heavy: runs off the async runtime via spawn_blocking."
+    )]
+    pub async fn render_plugin(
+        &self,
+        Parameters(p): Parameters<RenderPluginParams>,
+    ) -> CallToolResult {
+        let res = tokio::task::spawn_blocking(move || render_plugin_blocking(&p)).await;
+        match res {
+            Ok(r) => r,
+            Err(join_err) => err_result(crate::domain::error::ByohError::Other(format!(
+                "render task join failed: {join_err}"
+            ))),
+        }
+    }
 }
 
 #[tool_handler]
@@ -428,6 +444,33 @@ impl ServerHandler for ByohServer {
 }
 
 // ─── blocking bodies for the heavy tools (run via spawn_blocking) ───────────
+
+/// Synchronous body of `render_plugin`. Synthesizes the bundle then renders it
+/// to the target host(s), writing a deployable plugin tree at `out`.
+fn render_plugin_blocking(p: &RenderPluginParams) -> CallToolResult {
+    let target: crate::domain::render_target::Target = match p.target.parse() {
+        Ok(t) => t,
+        Err(e) => return err_result(e),
+    };
+    let profile = match crate::store::load_profile(&p.slug) {
+        Ok(pr) => pr,
+        Err(e) => return err_result(e),
+    };
+    let (bundle, _plan) = match crate::application::synthesize(&profile) {
+        Ok(b) => b,
+        Err(e) => return err_result(e),
+    };
+    match crate::application::render_target(&bundle, target, std::path::Path::new(&p.out)) {
+        Ok(root) => ok_value(json!({
+            "rendered_to": root.to_string_lossy(),
+            "target": target.as_str(),
+            "skills": bundle.skills.len(),
+            "agents": bundle.agents.len(),
+            "git_ready": true,
+        })),
+        Err(e) => err_result(e),
+    }
+}
 
 /// Synchronous body of `profile_scan`. Owned inputs so it can move into a
 /// `spawn_blocking` task.

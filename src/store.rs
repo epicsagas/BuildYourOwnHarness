@@ -110,6 +110,49 @@ pub fn make_embedder() -> Result<Box<dyn EmbedderProvider>> {
     Ok(Box::new(crate::adapters::DummyEmbedder::new()))
 }
 
+/// Write `content` to `<dir>/<name>`, creating `dir` (and parents) first.
+/// Used by the target renderer to emit plugin files.
+pub fn write_file(dir: &Path, name: &str, content: &str) -> Result<()> {
+    std::fs::create_dir_all(dir)?;
+    std::fs::write(dir.join(name), content)?;
+    Ok(())
+}
+
+/// Create a symlink `link` → `target` (Unix). On non-Unix, copy the target dir
+/// recursively as a fallback (Windows symlink needs privileges). `link`'s parent
+/// is created first.
+pub fn create_symlink_or_copy(target: &Path, link: &Path) -> Result<()> {
+    if let Some(parent) = link.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    #[cfg(unix)]
+    {
+        let _ = std::fs::remove_file(link);
+        std::os::unix::fs::symlink(target, link)?;
+        Ok(())
+    }
+    #[cfg(not(unix))]
+    {
+        copy_dir_recursive(target, link)
+    }
+}
+
+#[cfg(not(unix))]
+fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<()> {
+    std::fs::create_dir_all(dst)?;
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        let from = entry.path();
+        let to = dst.join(entry.file_name());
+        if from.is_dir() {
+            copy_dir_recursive(&from, &to)?;
+        } else {
+            std::fs::copy(&from, &to)?;
+        }
+    }
+    Ok(())
+}
+
 /// `native-rag` embedder: [`FastembedEmbedder`] with a graceful dummy fallback
 /// if the model cannot be loaded. cfg-gated because `FastembedEmbedder` only
 /// exists under `native-rag`.

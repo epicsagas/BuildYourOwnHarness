@@ -92,6 +92,18 @@ pub enum Command {
     },
     /// Hook dispatcher (called by Ring 0 hooks).
     Hook { name: String },
+    /// Render a synthesized harness into a deployable plugin tree.
+    /// The output dir is `git init`-ready: push it and others can use the plugin.
+    Render {
+        /// Profile slug to render.
+        slug: String,
+        /// Target host: claude | codex | agy | all.
+        #[arg(long, default_value = "all")]
+        target: String,
+        /// Output directory for the plugin tree.
+        #[arg(long, default_value = "./harness-plugin")]
+        out: PathBuf,
+    },
     /// Start the BYOH MCP server over stdio (LLM agents drive BYOH via MCP tools).
     /// Requires the `mcp` cargo feature.
     #[cfg(feature = "mcp")]

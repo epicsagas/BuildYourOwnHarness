@@ -48,9 +48,38 @@ fn main() -> anyhow::Result<()> {
             corpus,
         } => run_search(&slug, &query, &genre, &home, k, corpus.as_deref())?,
         Command::Hook { name } => run_hook(&name, &lang)?,
+        Command::Render { slug, target, out } => run_render(&slug, &target, &out)?,
         #[cfg(feature = "mcp")]
         Command::Serve => run_serve(&lang)?,
     }
+    Ok(())
+}
+
+/// Render a synthesized harness into a deployable plugin tree.
+/// Loads the profile, synthesizes the bundle, then renders to the target host(s).
+fn run_render(slug: &str, target: &str, out: &std::path::Path) -> anyhow::Result<()> {
+    let target: byoh::domain::render_target::Target = target.parse()?;
+    let profile = byoh::store::load_profile(slug)?;
+    if profile.status != ProfileStatus::Confirmed {
+        anyhow::bail!(
+            "profile {slug} is not confirmed (status={}); run `byoh profile confirm`",
+            profile.status
+        );
+    }
+    // Synthesize (recombined bundle); falls back to the static template inside.
+    let (bundle, _plan) = byoh::application::synthesize(&profile)?;
+    let root = byoh::application::render_target(&bundle, target, out)?;
+    println!(
+        "[byoh] rendered '{slug}' → {} ({} skills, {} agents) at {}",
+        target.as_str(),
+        bundle.skills.len(),
+        bundle.agents.len(),
+        root.display()
+    );
+    println!(
+        "[byoh] the output dir is git-ready: `cd {} && git init && git push`",
+        root.display()
+    );
     Ok(())
 }
 

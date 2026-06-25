@@ -116,6 +116,20 @@ pub struct RegistryCloneSkillParams {
     pub slug: String,
 }
 
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct RenderPluginParams {
+    pub slug: String,
+    /// Target host: "claude" | "codex" | "agy" | "all" (default "all").
+    #[serde(default = "default_target")]
+    pub target: String,
+    /// Output directory for the deployable plugin tree.
+    pub out: String,
+}
+
+fn default_target() -> String {
+    "all".to_string()
+}
+
 fn default_max_tokens() -> usize {
     512
 }
