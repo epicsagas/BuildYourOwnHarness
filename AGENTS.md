@@ -29,7 +29,7 @@ src/
 ├── compiler/        render(4-Ring) · validate(정적 게이트) · dryrun · incremental(3a/3b/3c)
 ├── evolve/          gates(Critic/Seesaw/Stagnation) · lifecycle · recall(B11) · compress(B13) · skills(SkillOpt)
 ├── templates/       base + 4 자식(developer/creator/researcher/business) + 상속 머지
-├── deploy/          registry · bootstrap(install.sh/ps1/cargo-binstall) · provider(B14) · state(B9)
+├── deploy/          registry · bootstrap(install.sh/ps1/cargo-binstall) · provider(B14) · state(B9) · presets(스킬 프리셋) · agent_presets(에이전트 프리셋, Issue #6)
 ├── i18n/            B17 ko/en 카탈로그
 ├── obs/             관측 로그 + 상태 facade
 ├── security/        시크릿 마스킹
