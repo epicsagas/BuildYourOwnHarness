@@ -64,6 +64,12 @@ pub enum Command {
     },
     /// Run an installed harness by slug (common entry point).
     Run { slug: String },
+    /// Vendor a community skill into registry/vendored/ (offline; RFC
+    /// community-skill-fetch). Vendored files are committed to the repo.
+    Vendor {
+        #[command(subcommand)]
+        action: VendorAction,
+    },
     /// Run one evolution cycle under the 3 safety gates (Critic/Seesaw/Stagnation).
     Evolve {
         slug: String,
@@ -138,6 +144,21 @@ pub enum Command {
     /// Requires the `mcp` cargo feature.
     #[cfg(feature = "mcp")]
     Serve,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum VendorAction {
+    /// Vendor an external SKILL.md into registry/vendored/<genre>/<id>.md.
+    Add {
+        /// Source: path to a SKILL.md, or a dir laid out as skills/<id>/SKILL.md.
+        source: PathBuf,
+        /// Genre: developer | creator | researcher | business.
+        #[arg(long)]
+        genre: String,
+        /// Skill id to vendor as.
+        #[arg(long)]
+        id: String,
+    },
 }
 
 #[derive(Debug, Subcommand)]

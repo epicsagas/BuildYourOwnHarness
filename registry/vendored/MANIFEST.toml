@@ -1,0 +1,5 @@
+# Vendored community skills (RFC: community-skill-fetch).
+# Populated by `byoh vendor add <source> --genre <g> --as <id>`.
+# Each entry: { skill_id, genre, source, sha256, fetched_at }.
+# Vendored .md files live under registry/vendored/<genre>/<id>.md and are
+# committed (offline). Inclusion into the shipped binary needs a build.rs pass.
