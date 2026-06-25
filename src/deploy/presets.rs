@@ -184,26 +184,34 @@ fn parse_frontmatter(raw: &str, fallback_id: &str) -> (String, String, String) {
 /// Prefer a vendored body for `(genre, skill_id)` (offline file read; files are
 /// committed), else the compiled preset. Lets `byoh vendor add` override or
 /// enrich skills in synthesis.
-fn vendored_or_raw(genre: Genre, skill_id: &str) -> Result<String> {
+fn vendored_or_raw(genre: Genre, skill_id: &str) -> Result<(String, bool)> {
+    // Returns (body, is_vendored). is_vendored drives Ring assignment in inject.
     let root = crate::deploy::vendor::vendor_root();
     if let Some(body) = crate::deploy::vendor::vendored_body(&root, genre, skill_id) {
-        return Ok(body);
+        return Ok((body, true));
     }
-    Ok(raw_preset(genre, skill_id)?.to_string())
+    Ok((raw_preset(genre, skill_id)?.to_string(), false))
 }
 
 pub fn inject_preset(bundle: &mut HarnessBundle, genre: Genre, skill_id: &str) -> Result<()> {
-    let raw = vendored_or_raw(genre, skill_id)?;
+    let (raw, is_vendored) = vendored_or_raw(genre, skill_id)?;
     let (name, description, body) = parse_frontmatter(&raw, skill_id);
 
     if let Some(existing) = bundle.skills.iter_mut().find(|s| s.id == skill_id) {
+        // Augment: replace body/name/description, keep the existing ring.
         existing.name = name;
         existing.description = description;
         existing.body_markdown = body;
     } else {
+        // Clone: vendored (external, untrusted) skills land in Ring 3 (most
+        // restricted); compiled presets stay in Ring 2 (quality).
         bundle.skills.push(SkillSpec {
             id: skill_id.to_string(),
-            ring: Ring::Ring2,
+            ring: if is_vendored {
+                Ring::Ring3
+            } else {
+                Ring::Ring2
+            },
             name,
             description,
             body_markdown: body,
