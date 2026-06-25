@@ -6,7 +6,8 @@
 //! driving profile → rag → compile using only MCP tool calls.
 //!
 //! Gated behind the `mcp` feature. Uses the DummyEmbedder (default build) so it
-//! needs no network/model download.
+//! needs no network/model download. The heavy tools (profile_scan/rag_*/dry_run)
+//! are `async fn`s backed by `spawn_blocking`, so tests need a tokio runtime.
 
 #![cfg(feature = "mcp")]
 
@@ -29,15 +30,15 @@ fn server() -> ByohServer {
     })
 }
 
-#[test]
-fn genre_list_returns_four_genres() {
+#[tokio::test]
+async fn genre_list_returns_four_genres() {
     let s = server();
     let res = s.genre_list();
     assert!(!res.is_error.unwrap_or(false));
 }
 
-#[test]
-fn agent_led_flow_create_confirm_compile_clone() {
+#[tokio::test]
+async fn agent_led_flow_create_confirm_compile_clone() {
     let s = server();
 
     // S1: create a draft profile.
@@ -76,10 +77,12 @@ fn agent_led_flow_create_confirm_compile_clone() {
         "compile should succeed"
     );
 
-    // Dry-run (deps missing → graceful fallback, not an error).
-    let dry = s.compile_dry_run(Parameters(CompileDryRunParams {
-        slug: "devtest".into(),
-    }));
+    // Dry-run (deps missing → graceful fallback, not an error). Async (spawn_blocking).
+    let dry = s
+        .compile_dry_run(Parameters(CompileDryRunParams {
+            slug: "devtest".into(),
+        }))
+        .await;
     assert!(
         !dry.is_error.unwrap_or(false),
         "dry_run should not hard-error"
@@ -97,17 +100,42 @@ fn agent_led_flow_create_confirm_compile_clone() {
     );
 }
 
-#[test]
-fn rag_search_grep_tier_without_corpus() {
+#[tokio::test]
+async fn rag_search_grep_tier_without_corpus() {
     let s = server();
-    let res = s.rag_search(Parameters(RagSearchParams {
-        query: "rust async".into(),
-        genre: "developer".into(),
-        corpus: None,
-        k: 3,
-    }));
+    let res = s
+        .rag_search(Parameters(RagSearchParams {
+            query: "rust async".into(),
+            genre: "developer".into(),
+            corpus: None,
+            k: 3,
+        }))
+        .await;
     // grep tier against empty corpus returns 0 hits but is not an error.
     assert!(!res.is_error.unwrap_or(false));
+}
+
+#[tokio::test]
+async fn rag_index_with_small_corpus() {
+    let s = server();
+    let dir = tempfile::tempdir().unwrap();
+    let note_path = dir.path().join("note.md");
+    std::fs::write(
+        &note_path,
+        "# Rust notes\nasync fn with tokio spawn_blocking",
+    )
+    .unwrap();
+    let corpus = note_path.to_string_lossy().into_owned();
+    std::mem::forget(dir); // survive the test
+    let res = s
+        .rag_index(Parameters(RagIndexParams {
+            genre: "developer".into(),
+            corpus,
+            max_tokens: 512,
+            overlap: 64,
+        }))
+        .await;
+    assert!(!res.is_error.unwrap_or(false), "rag_index should succeed");
 }
 
 #[test]

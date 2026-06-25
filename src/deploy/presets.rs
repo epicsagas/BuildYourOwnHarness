@@ -24,6 +24,18 @@ fn raw_preset(genre: Genre, skill_id: &str) -> Result<&'static str> {
         (Creator, "continuity") => {
             include_str!("../../registry/presets/creator/continuity.md")
         }
+        (Researcher, "evidence") => {
+            include_str!("../../registry/presets/researcher/evidence.md")
+        }
+        (Researcher, "reproducibility") => {
+            include_str!("../../registry/presets/researcher/reproducibility.md")
+        }
+        (Business, "decision") => {
+            include_str!("../../registry/presets/business/decision.md")
+        }
+        (Business, "plainlanguage") => {
+            include_str!("../../registry/presets/business/plainlanguage.md")
+        }
         _ => {
             return Err(ByohError::Schema(format!(
                 "no preset for genre '{}' skill '{}'",
@@ -159,5 +171,59 @@ mod tests {
     fn preset_body_round_trips() {
         let body = preset_body(Genre::Creator, "continuity").unwrap();
         assert!(body.contains("continuity"));
+    }
+
+    #[test]
+    fn inject_researcher_and_business_presets_clone() {
+        // These presets don't exist in the base templates → clone path (append).
+        use crate::domain::profile::GenreConfidence;
+
+        // Researcher bundle.
+        let mut rp = UserProfile::new_draft("res", "en");
+        rp.candidates.identity.genre = Some(GenreConfidence {
+            value: Genre::Researcher,
+            confidence: 1.0,
+            provenance: vec![],
+        });
+        rp.status = ProfileStatus::Confirmed;
+        let mut rbundle = compile_profile(&rp).unwrap();
+        let rbefore = rbundle.skills.len();
+        inject_preset(&mut rbundle, Genre::Researcher, "evidence").unwrap();
+        assert_eq!(rbundle.skills.len(), rbefore + 1);
+        inject_preset(&mut rbundle, Genre::Researcher, "reproducibility").unwrap();
+        assert_eq!(rbundle.skills.len(), rbefore + 2);
+
+        // Business bundle.
+        let mut bp = UserProfile::new_draft("biz", "en");
+        bp.candidates.identity.genre = Some(GenreConfidence {
+            value: Genre::Business,
+            confidence: 1.0,
+            provenance: vec![],
+        });
+        bp.status = ProfileStatus::Confirmed;
+        let mut bbundle = compile_profile(&bp).unwrap();
+        let bbefore = bbundle.skills.len();
+        inject_preset(&mut bbundle, Genre::Business, "decision").unwrap();
+        assert_eq!(bbundle.skills.len(), bbefore + 1);
+        inject_preset(&mut bbundle, Genre::Business, "plainlanguage").unwrap();
+        assert_eq!(bbundle.skills.len(), bbefore + 2);
+
+        // Bodies carry their distinctive content.
+        assert!(rbundle
+            .skills
+            .iter()
+            .find(|s| s.id == "evidence")
+            .unwrap()
+            .body_markdown
+            .to_lowercase()
+            .contains("tier"));
+        assert!(bbundle
+            .skills
+            .iter()
+            .find(|s| s.id == "decision")
+            .unwrap()
+            .body_markdown
+            .to_lowercase()
+            .contains("opportunity cost"));
     }
 }

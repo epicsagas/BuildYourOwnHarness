@@ -1,8 +1,8 @@
 # BYOH Roadmap — Agent-Led Harness Generation
 
-> 작성일: 2026-06-25
+> 작성일: 2026-06-25 · 최종 갱신: 2026-06-25 (PR #3 구현 완료)
 > 제어권 역전(Inversion of Control): **CLI(byoh)가 주도 → LLM 에이전트가 주도**
-> 상태: PR #1(생성 계층) · PR #2(자체 RAG) 완료, **PR #3(에이전트 주도)이 다음 작업**
+> 상태: PR #1 · PR #2 · **PR #3(에이전트 주도) 구현 완료 — 병합 대기**
 
 ---
 
@@ -99,6 +99,32 @@ base = `feat/byoh-native-rag` (PR #2). 세 가지를 하나의 일관된 스토�
 - AC4: 복제 도구가 외부 검증 스킬을 장르 번들에 주입한다 (생성과 복제가 공존)
 - AC5: default 빌드에서 fmt + clippy -D warnings + test green 유지
 - AC6: `native-rag` feature에서도 컴파일 + test green 유지
+
+## 7.1 구현 결과 (PR #3 — 2026-06-25 완료)
+
+AC 1–6 전부 달성. 커밋 `b5d2352` → 후속(spawn_blocking/프리셋 확충/문서) 추가 후 push.
+
+| AC | 결과 | 근거 |
+|----|------|------|
+| AC1 | ✅ | `byoh serve`(rmcp 1.8 stdio)가 **12개 도구** 노출 — stdio 스모크 `tools/list` 확인 |
+| AC2 | ✅ | `.claude-plugin/plugin.json` + `skills/build-harness/SKILL.md` + `.mcp.json` + `.codex/config.toml` |
+| AC3 | ✅ | MCP 도구만으로 profile_create→confirm→rag_index→rag_search→compile→dry_run→clone 주도 (`tests/mcp_tools.rs`) |
+| AC4 | ✅ | `registry_clone_skill` + `registry/presets/` (4장르 7프리셋), id 기반 중복 제거(증강/클론) |
+| AC5 | ✅ | default 빌드: fmt + clippy -D warnings + 115 단위/14 e2e green |
+| AC6 | ✅ | `native-rag,mcp` 빌드 green; embedder 팩토리 cfg 보존 |
+
+**구현된 12개 MCP 도구**: `profile_read` · `profile_create` · `profile_scan` · `profile_interview` ·
+`profile_confirm` · `rag_index` · `rag_search` · `genre_list` · `compile` · `compile_dry_run` ·
+`evolve_cycle` · `registry_clone_skill`
+
+**구조 결정 (구현 후 확정)**:
+- 무거운 I/O 도구(`profile_scan`/`rag_index`/`rag_search`/`compile_dry_run`)는 `async fn` +
+  `tokio::task::spawn_blocking`로 전환 — tokio 런타임 블록 방지. 동기 본체는 별도 `*_sync`/`*_blocking` 헬퍼로 분리.
+- 도메인 타입은 `Serialize`만 있으므로 MCP 응답은 opaque `serde_json::Value` (도메인 derive 변경 없음).
+- 프리셋은 `include_str!` 컴파일 타임 임베드 — 네트워크/git clone 제외 (spec §Out).
+- `mcp` 피처는 opt-in — 기본 빌드는 비동기 런타임 없이 가벼움 유지.
+
+**검증 매트릭스**: default / `--features mcp` / `--features native-rag,mcp` 전부 build + test green.
 
 ## 8. 참조
 

@@ -188,23 +188,19 @@ impl ByohServer {
     }
 
     #[tool(
-        description = "Run non-destructive autoscan (S1) over the given paths, merging derived candidates into the profile."
+        description = "Run non-destructive autoscan (S1) over the given paths, merging derived candidates into the profile. Filesystem-walk heavy: runs off the async runtime via spawn_blocking."
     )]
-    pub fn profile_scan(&self, Parameters(p): Parameters<ProfileScanParams>) -> CallToolResult {
-        let mut profile = match crate::store::load_profile(&p.slug) {
-            Ok(p) => p,
-            Err(e) => return err_result(e),
-        };
-        let (src, llm, iv, wz) = orchestrator();
-        let orch = ProfileOrchestrator::new(&src, &llm, &iv, &wz);
-        let path_refs: Vec<&std::path::Path> =
-            p.paths.iter().map(|s| s.as_str().as_ref()).collect();
-        match orch.stage1_scan(&mut profile, &path_refs) {
-            Ok(()) => match crate::store::write_profile(&profile) {
-                Ok(()) => ok_value(serde_json::to_value(&profile).unwrap_or(Value::Null)),
-                Err(e) => err_result(e),
-            },
-            Err(e) => err_result(e),
+    pub async fn profile_scan(
+        &self,
+        Parameters(p): Parameters<ProfileScanParams>,
+    ) -> CallToolResult {
+        // Move owned data into the blocking task (no borrowed refs).
+        let res = tokio::task::spawn_blocking(move || profile_scan_sync(&p.slug, &p.paths)).await;
+        match res {
+            Ok(r) => r,
+            Err(join_err) => err_result(crate::domain::error::ByohError::Other(format!(
+                "scan task join failed: {join_err}"
+            ))),
         }
     }
 
@@ -260,48 +256,29 @@ impl ByohServer {
     }
 
     #[tool(
-        description = "Build + persist a genre index over a corpus (S2). Returns a build report (docs/chunks/dim/backend)."
+        description = "Build + persist a genre index over a corpus (S2). Returns a build report (docs/chunks/dim/backend). Embedding-heavy: runs off the async runtime via spawn_blocking."
     )]
-    pub fn rag_index(&self, Parameters(p): Parameters<RagIndexParams>) -> CallToolResult {
-        let genre = match parse_genre(&p.genre) {
-            Ok(g) => g,
-            Err(e) => return err_result(e),
-        };
-        match rag_index_impl(&self.ctx.home, genre, &p.corpus, p.max_tokens, p.overlap) {
-            Ok(report) => ok_value(json!({
-                "docs": report.docs,
-                "chunks": report.chunks,
-                "dim": report.dim,
-                "backend": report.backend,
-            })),
-            Err(e) => err_result(e),
+    pub async fn rag_index(&self, Parameters(p): Parameters<RagIndexParams>) -> CallToolResult {
+        let home = self.ctx.home.clone();
+        let res = tokio::task::spawn_blocking(move || rag_index_blocking(&home, &p)).await;
+        match res {
+            Ok(r) => r,
+            Err(join_err) => err_result(crate::domain::error::ByohError::Other(format!(
+                "rag_index task join failed: {join_err}"
+            ))),
         }
     }
 
     #[tool(
-        description = "Hybrid search a query against a corpus (or grep-only if no corpus). Returns ranked hits with mode/score. Secrets in results are masked."
+        description = "Hybrid search a query against a corpus (or grep-only if no corpus). Returns ranked hits with mode/score. Secrets in results are masked. Build/search-heavy: runs off the async runtime via spawn_blocking."
     )]
-    pub fn rag_search(&self, Parameters(p): Parameters<RagSearchParams>) -> CallToolResult {
-        let genre = match parse_genre(&p.genre) {
-            Ok(g) => g,
-            Err(e) => return err_result(e),
-        };
-        match rag_search_impl(genre, &p.query, p.corpus.as_deref(), p.k) {
-            Ok(hits) => {
-                let masked: Vec<Value> = hits
-                    .into_iter()
-                    .map(|h| {
-                        json!({
-                            "id": h.id,
-                            "score": h.score,
-                            "mode": h.mode,
-                            "text": crate::security::mask(&h.text),
-                        })
-                    })
-                    .collect();
-                ok_value(json!(masked))
-            }
-            Err(e) => err_result(e),
+    pub async fn rag_search(&self, Parameters(p): Parameters<RagSearchParams>) -> CallToolResult {
+        let res = tokio::task::spawn_blocking(move || rag_search_blocking(&p)).await;
+        match res {
+            Ok(r) => r,
+            Err(join_err) => err_result(crate::domain::error::ByohError::Other(format!(
+                "rag_search task join failed: {join_err}"
+            ))),
         }
     }
 
@@ -350,35 +327,18 @@ impl ByohServer {
     }
 
     #[tool(
-        description = "Compile + static gate + dry-run a profile. Returns whether each gate passed (deps missing are a graceful fallback, not an error)."
+        description = "Compile + static gate + dry-run a profile. Returns whether each gate passed (deps missing are a graceful fallback, not an error). Dry-run shells out to dependency tools: runs off the async runtime via spawn_blocking."
     )]
-    pub fn compile_dry_run(
+    pub async fn compile_dry_run(
         &self,
         Parameters(p): Parameters<CompileDryRunParams>,
     ) -> CallToolResult {
-        let profile = match crate::store::load_profile(&p.slug) {
-            Ok(p) => p,
-            Err(e) => return err_result(e),
-        };
-        let bundle = match crate::compiler::compile_profile(&profile) {
-            Ok(b) => b,
-            Err(e) => return err_result(e),
-        };
-        let static_report = match crate::compiler::static_gate(&bundle) {
+        let res = tokio::task::spawn_blocking(move || compile_dry_run_sync(&p.slug)).await;
+        match res {
             Ok(r) => r,
-            Err(e) => return err_result(e),
-        };
-        // StdCommand shells out to dependency tools; missing tools are a
-        // graceful fallback inside dry_run, surfaced in the report.
-        let cmds = crate::adapters::StdCommand::new();
-        match crate::compiler::dry_run(&bundle, &cmds) {
-            Ok(dry_report) => ok_value(json!({
-                "static_gate_passed": static_report.passed(),
-                "dry_run_passed": dry_report.passed(),
-                "static_gate": static_gate_json(&static_report),
-                "dry_run": dry_run_json(&dry_report),
-            })),
-            Err(e) => err_result(e),
+            Err(join_err) => err_result(crate::domain::error::ByohError::Other(format!(
+                "dry_run task join failed: {join_err}"
+            ))),
         }
     }
 
@@ -464,6 +424,97 @@ impl ServerHandler for ByohServer {
                 .into(),
         );
         info
+    }
+}
+
+// ─── blocking bodies for the heavy tools (run via spawn_blocking) ───────────
+
+/// Synchronous body of `profile_scan`. Owned inputs so it can move into a
+/// `spawn_blocking` task.
+fn profile_scan_sync(slug: &str, paths: &[String]) -> CallToolResult {
+    let mut profile = match crate::store::load_profile(slug) {
+        Ok(p) => p,
+        Err(e) => return err_result(e),
+    };
+    let (src, llm, iv, wz) = orchestrator();
+    let orch = ProfileOrchestrator::new(&src, &llm, &iv, &wz);
+    let path_refs: Vec<&std::path::Path> = paths.iter().map(|s| s.as_str().as_ref()).collect();
+    match orch.stage1_scan(&mut profile, &path_refs) {
+        Ok(()) => match crate::store::write_profile(&profile) {
+            Ok(()) => ok_value(serde_json::to_value(&profile).unwrap_or(Value::Null)),
+            Err(e) => err_result(e),
+        },
+        Err(e) => err_result(e),
+    }
+}
+
+/// Synchronous body of `rag_index`.
+fn rag_index_blocking(home: &std::path::Path, p: &RagIndexParams) -> CallToolResult {
+    let genre = match parse_genre(&p.genre) {
+        Ok(g) => g,
+        Err(e) => return err_result(e),
+    };
+    match rag_index_impl(home, genre, &p.corpus, p.max_tokens, p.overlap) {
+        Ok(report) => ok_value(json!({
+            "docs": report.docs,
+            "chunks": report.chunks,
+            "dim": report.dim,
+            "backend": report.backend,
+        })),
+        Err(e) => err_result(e),
+    }
+}
+
+/// Synchronous body of `rag_search`.
+fn rag_search_blocking(p: &RagSearchParams) -> CallToolResult {
+    let genre = match parse_genre(&p.genre) {
+        Ok(g) => g,
+        Err(e) => return err_result(e),
+    };
+    match rag_search_impl(genre, &p.query, p.corpus.as_deref(), p.k) {
+        Ok(hits) => {
+            let masked: Vec<Value> = hits
+                .into_iter()
+                .map(|h| {
+                    json!({
+                        "id": h.id,
+                        "score": h.score,
+                        "mode": h.mode,
+                        "text": crate::security::mask(&h.text),
+                    })
+                })
+                .collect();
+            ok_value(json!(masked))
+        }
+        Err(e) => err_result(e),
+    }
+}
+
+/// Synchronous body of `compile_dry_run`.
+fn compile_dry_run_sync(slug: &str) -> CallToolResult {
+    let profile = match crate::store::load_profile(slug) {
+        Ok(p) => p,
+        Err(e) => return err_result(e),
+    };
+    let bundle = match crate::compiler::compile_profile(&profile) {
+        Ok(b) => b,
+        Err(e) => return err_result(e),
+    };
+    let static_report = match crate::compiler::static_gate(&bundle) {
+        Ok(r) => r,
+        Err(e) => return err_result(e),
+    };
+    // StdCommand shells out to dependency tools; missing tools are a graceful
+    // fallback inside dry_run, surfaced in the report.
+    let cmds = crate::adapters::StdCommand::new();
+    match crate::compiler::dry_run(&bundle, &cmds) {
+        Ok(dry_report) => ok_value(json!({
+            "static_gate_passed": static_report.passed(),
+            "dry_run_passed": dry_report.passed(),
+            "static_gate": static_gate_json(&static_report),
+            "dry_run": dry_run_json(&dry_report),
+        })),
+        Err(e) => err_result(e),
     }
 }
 

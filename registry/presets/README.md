@@ -22,8 +22,14 @@ registry/presets/
 ├── developer/
 │   ├── tdd.md
 │   └── debug.md
-└── creator/
-    └── continuity.md
+├── creator/
+│   └── continuity.md
+├── researcher/
+│   ├── evidence.md
+│   └── reproducibility.md
+└── business/
+    ├── decision.md
+    └── plainlanguage.md
 ```
 
 ## Preset format
