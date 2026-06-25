@@ -9,6 +9,7 @@ pub mod evidence;
 pub mod genre;
 pub mod profile;
 pub mod state;
+pub mod synthesis;
 
 pub use bundle::{BundleConfig, BundleVersion, HarnessBundle, HookSpec, McpTool, Ring, SkillSpec};
 pub use error::{ByohError, Result};
