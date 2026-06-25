@@ -50,6 +50,13 @@ pub struct SkillSpec {
     pub name: String,
     pub description: String,
     pub body_markdown: String,
+    /// Pipeline membership: `None` = standalone skill (default, backward-compatible);
+    /// `Some(id)` = this skill belongs to an ordered pipeline chain.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pipeline: Option<String>,
+    /// Position within the pipeline (1-based). `None` = order-independent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub order: Option<u32>,
 }
 
 /// HookInput required fields (research §2.4.2, ARCH §5.4). A bundle's hooks.json

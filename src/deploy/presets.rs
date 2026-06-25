@@ -51,6 +51,99 @@ pub fn preset_body(genre: Genre, skill_id: &str) -> Result<String> {
     Ok(raw_preset(genre, skill_id)?.to_string())
 }
 
+/// Searchable metadata for a preset — keywords the synthesis engine matches
+/// against profile-derived tags, plus the owning genre.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PresetMeta {
+    pub genre: Genre,
+    pub skill_id: &'static str,
+    pub keywords: &'static [&'static str],
+}
+
+/// The full local preset catalog. This is the synthesis engine's "registry":
+/// every embedded preset with the keyword tags it should match on. Community
+/// presets are OUT of scope this orbit (offline-vetted local only).
+pub fn preset_catalog() -> &'static [PresetMeta] {
+    use Genre::*;
+    &[
+        PresetMeta {
+            genre: Developer,
+            skill_id: "tdd",
+            keywords: &["test", "tdd", "quality", "red-green", "developer", "code"],
+        },
+        PresetMeta {
+            genre: Developer,
+            skill_id: "debug",
+            keywords: &["debug", "bug", "root-cause", "error", "developer", "code"],
+        },
+        PresetMeta {
+            genre: Creator,
+            skill_id: "continuity",
+            keywords: &[
+                "continuity",
+                "consistency",
+                "writing",
+                "story",
+                "creator",
+                "edit",
+            ],
+        },
+        PresetMeta {
+            genre: Researcher,
+            skill_id: "evidence",
+            keywords: &[
+                "evidence", "research", "citation", "claim", "source", "analysis",
+            ],
+        },
+        PresetMeta {
+            genre: Researcher,
+            skill_id: "reproducibility",
+            keywords: &[
+                "reproducibility",
+                "reproducible",
+                "seed",
+                "pin",
+                "research",
+                "data",
+            ],
+        },
+        PresetMeta {
+            genre: Business,
+            skill_id: "decision",
+            keywords: &[
+                "decision",
+                "roi",
+                "opportunity",
+                "business",
+                "strategy",
+                "tradeoff",
+            ],
+        },
+        PresetMeta {
+            genre: Business,
+            skill_id: "plainlanguage",
+            keywords: &[
+                "writing",
+                "communication",
+                "plain",
+                "exec",
+                "business",
+                "audience",
+            ],
+        },
+    ]
+}
+
+/// Does a preset match any of the given tags (case-insensitive substring)?
+pub fn preset_matches(meta: &PresetMeta, tags: &[String]) -> bool {
+    tags.iter().any(|t| {
+        let lower = t.to_lowercase();
+        meta.keywords
+            .iter()
+            .any(|k| lower.contains(k) || k.contains(&lower))
+    })
+}
+
 /// Parse minimal YAML frontmatter (`name:` / `description:`) + markdown body.
 /// Returns `(name, description, body_markdown)`. Falls back to the skill_id and
 /// an empty description if frontmatter is absent.
@@ -103,6 +196,8 @@ pub fn inject_preset(bundle: &mut HarnessBundle, genre: Genre, skill_id: &str) -
             name,
             description,
             body_markdown: body,
+            pipeline: None,
+            order: None,
         });
     }
     Ok(())

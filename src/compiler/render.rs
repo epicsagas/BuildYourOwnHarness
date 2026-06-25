@@ -106,6 +106,8 @@ fn render_skill(id: &str, ring: Ring, genre: Genre) -> SkillSpec {
         name,
         description,
         body_markdown: body,
+        pipeline: None,
+        order: None,
     }
 }
 
