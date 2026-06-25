@@ -128,6 +128,43 @@ AC 1–6 전부 달성. 커밋 `b5d2352` → 후속(spawn_blocking/프리셋 확
 
 **검증 매트릭스**: default / `--features mcp` / `--features native-rag,mcp` 전부 build + test green.
 
+## 7.2 병합 현황 + 잔여 항목 (2026-06-25 최종 갱신)
+
+### ✅ 완료 — main 병합됨
+PR #1~#5 전부 `main`에 merge-commit 병합 완료. 스택 브랜치(원격+로컬) + worktree 정리 완료. `main`만 잔존.
+
+| PR | 내용 | 상태 |
+|----|------|------|
+| #1 | 생성 계층 (M0–M5: 컴파일러/진화/프로파일) | ✅ merged |
+| #2 | 자체 RAG (llm-kernel 직접 의존) | ✅ merged |
+| #3 | MCP 서버 + 플러그인 매니페스트 + 복제 | ✅ merged |
+| #4 | 합성 엔진 (레지스트리 스킬 재조립) | ✅ merged |
+| #5 | 타겟 렌더러 (Claude/Codex/agy 배포 플러그인) | ✅ merged |
+
+사용자 경험 사슬: `요청 → 인터뷰/RAG → 합성 → 타겟별 플러그인 렌더 → git push로 공개` 까지 완성.
+
+### ⏳ 잔여 항목 (우선순위순)
+
+**A. 핵심 미구현 — UX 마지막 조각 (CLI 스텁)**
+| 항목 | 위치 | 비고 |
+|------|------|------|
+| `install` 실구현 | `main.rs run_install` (스텁) | 렌더된 플러그인을 실제 설치 위치(`~/.claude/plugins/`, `agy plugin install`, `~/.gemini/antigravity-cli/plugins/`)로 배포. 이게 끝나야 "git push 공개" 외에 "로컬 자동 설치"가 닫힘 |
+| `evolve` CLI/MCP 연결 | `main.rs run_evolve` (스텁) | `evolve::run_cycle`은 lib에 구현됨 — CLI/MCP에서 실제 호출만 하면 자가 진화 활성화 |
+| `run` 실구현 | `main.rs run_run` (스텁) | 실행 계층 도구 위임 (현재 메시지만) |
+| `hook` 디스패처 | `main.rs run_hook` (스텁) | Ring 0 훅 실제 디스패치 (현재 no-op) |
+
+**B. 등록된 이슈**
+- [Issue #6](https://github.com/epicsagas/BuildYourOwnHarness/issues/6): agent 프리셋 카탈로그 + synthesis agent 주입 (스킬 프리셋 패턴 미러)
+
+**C. 합성/렌더러 후속 (설계상 연기)**
+- 커뮤니티 스킬 페치/캐시 (awesomeclaudeplugins 등 — 오프라인 벤딩 경로)
+- 장르 enum 일반화 (현재 4개 고정; `recall.rs` 편향 하드코딩 회귀 위험)
+- 파이프라인 라이브러리 (shorts/research/app-impl 등 도메인 특화)
+- 정식 DAG 순환 감지 (현재 단순 참조 검증만)
+- **agy 포맷 실검증**: 공식 매뉴얼 반영 완료(plugin.json/mcp_config.json/hooks.json) — 단 실제 `agy plugin install` 동작은 미테스트
+
+**권장 다음 단계**: A의 `install` 실구현 → `evolve` 연결. 이 둘이 끝나면 BYOH 코어 루프(생성→설치→진화)가 완전히 닫힘.
+
 ## 8. 참조
 
 - 기획서: `docs/00_RESEARCH_REPORT.md` ~ `docs/04_ROADMAP.md`
