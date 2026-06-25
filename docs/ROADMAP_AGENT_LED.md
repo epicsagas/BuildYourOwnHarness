@@ -180,7 +180,7 @@ A의 4개 CLI 스텁이 전부 안전하게 실구현됨 — **생성→설치�
 - ~~[Issue #6](https://github.com/epicsagas/BuildYourOwnHarness/issues/6): agent 프리셋 카탈로그 + synthesis agent 주입 (스킬 프리셋 패턴 미러)~~ ✅ 완료 (아래 "Issue #6 완료" 섹션 참조)
 
 **C. 합성/렌더러 후속 (설계상 연기)**
-- 커뮤니티 스킬 페치/캐시 (awesomeclaudeplugins 등 — 오프라인 벤딩 경로)
+- 커뮤니티 스킬 페치/캐시 (awesomeclaudeplugins 등 — 오프라인 벤딩 경로) — [RFC: 빌드 타임 벤더링](RFC_COMMUNITY_SKILL_FETCH.md) 작성됨 (구현 전)
 - 장르 enum 일반화 (현재 4개 고정; `recall.rs` 편향 하드코딩 회귀 위험)
 - 파이프라인 라이브러리 (shorts/research/app-impl 등 도메인 특화)
 - ~~정식 DAG 순환 감지~~ ✅ 완료 (PR #9 — 3색 DFS, 순서 무관; forward dependency는 유효)
