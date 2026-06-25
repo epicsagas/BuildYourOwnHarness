@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "byoh",
+  "version": "0.1.0",
+  "description": "BuildYourOwnHarness — profile, compile, and evolve a personalized AI agent harness via MCP tools. An LLM agent drives the flow (profile → rag → compile → evolve); the CLI is auxiliary.",
+  "author": { "name": "epicsagas", "url": "https://github.com/epicsagas" },
+  "homepage": "https://github.com/epicsagas/BuildYourOwnHarness",
+  "repository": "https://github.com/epicsagas/BuildYourOwnHarness",
+  "license": "Apache-2.0",
+  "keywords": ["ai", "agent-harness", "mcp", "profiling", "rag", "harness-compiler"],
+  "skills": "./skills/",
+  "agents": ["./agents/byoh-guide.md"]
+}

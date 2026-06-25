@@ -92,6 +92,10 @@ pub enum Command {
     },
     /// Hook dispatcher (called by Ring 0 hooks).
     Hook { name: String },
+    /// Start the BYOH MCP server over stdio (LLM agents drive BYOH via MCP tools).
+    /// Requires the `mcp` cargo feature.
+    #[cfg(feature = "mcp")]
+    Serve,
 }
 
 #[derive(Debug, Subcommand)]

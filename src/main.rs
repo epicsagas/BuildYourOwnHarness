@@ -48,18 +48,29 @@ fn main() -> anyhow::Result<()> {
             corpus,
         } => run_search(&slug, &query, &genre, &home, k, corpus.as_deref())?,
         Command::Hook { name } => run_hook(&name, &lang)?,
+        #[cfg(feature = "mcp")]
+        Command::Serve => run_serve(&lang)?,
     }
     Ok(())
 }
 
-fn profiles_root() -> PathBuf {
-    PathBuf::from(std::env::var("BYOH_HOME").unwrap_or_else(|_| ".byoh".to_string()))
+/// Start the BYOH stdio MCP server. Runtime env (BYOH_HOME, language,
+/// native-rag) is fixed here and shared via `Arc` inside the server.
+#[cfg(feature = "mcp")]
+fn run_serve(lang: &str) -> anyhow::Result<()> {
+    let ctx = byoh::mcp::server::ByohContext {
+        home: byoh::store::byoh_home(),
+        language: lang.to_string(),
+        native_rag: cfg!(feature = "native-rag"),
+    };
+    let rt = tokio::runtime::Runtime::new()?;
+    rt.block_on(byoh::mcp::server::ByohServer::new(ctx).serve_stdio())
+        .map_err(anyhow::Error::msg)?;
+    Ok(())
 }
 
 fn profile_path(slug: &str) -> PathBuf {
-    profiles_root()
-        .join("profiles")
-        .join(format!("{slug}.yaml"))
+    byoh::store::profile_path(slug)
 }
 
 fn run_profile(action: ProfileAction, lang: &str) -> anyhow::Result<()> {
@@ -261,70 +272,16 @@ fn run_hook(name: &str, _lang: &str) -> anyhow::Result<()> {
 
 /// Collect text documents under `corpus` (.md/.txt/.rs/.py/...) into InputDocs.
 fn collect_corpus(corpus: &std::path::Path) -> anyhow::Result<Vec<byoh::rag::InputDoc>> {
-    let mut docs = Vec::new();
-    if !corpus.exists() {
-        anyhow::bail!("corpus path does not exist: {}", corpus.display());
-    }
-    if corpus.is_file() {
-        let text = std::fs::read_to_string(corpus)?;
-        docs.push(byoh::rag::InputDoc {
-            id: corpus
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("doc")
-                .to_string(),
-            text,
-        });
-        return Ok(docs);
-    }
-    for entry in walkdir::WalkDir::new(corpus)
-        .into_iter()
-        .filter_map(|e| e.ok())
-    {
-        let p = entry.path();
-        if !p.is_file() {
-            continue;
-        }
-        let is_text = p
-            .extension()
-            .and_then(|e| e.to_str())
-            .map(|e| {
-                matches!(
-                    e,
-                    "md" | "txt" | "rs" | "py" | "ts" | "js" | "toml" | "yaml" | "yml" | "json"
-                )
-            })
-            .unwrap_or(false);
-        if !is_text {
-            continue;
-        }
-        if let Ok(text) = std::fs::read_to_string(p) {
-            let id = p
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("doc")
-                .to_string();
-            docs.push(byoh::rag::InputDoc { id, text });
-        }
-    }
-    Ok(docs)
+    Ok(byoh::store::collect_corpus(corpus)?)
 }
 
 fn make_embedder() -> anyhow::Result<Box<dyn byoh::ports::EmbedderProvider>> {
-    // Default build: DummyEmbedder (no model download). With native-rag at run
-    // time we would construct FastembedEmbedder; selection is a runtime concern.
-    Ok(Box::new(byoh::adapters::DummyEmbedder::new()))
+    Ok(byoh::store::make_embedder()?)
 }
 
 #[cfg(feature = "native-rag")]
 fn make_embedder_native() -> anyhow::Result<Box<dyn byoh::ports::EmbedderProvider>> {
-    match byoh::adapters::embedder::FastembedEmbedder::new() {
-        Ok(fe) => Ok(Box::new(fe)),
-        Err(e) => {
-            eprintln!("[byoh] fastembed unavailable ({e}); falling back to dummy");
-            Ok(Box::new(byoh::adapters::DummyEmbedder::new()))
-        }
-    }
+    Ok(byoh::store::make_embedder_native()?)
 }
 
 fn run_index(
@@ -445,19 +402,11 @@ fn truncate_str(s: &str, max: usize) -> String {
 }
 
 fn load_profile(slug: &str) -> anyhow::Result<UserProfile> {
-    let path = profile_path(slug);
-    let body = std::fs::read_to_string(&path)
-        .map_err(|e| anyhow::anyhow!("reading profile {}: {e}", path.display()))?;
-    Ok(serde_yaml::from_str(&body)?)
+    Ok(byoh::store::load_profile(slug)?)
 }
 
 fn write_profile(p: &UserProfile) -> anyhow::Result<()> {
-    let path = profile_path(&p.slug);
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    std::fs::write(&path, serde_yaml::to_string(p)?)?;
-    Ok(())
+    Ok(byoh::store::write_profile(p)?)
 }
 
 // Helper trait to convert BundleConfig into a TOML-serializable form via serde.

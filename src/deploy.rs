@@ -2,6 +2,7 @@
 //! file-based state recovery.
 
 pub mod bootstrap;
+pub mod presets;
 pub mod provider;
 pub mod registry;
 pub mod state;
