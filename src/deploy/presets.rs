@@ -36,6 +36,26 @@ fn raw_preset(genre: Genre, skill_id: &str) -> Result<&'static str> {
         (Business, "plainlanguage") => {
             include_str!("../../registry/presets/business/plainlanguage.md")
         }
+        (Developer, "perf") => include_str!("../../registry/presets/developer/perf.md"),
+        (Developer, "simplify") => include_str!("../../registry/presets/developer/simplify.md"),
+        (Developer, "commit") => include_str!("../../registry/presets/developer/commit.md"),
+        (Developer, "verify") => include_str!("../../registry/presets/developer/verify.md"),
+        (Developer, "vuln-scan") => include_str!("../../registry/presets/developer/vuln-scan.md"),
+        (Developer, "threat-model") => {
+            include_str!("../../registry/presets/developer/threat-model.md")
+        }
+        (Developer, "triage") => include_str!("../../registry/presets/developer/triage.md"),
+        (Developer, "discover") => include_str!("../../registry/presets/developer/discover.md"),
+        (Developer, "document") => include_str!("../../registry/presets/developer/document.md"),
+        (Business, "biz-risk") => include_str!("../../registry/presets/business/biz-risk.md"),
+        (Business, "devils-advocate") => {
+            include_str!("../../registry/presets/business/devils-advocate.md")
+        }
+        (Business, "five-whys") => include_str!("../../registry/presets/business/five-whys.md"),
+        (Business, "mvp-force") => include_str!("../../registry/presets/business/mvp-force.md"),
+        (Business, "ship-over-perfect") => {
+            include_str!("../../registry/presets/business/ship-over-perfect.md")
+        }
         _ => {
             return Err(ByohError::Schema(format!(
                 "no preset for genre '{}' skill '{}'",
@@ -130,6 +150,96 @@ pub fn preset_catalog() -> &'static [PresetMeta] {
                 "business",
                 "audience",
             ],
+        },
+        PresetMeta {
+            genre: Developer,
+            skill_id: "perf",
+            keywords: &["perf", "performance", "speed", "slow", "developer", "code"],
+        },
+        PresetMeta {
+            genre: Developer,
+            skill_id: "simplify",
+            keywords: &[
+                "simplify",
+                "refactor",
+                "cleanup",
+                "complexity",
+                "developer",
+                "code",
+            ],
+        },
+        PresetMeta {
+            genre: Developer,
+            skill_id: "commit",
+            keywords: &["commit", "git", "conventional", "developer", "code"],
+        },
+        PresetMeta {
+            genre: Developer,
+            skill_id: "verify",
+            keywords: &["verify", "check", "test", "confirm", "developer", "code"],
+        },
+        PresetMeta {
+            genre: Developer,
+            skill_id: "vuln-scan",
+            keywords: &[
+                "vulnerability",
+                "security",
+                "scan",
+                "cve",
+                "developer",
+                "code",
+            ],
+        },
+        PresetMeta {
+            genre: Developer,
+            skill_id: "threat-model",
+            keywords: &["threat", "attack", "security", "adversary", "developer"],
+        },
+        PresetMeta {
+            genre: Developer,
+            skill_id: "triage",
+            keywords: &[
+                "triage",
+                "prioritize",
+                "vulnerability",
+                "severity",
+                "developer",
+            ],
+        },
+        PresetMeta {
+            genre: Developer,
+            skill_id: "discover",
+            keywords: &["discover", "problem", "requirement", "vague", "developer"],
+        },
+        PresetMeta {
+            genre: Developer,
+            skill_id: "document",
+            keywords: &["document", "docs", "api", "readme", "developer", "code"],
+        },
+        PresetMeta {
+            genre: Business,
+            skill_id: "biz-risk",
+            keywords: &["risk", "roi", "business", "revenue", "tradeoff"],
+        },
+        PresetMeta {
+            genre: Business,
+            skill_id: "devils-advocate",
+            keywords: &["devil", "counter", "argument", "challenge", "business"],
+        },
+        PresetMeta {
+            genre: Business,
+            skill_id: "five-whys",
+            keywords: &["why", "root-cause", "justify", "business", "decision"],
+        },
+        PresetMeta {
+            genre: Business,
+            skill_id: "mvp-force",
+            keywords: &["mvp", "ship", "scope", "minimum", "business"],
+        },
+        PresetMeta {
+            genre: Business,
+            skill_id: "ship-over-perfect",
+            keywords: &["ship", "release", "perfect", "business", "done"],
         },
     ]
 }
