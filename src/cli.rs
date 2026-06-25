@@ -35,9 +35,9 @@ pub enum Command {
     Compile {
         /// Profile slug.
         slug: String,
-        /// Profiles root dir.
-        #[arg(long, default_value = ".byoh/profiles")]
-        profiles_dir: PathBuf,
+        /// Profiles root dir (overrides BYOH_HOME). Defaults to BYOH_HOME/profiles.
+        #[arg(long)]
+        profiles_dir: Option<PathBuf>,
         /// Output dir for the bundle.
         #[arg(long, default_value = "./bundle")]
         out: PathBuf,

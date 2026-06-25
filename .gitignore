@@ -331,3 +331,6 @@ stitch-designs/
 # Rust build artifacts (BYOH implementation)
 /target/
 **/*.rs.bk
+
+# compile output (byoh compile default out)
+/bundle/
