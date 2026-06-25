@@ -221,6 +221,9 @@ pub fn synthesize(profile: &UserProfile) -> Result<(HarnessBundle, SynthesisPlan
     );
 
     // 6. Re-gate: synthesis must not bypass safety gates (Critic invariant).
+    //    Scope: static_gate checks MCP schema / HookInput / safety-gate presence
+    //    only — it does not inspect agent bodies. So this re-gate guards the
+    //    bundle's structural invariants, not the injected agent content.
     let report = static_gate(&bundle)?;
     if !report.passed() {
         return Err(ByohError::ValidationGateFailed {

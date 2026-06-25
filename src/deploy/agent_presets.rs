@@ -210,7 +210,9 @@ fn parse_frontmatter(raw: &str, fallback_id: &str) -> (String, String, String) {
 ///   `description` with the richer preset. Agent count is unchanged.
 /// - **Clone**: otherwise append a new `AgentSpec`. Cloned agents inherit the
 ///   preset's name/description/body; `tools` is left `None` (preset bodies are
-///   target-agnostic — the renderer adds tools per-host).
+///   target-agnostic — the renderer omits the `tools:` frontmatter line, so the
+///   host applies its default tool set, broader than the curated list an
+///   augmented genre-default agent keeps).
 ///
 /// Either way the result is deduplicated by `id` — generate + clone coexist.
 pub fn inject_agent(bundle: &mut HarnessBundle, genre: Genre, agent_id: &str) -> Result<()> {
