@@ -18,7 +18,11 @@ fn main() -> anyhow::Result<()> {
     if cli.verbose {
         eprintln!("[byoh] verbose mode");
     }
-    let lang = cli.language.clone();
+    let lang = if cli.language == "auto" {
+        byoh::i18n::detect_locale().to_string()
+    } else {
+        cli.language.clone()
+    };
     match cli.command {
         Command::Profile { action } => run_profile(action, &lang)?,
         Command::Compile {

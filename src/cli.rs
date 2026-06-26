@@ -15,8 +15,9 @@ pub struct Cli {
     #[command(subcommand)]
     pub command: Command,
 
-    /// Language for interactive output (ko | en).
-    #[arg(long, global = true, default_value = "ko")]
+    /// Language for interactive output. `auto` (default) detects from LC_ALL/LANG;
+    /// otherwise en | ko | ja | zh-hans | es | de | fr | pt | ru | ar.
+    #[arg(long, global = true, default_value = "auto")]
     pub language: String,
 
     /// Verbosity.

@@ -1,4 +1,6 @@
-**[English](README.md)** | [한국어](./docs/i18n/ko/README.md) | [日本語](./docs/i18n/ja/README.md) | [简体中文](./docs/i18n/zh-Hans/README.md) | [Español](./docs/i18n/es/README.md) | [Deutsch](./docs/i18n/de/README.md) | [Français](./docs/i18n/fr/README.md) | [Português](./docs/i18n/pt/README.md) | [Русский](./docs/i18n/ru/README.md) | [العربية](./docs/i18n/ar/README.md)
+> Ce document est une traduction de [README.md](../../README.md). La version anglaise est la source faisant autorité et peut être plus à jour.
+>
+> ⚠️ Auto-translation pending — the English source below awaits translation via the i18n workflow.
 
 # BuildYourOwnHarness (BYOH)
 

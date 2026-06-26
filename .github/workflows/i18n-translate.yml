@@ -1,0 +1,86 @@
+# Auto-translate README.md into the 8 non-canonical languages (oss-dist i18n.md Option 1).
+# English (README.md) is the authoritative source. Fires when README.md changes on main.
+# Requires repo secrets: LLM_API_KEY (Anthropic API key), and the model id in LLM_MODEL
+# (defaults to claude-haiku-4-5-20251001 for cheap, fast doc translation).
+name: i18n translate
+
+on:
+  push:
+    branches: [main]
+    paths: ['README.md']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: i18n-translate
+  cancel-in-progress: true
+
+jobs:
+  translate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Translate README to 8 languages
+        env:
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_MODEL: ${{ vars.LLM_MODEL || 'claude-haiku-4-5-20251001' }}
+          API: https://api.anthropic.com/v1/messages
+        run: |
+          set -euo pipefail
+          if [ -z "${LLM_API_KEY:-}" ]; then
+            echo "LLM_API_KEY secret not set — skipping translation."
+            exit 0
+          fi
+          # lang_code | display_name
+          entries=(
+            "ja|Japanese"
+            "zh-Hans|Simplified Chinese"
+            "es|Spanish"
+            "de|German"
+            "fr|French"
+            "pt|Portuguese"
+            "ru|Russian"
+            "ar|Arabic"
+          )
+          src=$(cat README.md)
+          for entry in "${entries[@]}"; do
+            lang="${entry%%|*}"
+            name="${entry##*|}"
+            mkdir -p "docs/i18n/$lang"
+            prompt=$(jq -n --arg lang "$name" --arg src "$src" '{
+              instructions: ("Translate the following markdown README to " + $lang + ". Rules: preserve all markdown formatting exactly; do NOT translate code blocks, URLs, or image paths; keep technical terms in English where the target language convention prefers it; preserve heading hierarchy. Output ONLY the translated markdown, no preamble."),
+              content: $src
+            }')
+            body=$(jq -n --arg m "$LLM_MODEL" --argjson p "$prompt" '{
+              model: $m,
+              max_tokens: 8192,
+              messages: [{ role: "user", content: ($p.instructions + "\n\n" + $p.content) }]
+            }')
+            translated=$(curl -s "$API" \
+              -H "x-api-key: $LLM_API_KEY" \
+              -H "anthropic-version: 2023-06-01" \
+              -H "content-type: application/json" \
+              -d "$body" | jq -r '.content[0].text // empty')
+            if [ -z "$translated" ]; then
+              echo "WARN: empty translation for $lang — leaving placeholder."
+              continue
+            fi
+            {
+              echo "> This is a translation of [README.md](../../README.md). The English version is the authoritative source and may be more up-to-date."
+              echo ""
+              echo "$translated"
+            } > "docs/i18n/$lang/README.md"
+            echo "translated $lang"
+          done
+
+      - name: Create translation PR
+        uses: peter-evans/create-pull-request@v6
+        with:
+          title: 'docs(i18n): update translations'
+          branch: docs/i18n-update
+          commit-message: 'docs(i18n): auto-translate README'
+          labels: translation, i18n
