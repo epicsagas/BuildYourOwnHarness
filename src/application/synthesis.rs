@@ -12,7 +12,9 @@
 
 use crate::compiler::{compile_profile, static_gate};
 use crate::deploy::agent_presets::{agent_catalog, agent_matches, inject_agent, AgentPresetMeta};
-use crate::deploy::presets::{inject_preset, preset_catalog, preset_matches, PresetMeta};
+use crate::deploy::presets::{
+    inject_preset, lookup_genre, preset_catalog, preset_matches, PresetMeta,
+};
 use crate::domain::bundle::HarnessBundle;
 use crate::domain::error::ByohError;
 use crate::domain::genre::Genre;
@@ -60,6 +62,7 @@ pub fn profile_tags(profile: &UserProfile) -> Vec<String> {
 pub fn select_presets(tags: &[String]) -> Vec<&'static PresetMeta> {
     let mut matched: Vec<&PresetMeta> = preset_catalog()
         .iter()
+        .chain(crate::deploy::presets::VENDORED_PRESETS.iter())
         .filter(|m| preset_matches(m, tags))
         .collect();
     matched.sort_by(|a, b| (a.genre.as_str(), a.skill_id).cmp(&(b.genre.as_str(), b.skill_id)));
@@ -170,7 +173,11 @@ fn build_plan(tags: Vec<String>, genre: Option<Genre>, matched: &[&PresetMeta]) 
 /// the catalog, and depends_on must point to an earlier step in the same
 /// pipeline. (Full DAG cycle detection is a follow-up orbit — Critic scope-defer.)
 fn validate_plan(plan: &SynthesisPlan) -> Result<()> {
-    let known: Vec<&str> = preset_catalog().iter().map(|m| m.skill_id).collect();
+    let known: Vec<&str> = preset_catalog()
+        .iter()
+        .chain(crate::deploy::presets::VENDORED_PRESETS.iter())
+        .map(|m| m.skill_id)
+        .collect();
     let mut unresolved: Vec<String> = Vec::new();
     let mut bad_deps: Vec<String> = Vec::new();
 
@@ -301,16 +308,12 @@ pub fn synthesize(profile: &UserProfile) -> Result<(HarnessBundle, SynthesisPlan
     for step in plan.pipelines.iter().flat_map(|p| p.steps_in_order()) {
         // Genre for injection: prefer the profile's confirmed genre; presets are
         // genre-scoped in the catalog, so use the matched preset's genre.
-        let genre = preset_catalog()
-            .iter()
-            .find(|m| m.skill_id == step.skill_id)
-            .map(|m| m.genre)
-            .ok_or_else(|| {
-                ByohError::Schema(format!(
-                    "synthesis referenced unknown skill '{}'",
-                    step.skill_id
-                ))
-            })?;
+        let genre = lookup_genre(&step.skill_id).ok_or_else(|| {
+            ByohError::Schema(format!(
+                "synthesis referenced unknown skill '{}'",
+                step.skill_id
+            ))
+        })?;
         inject_preset(&mut bundle, genre, &step.skill_id)?;
         // Annotate the just-injected/augmented skill with pipeline metadata.
         if let Some(skill) = bundle.skills.iter_mut().find(|s| s.id == step.skill_id) {

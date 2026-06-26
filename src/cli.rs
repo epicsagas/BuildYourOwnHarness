@@ -150,7 +150,7 @@ pub enum Command {
 pub enum VendorAction {
     /// Vendor an external SKILL.md into registry/vendored/<genre>/<id>.md.
     Add {
-        /// Source: path to a SKILL.md, or a dir laid out as skills/<id>/SKILL.md.
+        /// Source: local path (file or skills/<id>/ dir) OR a git URL (https://...).
         source: PathBuf,
         /// Genre: developer | creator | researcher | business.
         #[arg(long)]
@@ -158,6 +158,25 @@ pub enum VendorAction {
         /// Skill id to vendor as.
         #[arg(long)]
         id: String,
+        /// Comma-separated keyword tags for synthesis matching (vendored catalog).
+        #[arg(long)]
+        keywords: Option<String>,
+        /// Allow vendoring a git URL not in the default trusted-source allowlist.
+        #[arg(long)]
+        trust: bool,
+        /// Expected commit sha (prefix match) for a git source. Mismatch aborts.
+        #[arg(long)]
+        sha: Option<String>,
+    },
+    /// List vendored skills (from registry/vendored/MANIFEST.toml).
+    List,
+    /// Remove a vendored skill (deletes its .md and drops the MANIFEST row).
+    Remove {
+        /// Skill id to remove.
+        id: String,
+        /// Genre the skill was vendored under.
+        #[arg(long)]
+        genre: String,
     },
 }
 

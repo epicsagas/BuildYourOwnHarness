@@ -80,23 +80,102 @@ fn main() -> anyhow::Result<()> {
 fn run_vendor(action: byoh::cli::VendorAction, _lang: &str) -> anyhow::Result<()> {
     use byoh::cli::VendorAction;
     use byoh::domain::genre::Genre;
+    let repo_root = std::env::current_dir()?;
     match action {
-        VendorAction::Add { source, genre, id } => {
+        VendorAction::Add {
+            source,
+            genre,
+            id,
+            keywords,
+            trust,
+            sha,
+        } => {
             let g: Genre = genre.parse()?;
-            let repo_root = std::env::current_dir()?;
+            let kw: Vec<String> = keywords
+                .map(|s| {
+                    s.split(',')
+                        .map(|x| x.trim().to_string())
+                        .filter(|x| !x.is_empty())
+                        .collect()
+                })
+                .unwrap_or_default();
             let fetched_at = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)?
                 .as_secs()
                 .to_string();
-            let entry = byoh::deploy::vendor_add(&source, g, &id, &repo_root, &fetched_at)?;
-            println!(
-                "vendored '{}' ({}) -> registry/vendored/{}/{}.md (sha256 {}...)",
-                id,
-                g.as_str(),
-                g.as_str(),
-                id,
-                &entry.sha256[..12]
-            );
+
+            match byoh::deploy::resolve_source(&source.to_string_lossy()) {
+                byoh::deploy::VendorSource::Local(p) => {
+                    let entry = byoh::deploy::vendor_add(
+                        &p,
+                        g,
+                        &id,
+                        &kw,
+                        "unknown",
+                        &repo_root,
+                        &fetched_at,
+                    )?;
+                    println!(
+                        "vendored '{}' ({}) -> registry/vendored/{}/{}.md (sha256 {}...)",
+                        id,
+                        g.as_str(),
+                        g.as_str(),
+                        id,
+                        &entry.sha256[..12]
+                    );
+                }
+                byoh::deploy::VendorSource::GitSubdir { url, .. } => {
+                    if !trust && !byoh::deploy::source_is_trusted(&url) {
+                        anyhow::bail!(
+                            "source not in allowlist: {url}\nPass --trust to vendor an untrusted source."
+                        );
+                    }
+                    let dest = std::env::temp_dir().join(format!("byoh-vendor-{id}-{fetched_at}"));
+                    let sha_actual = byoh::deploy::fetch_git(&url, "HEAD", sha.as_deref(), &dest)?;
+                    let license = byoh::deploy::extract_license_from_dir(&dest)
+                        .unwrap_or_else(|| "unknown".to_string());
+                    let entry = byoh::deploy::vendor_add(
+                        &dest,
+                        g,
+                        &id,
+                        &kw,
+                        &license,
+                        &repo_root,
+                        &fetched_at,
+                    )?;
+                    let sha_short: String = sha_actual.chars().take(12).collect();
+                    println!(
+                        "vendored '{}' ({}) <- {url} (commit {sha_short}, skill sha256 {}..., license {license})",
+                        id,
+                        g.as_str(),
+                        &entry.sha256[..12]
+                    );
+                    let _ = std::fs::remove_dir_all(&dest);
+                }
+            }
+        }
+        VendorAction::List => {
+            let entries = byoh::deploy::vendor_list(&repo_root)?;
+            if entries.is_empty() {
+                println!("(no vendored skills)");
+            } else {
+                println!(
+                    "{:<24} {:<10} {:<10} sha256",
+                    "skill_id", "genre", "license"
+                );
+                for e in entries {
+                    let sha: String = e.sha256.chars().take(12).collect();
+                    println!(
+                        "{:<24} {:<10} {:<10} {}...",
+                        e.skill_id, e.genre, e.license, sha
+                    );
+                }
+            }
+        }
+        VendorAction::Remove { id, genre } => {
+            let g: Genre = genre.parse()?;
+            byoh::deploy::vendor_remove(&repo_root, g, &id)?;
+            println!("removed vendored '{}' ({})", id, g.as_str());
         }
     }
     Ok(())
