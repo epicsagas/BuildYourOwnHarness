@@ -1,103 +1,60 @@
 # AGENTS.md — BuildYourOwnHarness (BYOH)
 
-> AI 에이전트(Claude Code 등)가 이 코드베이스에서 작업할 때 읽어야 할 아키텍처 가이드.
-> 기획 근거는 `docs/00..04`, 이 파일은 구현 관점의 운용 지침.
+> Architecture guide for AI agents (Claude Code, etc.) working in this codebase.
+> Korean design rationale (research report, project plan, architecture, roadmap, RFCs)
+> lives in the alcove vault under `99-Archives/projects/BuildYourOwnHarness/`. This
+> file is the implementation-facing operating guide in English.
 
-## 1. 역할
+## 1. Role
 
-BYOH는 **생성 계층(generation layer)** 이다. 사용자 프로파일(`truth`/`candidates`/`derived`)을
-취합하고, 장르 템플릿과 결합해 **실행 가능한 HarnessBundle(4-Ring)** 을 컴파일하며,
-설치 후 3중 안전장치(Critic/Seesaw/Stagnation) 하에 진화시킨다.
+BYOH is a **generation layer**. It ingests a user profile (`truth` / `candidates` /
+`derived`), combines it with genre templates to compile an executable `HarnessBundle`
+(4-Ring), and evolves it under three safety gates (Critic / Seesaw / Stagnation) after
+install.
 
-**실행 계층은 외부 도구에 위임** — obsidian-forge(수집), alcove(RAG), Episteme(지식그래프),
-epic-harness(실행·진화 원형), claudy(런처)는 별도 설치된 프로세스로 `CommandPort` 뒤에서 호출한다.
-BYOH가 이들을 재구현하지 않는다(스펙 §Out).
+**The execution layer is delegated to external tools** — obsidian-forge (collection),
+alcove (RAG), Episteme (knowledge graph), epic-harness (execution/evolution prototype),
+claudy (launcher) are separate installed processes invoked behind a `CommandPort`. BYOH
+does **not** reimplement them (spec §Out).
 
-## 2. 모듈 지도 (헥사고날)
+## 2. Module map (hexagonal)
 
 ```
 src/
-├── domain/          순수 타입 (IO 없음)
-│   ├── profile      UserProfile 스키마 + 4상태 머신
+├── domain/          pure types (no IO)
+│   ├── profile      UserProfile schema + 4-state machine
 │   ├── bundle       HarnessBundle, Ring, McpTool, HookSpec
 │   ├── genre        Genre, SafetyGate, GenreTemplate
 │   ├── evidence     ObservationRecord, AbMetric
-│   └── state        BuildState, 45분 크래시 임계치
-├── ports/           trait 경계 (LlmPort, ProfileSource, InterviewPort, WizardPort, CommandPort)
-├── adapters/        구현체 (RuleLlm=오프라인 결정론, FilesystemSource, RuleInterview, StaticWizard, StdCommand)
-├── application/     ProfileOrchestrator — S1/S2/S3 순차 실행
-├── compiler/        render(4-Ring) · validate(정적 게이트) · dryrun · incremental(3a/3b/3c)
-├── evolve/          gates(Critic/Seesaw/Stagnation) · lifecycle · recall(B11) · compress(B13) · skills(SkillOpt)
-├── templates/       base + 4 자식(developer/creator/researcher/business) + 상속 머지
-├── deploy/          registry · bootstrap(install.sh/ps1/cargo-binstall) · provider(B14) · state(B9) · presets(스킬 프리셋) · agent_presets(에이전트 프리셋, Issue #6)
-├── i18n/            B17 ko/en 카탈로그
-├── obs/             관측 로그 + 상태 facade
-├── security/        시크릿 마스킹
-└── cli.rs / main.rs clap 트리 + 디스패치
+│   └── state        BuildState, 45-min crash threshold
+├── ports/           CommandPort, InterviewPort, LlmPort, ... (traits)
+├── adapters/        FilesystemSource, RuleLlm, RuleInterview, StaticWizard, ...
+├── application/     ProfileOrchestrator, synthesis, goal_pipelines
+├── compiler/        compile_profile, static_gate (3 contracts), dry_run
+├── evolve/          Critic / Seesaw / Stagnation gates
+├── templates/       genre template library
+├── deploy/          presets, agent_presets, vendor, install, registry, state
+├── i18n/            ko/en message catalog
+└── cli.rs / main.rs CLI + binary entry
 ```
 
-## 3. 핵심 불변량 (절대 위반 금지)
+## 3. Key invariants (do not break)
 
-1. **3중 안전장치 강제** — `safety_gates`에 critic/seesaw/stagnation 세 개가 **모두** 있어야 컴파일·진화가 진행된다(`SafetyGate::validate_all_present`, `SafetyGateSet::validate_all`). 하나라도 빠지면 거부.
-2. **진실/파생 분리(B6)** — 자동 추출값은 항상 `derived`, 사용자 확정값만 `truth`. 역유도 불변량.
-3. **비파괴 취합(B1)** — 자동분석은 자료를 읽기만 하고 이동/수정하지 않는다.
-4. **`#![forbid(unsafe_code)]`** — unsafe 금지.
+- **Compile-time embed.** Skill/agent bodies are `include_str!`'d into the binary — no
+  runtime remote registry (offline + reproducible + auditable). Vendored skills are
+  embedded by `build.rs` from `registry/vendored/`.
+- **3 safety gates always present** for evolution (Critic + Seesaw + Stagnation).
+- **Synthesis can never bypass the gates** — it re-runs `static_gate` after assembly.
+- **External skills → Ring 3** (most-restricted), static-validated + sha256-pinned.
 
-## 4. 작업 시 규칙
+## 4. CLI entry points
 
-- 새 기능은 **port 뒤에** 둔다 — 외부 LLM/검색 엔진은 trait으로 추상화하고, 테스트는 결정론적
-  rule-based 어댑터를 쓴다(네트워크 없이 `cargo test`가 통과해야 한다).
-- 커밋은 Conventional Commits. `--no-verify` 금지.
-- 시크릿/PII는 코드·로그·테스트 데이터에 절대 평문으로 넣지 않는다. `security::mask` 활용.
-- 검증: `cargo fmt && cargo clippy --all-targets -- -D warnings && cargo test`가 모두 green이어야 한다.
+`profile init/interview/confirm`, `vendor add/list/remove`, `compile [--dry-run]`,
+`render --target <claude|codex|agy|all>`, `install [--host]`, `run`, `evolve`,
+`serve` (MCP, `--features mcp`).
 
-## 5. 테스트
+## 5. Conventions
 
-- 단위 테스트: 각 모듈 내 `#[cfg(test)]` (84개).
-- 통합 테스트: `tests/end_to_end.rs` — 4 장르 전체 M0 경로 + 게이트/재컴파일/프로바이더/복구/마스킹 (14개).
-
-## 6. 의존성
-
-Rust edition 2021, rust-version 1.82. 주요 크레이트: `clap`(derive), `serde`/`serde_yaml`/`serde_json`/`toml`,
-`anyhow`/`thiserror`, `sha2`, `regex`, `walkdir`, `chrono`, `tracing`. dev: `tempfile`, `pretty_assertions`.
-
-## 7. Agent-Led Mode (PR #3 — 제어권 역전)
-
-BYOH는 **CLI 주도 → LLM 에이전트 주도**로 전환된다. 빈 자리였던 stdio MCP 서버를
-`mcp` cargo 피처로 추가했다.
-
-```
-목표:  LLM 에이전트가 주도 ──호출──> byoh(MCP 도구 = 보조)
-```
-
-### 진입점
-
-- `byoh serve` — stdio MCP 서버. 12개 도구 노출(`profile_*`, `rag_*`, `genre_list`,
-  `compile`, `compile_dry_run`, `evolve_cycle`, `registry_clone_skill`).
-- 플러그인 매니페스트: `.mcp.json`(Claude Code), `.claude-plugin/plugin.json` +
-  `skills/build-harness/SKILL.md`(진입 감지), `.codex/config.toml`(Codex).
-
-### 핵심 규칙
-
-- **대화 = 인터뷰/위자드.** LLM 에이전트와의 대화로 사용자 답변을 수집해 도구에
-  전달한다. 별도 인터랙티브 UI는 구축하지 않는다(스펙 §Out).
-- **에이전트는 CLI를 직접 호출하지 않는다.** MCP 도구만 호출.
-- **복제는 로컬 프리셋 주입만.** `registry/presets/<genre>/<id>.md`를 `include_str!`로
-  임베드 → `inject_preset`이 id 기반 중복 제거(증강/클론). 네트워크 git clone은 제외.
-
-### 모듈
-
-- `src/store.rs` — 영속화 + corpus + embedder 팩토리(binary/lib 공유).
-- `src/mcp/{server,params}.rs` — rmcp 서버(`#[cfg(feature="mcp")]`).
-- `src/deploy/presets.rs` — 로컬 프리셋 로더/인젝터.
-- 도메인 타입은 `Serialize`만 있으므로 MCP 응답은 opaque `serde_json::Value`로 반환
-  (도메인 derive 변경 없음).
-
-### 검증 매트릭스
-
-```bash
-cargo build && cargo test                       # 기본 (비동기 의존 없음)
-cargo build --features mcp && cargo test --features mcp
-cargo build --features native-rag,mcp           # fastembed 경로
-```
-
+- Edition 2021, `clap` 4 derive, `anyhow` (binary) / `thiserror` `ByohError` (library).
+- Conventional Commits; lint with `cargo clippy -- -D warnings`.
+- Optional features: `native-rag`, `rag-openai`, `mcp`. Default build is light (no async runtime).
