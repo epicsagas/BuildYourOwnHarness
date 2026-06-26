@@ -1,8 +1,9 @@
-# BuildYourOwnHarness (BYOH)
+<h1 align="center">BYOH</h1>
 
-> **사용자의 암묵지·데이터·비즈니스 장르·목표를 인터랙티브하게 취합하여, 사용자만의 맞춤형 AI 하네스 엔지니어링 시스템을 생성·배포·운영·진화시키는 서비스.**
->
-> epiccounty 워크스페이스의 7개 프로젝트를 레퍼런스로 삼아, 그 검증된 빌딩 블록 위에 **"생성 계층(generation layer)"** 을 추가하는 프로젝트 기획 패키지.
+<blockquote>Build Your Own Harness는 사용자의 암묵지·데이터·비즈니스 장르·목표를 인터랙티브하게 취합하여, 사용자만의 맞춤형 AI 하네스 엔지니어링 시스템을 생성·배포·운영·진화시키는 서비스.
+
+epiccounty 워크스페이스의 7개 프로젝트를 레퍼런스로 삼아, 그 검증된 빌딩 블록 위에 **"생성 계층(generation layer)"** 을 추가하는 프로젝트 기획 패키지.
+</blockquote>
 
 <p align="center">
   <img src="assets/features.png" alt="BYOH Features" />
