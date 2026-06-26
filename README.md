@@ -17,7 +17,7 @@
 ```bash
 cargo build --release            # 단일 바이너리 byoh
 cargo clippy --all-targets -- -D warnings   # 경고 0
-cargo test                       # 단위 + 통합 테스트 (175 단위 + 14 e2e; --features mcp 시 +6)
+cargo test                       # 단위 + 통합 테스트 (179 단위 + 14 e2e; --features mcp 시 +6)
 ./target/release/byoh --help
 ```
 
@@ -46,7 +46,7 @@ byoh serve                                  # stdio MCP 서버 시작
 # .mcp.json / .claude-plugin/ / .codex/ 매니페스트로 Claude Code·Codex 연결
 ```
 
-**로컬 프리셋 복제**: `registry/presets/<genre>/`의 검증 스킬을 `include_str!`로 임베드(네트워크 없음)해 번들에 주입. 생성(generate)과 복제(clone)가 공존 — id 기반 중복 제거. 4장르 7프리셋(developer: tdd/debug, creator: continuity, researcher: evidence/reproducibility, business: decision/plainlanguage).
+**로컬 프리셋 복제**: `registry/presets/<genre>/`의 검증 스킬을 `include_str!`로 임베드(네트워크 없음)해 번들에 주입. 생성(generate)과 복제(clone)가 공존 — id 기반 중복 제거. **4장르 21프리셋** — 7 범용 + epiccounty 범용 14(developer: tdd/debug/perf/simplify/commit/verify/vuln-scan/threat-model/triage/discover/document · creator: continuity · researcher: evidence/reproducibility · business: decision/plainlanguage/biz-risk/devils-advocate/five-whys/mvp-force/ship-over-perfect).
 
 ### 🧩 고유 하네스 합성 (Synthesis Engine)
 
@@ -66,7 +66,7 @@ flowchart LR
 
 합성은 스킬뿐 아니라 **에이전트**도 재조립한다 — `registry/agents/<genre>/<id>.md`의 7개 검증 에이전트 프리셋(developer: code-reviewer/debugger/tech-debt-auditor, creator: draft-writer/consistency-editor, researcher: research-analyst, business: decision-analyst)을 프로필 키워드로 매칭해 장르 기본 에이전트 위에 augment/clone한다. `inject_agent`는 id 기반 중복 제거(augment 또는 clone, 멱등). 스킬 프리셋 패턴(`deploy/presets.rs`)을 에이전트로 미러링한 것.
 
-합성은 **도메인 파이프라인 라이브러리**(장르별 기본 파이프라인 — 매칭 스킬이 없을 때 폴백)와 **커뮤니티 스킬 벤더**(`byoh vendor add` → `registry/vendored/`, sha256 MANIFEST, 위험 패턴 정적 차단; 외부 스킬은 **Ring 3** 최제한 링으로 격리)도 통합한다. 설계는 `docs/RFC_COMMUNITY_SKILL_FETCH.md`.
+합성은 **도메인 파이프라인 라이브러리**(장르별 기본 파이프라인 — 매칭 스킬이 없을 때 폴백)와 **커뮤니티 스킬 벤더**(`byoh vendor add` → `registry/vendored/`, sha256 MANIFEST, 위험 패턴 정적 차단; 외부 스킬은 **Ring 3** 최제한 링으로 격리)도 통합한다. 그리고 **목표 지향 파이프라인**(6종 — product-launch / market-analysis / decision / research-report / content-create / secure-ship)이 프로필의 30-day goal 키워드에 매칭되면, 그 목표에 맞는 **스킬 사다리 + 에이전트 세트**를 통째로 overlay 한다(`goal_pipelines.rs`). 설계는 `docs/RFC_COMMUNITY_SKILL_FETCH.md`.
 
 ### 🚀 코어 루프 + 타겟 렌더러
 
@@ -84,7 +84,7 @@ byoh evolve <slug>                     # Critic/Seesaw/Stagnation 3중 게이트
 - **install**(PR #7): render → staging → 원자적 rename. 기본은 안전한 `dist/`(`--host` 옵트인 시에만 실제 플러그인 디렉토리). `.byoh-manifest` 마커로 비-BYOH 디렉토리 보호(`--force` 필요), 슬러그 새니타이즈.
 - **evolve**(PR #7): seesaw/stagnation 상태를 cycle 간 영속, 정직한 `EvolutionDecision` 출력(Rejected/RolledBack는 비-0 exit).
 
-> **후속 작업 (대부분 완료)**: 정식 DAG 순환 감지(#9), 장르 enum 일반화(#12, `GenreProfile` 테이블), 커뮤니티 스킬 벤더 M1/M1b(#15/#16, RFC #14), 파이프라인 라이브러리(#17), agy `plugin install` 실동작 검증(#11), Ring 3 보안 격리(#18) — 모두 머지. 남은 사소: vendored 스킬 배포 바이너리 임베드(`build.rs`), 소스 허용목록/`--trust`. 설계는 `docs/ROADMAP_AGENT_LED.md` 참조.
+> **후속 작업 (대부분 완료)**: 정식 DAG 순환 감지(#9), 장르 enum 일반화(#12, `GenreProfile` 테이블), 커뮤니티 스킬 벤더 M1/M1b(#15/#16, RFC #14), 파이프라인 라이브러리(#17, 도메인+목표 6종), **스킬 카탈로그 확장 7→21**(epiccounty 범용 14 시딩), agy `plugin install` 실동작 검증(#11), Ring 3 보안 격리(#18) — 모두 머지. 남은 정리: 스킬 본문 범용화(epic 워크플로 잔존), creator/researcher 풀 보강, vendored 배포 바이너리 임베드(`build.rs`), 소스 허용목록/`--trust`. 설계는 `docs/ROADMAP_AGENT_LED.md` 참조.
 
 ### 구현된 요구사항 (R1–R20)
 

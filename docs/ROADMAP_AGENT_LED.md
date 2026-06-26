@@ -179,14 +179,15 @@ A의 4개 CLI 스텁이 전부 안전하게 실구현됨 — **생성→설치�
 **B. 등록된 이슈**
 - ~~[Issue #6](https://github.com/epicsagas/BuildYourOwnHarness/issues/6): agent 프리셋 카탈로그 + synthesis agent 주입 (스킬 프리셋 패턴 미러)~~ ✅ 완료 (아래 "Issue #6 완료" 섹션 참조)
 
-**C. 합성/렌더러 후속 (설계상 연기)**
-- 커뮤니티 스킬 페치/캐시 (awesomeclaudeplugins 등 — 오프라인 벤딩 경로) — [RFC: 빌드 타임 벤더링](RFC_COMMUNITY_SKILL_FETCH.md) 작성됨 (구현 전)
-- 장르 enum 일반화 (현재 4개 고정; `recall.rs` 편향 하드코딩 회귀 위험)
-- 파이프라인 라이브러리 (shorts/research/app-impl 등 도메인 특화)
+**C. 합성/렌더러 후속**
+- ~~커뮤니티 스킬 페치/캐시~~ ✅ M1/M1b 완료 (PR #15/#16, RFC #14) — `byoh vendor add` + sha256 MANIFEST + 정적 검증 + 합성 통합 + Ring 3 격리. 남은: `build.rs` 배포 임베드, 소스 허용목록
+- ~~장르 enum 일반화~~ ✅ 완료 (PR #12 — `GenreProfile` 테이블)
+- ~~파이프라인 라이브러리~~ ✅ 완료 (PR #17 도메인 파이프라인 + 목표 파이프라인 6종: product-launch/market-analysis/decision/research-report/content-create/secure-ship)
+- ~~스킬 카탈로그 확장~~ ✅ 완료 — 7→21 (epiccounty 범용 14 시딩: developer 9 + business 5)
 - ~~정식 DAG 순환 감지~~ ✅ 완료 (PR #9 — 3색 DFS, 순서 무관; forward dependency는 유효)
-- **agy 포맷 실검증**: 공식 매뉴얼 반영 완료(plugin.json/mcp_config.json/hooks.json) — 단 실제 `agy plugin install` 동작은 미테스트
+- ~~agy 포맷 실검증~~ ✅ 완료 (PR #11 — BYOH→agy install/load 증명; commands 디렉토리만 사소 skip)
 
-**권장 다음 단계**: 코어 루프 + Issue #6(에이전트 재조립, PR #8) + 정식 DAG 순환 감지(PR #9)까지 완료. 남은 것은 C의 확장 작업뿐. 우선순위는 커뮤니티 스킬 페치 → 파이프라인 라이브러리 → 장르 enum 일반화. agy `plugin install` 실동작 검증은 실제 agy 환경 확보 시 진행.
+**권장 다음 단계**: 코어 루프 + Issue #6(에이전트 재조립, PR #8) + DAG(#9) + 커뮤니티 스킬 M1/M1b(#15/#16) + 파이프라인(#17, 도메인+목표 6종) + 스킬 카탈로그 7→21 + Ring 3(#18) + agy 검증(#11)까지 완료. 남은 정리: 스킬 본문 범용화(epic 워크플로 잔존), creator/researcher 풀 보강, vendored `build.rs` 배포 임베드, 소스 허용목록/`--trust`.
 
 ## 8. 참조
 
