@@ -64,6 +64,11 @@ rmcp = { version = "1.8", optional = true, features = ["server", "macros", "tran
 tokio = { version = "1", optional = true, features = ["full"] }
 schemars = { version = "1", optional = true }
 
+[build-dependencies]
+# build.rs: parse registry/vendored/MANIFEST.toml to codegen the vendored catalog.
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+
 [dev-dependencies]
 tempfile = "3"
 pretty_assertions = "1"

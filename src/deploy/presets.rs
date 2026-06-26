@@ -80,6 +80,30 @@ pub struct PresetMeta {
     pub keywords: &'static [&'static str],
 }
 
+// Vendored community skill catalog, codegen'd at build time by `build.rs` from
+// `registry/vendored/MANIFEST.toml` (RFC §4 Option A). Empty when no vendored
+// skills exist. Bodies are `include_str!`'d into the shipped binary — no runtime
+// disk read. Runtime override / disk still wins at run time (see vendored_or_raw).
+include!(concat!(env!("OUT_DIR"), "/vendored_catalog.rs"));
+
+/// Compiled + vendored presets merged into one owned catalog. Vendored skills
+/// carry their own `PresetMeta` so the synthesis engine can match and inject
+/// them (they land in Ring 3 via `inject_preset`).
+pub fn preset_catalog_all() -> Vec<PresetMeta> {
+    let mut all: Vec<PresetMeta> = preset_catalog().to_vec();
+    all.extend(VENDORED_PRESETS.iter().cloned());
+    all
+}
+
+/// Resolve the owning genre for a skill_id across compiled + vendored catalogs.
+pub fn lookup_genre(skill_id: &str) -> Option<Genre> {
+    preset_catalog()
+        .iter()
+        .chain(VENDORED_PRESETS.iter())
+        .find(|m| m.skill_id == skill_id)
+        .map(|m| m.genre)
+}
+
 /// The full local preset catalog. This is the synthesis engine's "registry":
 /// every embedded preset with the keyword tags it should match on. Community
 /// presets are OUT of scope this orbit (offline-vetted local only).
@@ -296,9 +320,14 @@ fn parse_frontmatter(raw: &str, fallback_id: &str) -> (String, String, String) {
 /// enrich skills in synthesis.
 fn vendored_or_raw(genre: Genre, skill_id: &str) -> Result<(String, bool)> {
     // Returns (body, is_vendored). is_vendored drives Ring assignment in inject.
+    // Priority: runtime override / disk read (dev + tests) → codegen'd embed
+    // (clean installed binary, build.rs) → compiled preset.
     let root = crate::deploy::vendor::vendor_root();
     if let Some(body) = crate::deploy::vendor::vendored_body(&root, genre, skill_id) {
         return Ok((body, true));
+    }
+    if let Some(body) = vendored_preset_body(genre, skill_id) {
+        return Ok((body.to_string(), true));
     }
     Ok((raw_preset(genre, skill_id)?.to_string(), false))
 }
@@ -395,6 +424,25 @@ mod tests {
     fn preset_body_round_trips() {
         let body = preset_body(Genre::Creator, "continuity").unwrap();
         assert!(body.contains("continuity"));
+    }
+
+    #[test]
+    fn lookup_genre_finds_compiled_presets() {
+        assert_eq!(lookup_genre("tdd"), Some(Genre::Developer));
+        assert_eq!(lookup_genre("evidence"), Some(Genre::Researcher));
+        assert_eq!(lookup_genre("decision"), Some(Genre::Business));
+    }
+
+    #[test]
+    fn lookup_genre_unknown_is_none() {
+        assert_eq!(lookup_genre("does-not-exist"), None);
+    }
+
+    #[test]
+    fn preset_catalog_all_includes_compiled() {
+        let all = preset_catalog_all();
+        assert!(all.len() >= preset_catalog().len());
+        assert!(all.iter().any(|m| m.skill_id == "tdd"));
     }
 
     #[test]
