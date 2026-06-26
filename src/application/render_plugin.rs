@@ -404,7 +404,7 @@ fn write_readme(bundle: &HarnessBundle, out: &Path, target: Target) -> Result<()
          - **Codex**: the `.codex-plugin/` manifest + `.codex/` config are auto-discovered.\n\
          - **agy (Antigravity)**: `agy plugin install <this-dir>` (the `plugin.json` \
          marker + skills/agents/hooks.json/mcp_config.json are staged under \
-         `~/.gemini/antigravity-cli/plugins/`).\n\n\
+         `~/.gemini/config/plugins/`).\n\n\
          ## Contents\n\n\
          - Genre: `{genre}`\n\
          - Skills: {n_skills} · Agents: {n_agents}\n\

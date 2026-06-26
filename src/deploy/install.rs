@@ -1,7 +1,7 @@
 //! Plugin installation — deploy a rendered harness to a host's plugin location.
 //!
 //! The most dangerous operation in BYOH: it writes into directories the user
-//! cares about (`~/.claude/plugins/`, `~/.gemini/antigravity-cli/plugins/`).
+//! cares about (`~/.claude/plugins/`, `~/.gemini/config/plugins/`).
 //! Guardrails (per the council Critic):
 //!
 //! - **HOME is opt-in**: the default destination is a project-local `dist/`.
