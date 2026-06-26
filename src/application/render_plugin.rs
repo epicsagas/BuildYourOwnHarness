@@ -304,7 +304,7 @@ fn codex_config_toml(bundle: &HarnessBundle) -> String {
 //   skills/             (optional <name>.md skills — frontmatter name+description)
 //   agents/             (optional subagent templates)
 //   rules/              (optional codebase rules)
-// Installed under ~/.gemini/antigravity-cli/plugins/<plugin_name>/. We render
+// Installed under ~/.gemini/config/plugins/<plugin_name>/. We render
 // that plugin directory into `out`.
 
 fn render_agy(bundle: &HarnessBundle, out: &Path) -> Result<()> {

@@ -435,21 +435,48 @@ fn run_install(
     }
     let (bundle, _plan) = byoh::application::synthesize(&profile)?;
     let loc = byoh::deploy::InstallLocations::from_env();
-    let dest = if host {
-        byoh::deploy::InstallDest::Host
-    } else {
-        byoh::deploy::InstallDest::Dist
-    };
-    let path = byoh::deploy::install_plugin(&bundle, target, dest, &loc, force)?;
-    println!(
-        "[byoh] installed '{slug}' → {} ({} skills, {} agents) at {}",
-        target.as_str(),
-        bundle.skills.len(),
-        bundle.agents.len(),
-        path.display()
-    );
+
     if !host {
-        println!("[byoh] (project-local dist; use --host to install into the host's plugin dir)");
+        // Safe project-local `dist/` (a combined tree for `all`); no activation.
+        let dest = byoh::deploy::InstallDest::Dist;
+        let path = byoh::deploy::install_plugin(&bundle, target, dest, &loc, force)?;
+        println!(
+            "[byoh] installed '{slug}' → {} ({} skills, {} agents) at {}",
+            target.as_str(),
+            bundle.skills.len(),
+            bundle.agents.len(),
+            path.display()
+        );
+        println!(
+            "[byoh] (project-local dist; use --host to install AND activate into the host plugin dir)"
+        );
+        return Ok(());
+    }
+
+    // --host: install AND activate per host. `all` expands to one dir per host —
+    // a single combined tree is not a valid plugin for any one host.
+    let commands = StdCommand::new();
+    for t in target.concrete() {
+        let path = byoh::deploy::install_plugin(
+            &bundle,
+            *t,
+            byoh::deploy::InstallDest::Host,
+            &loc,
+            force,
+        )?;
+        println!(
+            "[byoh] installed '{slug}' → {} ({} skills, {} agents) at {}",
+            t.as_str(),
+            bundle.skills.len(),
+            bundle.agents.len(),
+            path.display()
+        );
+        let report = byoh::deploy::activate_plugin(*t, &path, slug, &loc, &commands)?;
+        let prefix = match report.status {
+            byoh::deploy::ActivationStatus::Failed => "activation failed —",
+            _ => "",
+        };
+        println!("[byoh] {}: {prefix}{}", t.as_str(), report.message);
     }
     Ok(())
 }

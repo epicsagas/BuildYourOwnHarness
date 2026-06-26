@@ -49,13 +49,14 @@ pub enum Command {
     /// Run the doctor: verify dependency tools are installed.
     Doctor,
     /// Install a rendered harness plugin for a slug. Defaults to a safe
-    /// project-local `dist/`; `--host` writes into the host's real plugin dir.
+    /// project-local `dist/`; `--host` installs AND activates so the host loads it.
     Install {
         slug: String,
         /// Target host: claude | codex | agy | all.
         #[arg(long, default_value = "all")]
         target: String,
-        /// Install into the host's real plugin directory (e.g. ~/.claude/plugins)
+        /// Install AND activate into the host's real plugin directory so the host
+        /// discovers it (Claude links @skills-dir; Codex/agy via their CLIs),
         /// instead of the safe project-local `dist/`.
         #[arg(long, default_value_t = false)]
         host: bool,

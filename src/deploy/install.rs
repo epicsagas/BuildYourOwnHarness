@@ -22,7 +22,8 @@ use crate::application::render_target;
 use crate::domain::bundle::HarnessBundle;
 use crate::domain::error::ByohError;
 use crate::domain::render_target::Target;
-use crate::store::sanitize_slug;
+use crate::ports::command::{CommandOutcome, CommandPort};
+use crate::store::{create_symlink_or_copy, sanitize_slug, write_file};
 use crate::Result;
 
 /// The on-disk marker proving a plugin directory was created by BYOH and is
@@ -37,15 +38,19 @@ pub struct InstallLocations {
     pub dist: PathBuf,
     /// Claude Code plugins root (`~/.claude/plugins`).
     pub claude: PathBuf,
-    /// Antigravity (agy) plugins root (`~/.gemini/antigravity-cli/plugins`).
+    /// Antigravity (agy) plugins root (`~/.gemini/config/plugins`).
     pub agy: PathBuf,
     /// Codex plugins root (`~/.codex/plugins`).
     pub codex: PathBuf,
+    /// Claude Code config root (`~/.claude`), honored from `CLAUDE_CONFIG_DIR`.
+    /// Plugins are activated by linking under `<this>/skills/<name>/`.
+    pub claude_config: PathBuf,
 }
 
 impl InstallLocations {
     /// Resolve install roots. Env overrides (for tests / power users):
-    /// `BYOH_DIST_DIR`, `CLAUDE_PLUGIN_DIR`, `AGY_PLUGIN_DIR`, `CODEX_PLUGIN_DIR`.
+    /// `BYOH_DIST_DIR`, `CLAUDE_PLUGIN_DIR`, `AGY_PLUGIN_DIR`, `CODEX_PLUGIN_DIR`,
+    /// `CLAUDE_CONFIG_DIR` (Claude config root, used for activation links).
     pub fn from_env() -> Self {
         let home = home_dir();
         Self {
@@ -53,9 +58,10 @@ impl InstallLocations {
             claude: env_or("CLAUDE_PLUGIN_DIR", home.join(".claude").join("plugins")),
             agy: env_or(
                 "AGY_PLUGIN_DIR",
-                home.join(".gemini").join("antigravity-cli").join("plugins"),
+                home.join(".gemini").join("config").join("plugins"),
             ),
             codex: env_or("CODEX_PLUGIN_DIR", home.join(".codex").join("plugins")),
+            claude_config: env_or("CLAUDE_CONFIG_DIR", home.join(".claude")),
         }
     }
 
@@ -164,6 +170,211 @@ fn io_at(path: &Path, e: std::io::Error) -> ByohError {
     ByohError::Other(format!("{}: {}", path.display(), e))
 }
 
+// ─── Activation ──────────────────────────────────────────────────────────────
+//
+// `install_plugin` only drops files; it does NOT make a host discover them.
+// Each host has a different discovery mechanism (verified on a live install):
+//
+// - Claude Code: a plugin dir under `<config>/skills/<name>/` auto-loads as
+//   `<name>@skills-dir` (official — see `claude plugin init --help`). Pure file
+//   op: a symlink there → the installed plugin dir. No settings.json, no CLI.
+// - Codex: plugins are marketplace-sourced. Register the plugin dir as a
+//   one-plugin local marketplace (`codex plugin marketplace add <dir>`), then
+//   `codex plugin add <name>@<mp>`. Codex owns the `~/.codex/config.toml` edit.
+// - agy (Antigravity): `agy plugin install <dir>` populates
+//   `~/.gemini/config/plugins` + `import_manifest.json`.
+
+/// Outcome of activating an installed plugin so a host tool discovers it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ActivationReport {
+    /// Which host this report is for.
+    pub host: Target,
+    /// What happened.
+    pub status: ActivationStatus,
+    /// Human-readable detail (shown to the user by the caller).
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActivationStatus {
+    /// The host now discovers the plugin (link registered / plugin added).
+    Activated,
+    /// The host CLI is missing — the exact manual commands are in `message`.
+    ManualStepsRequired,
+    /// Activation was attempted but failed; the install itself still succeeded.
+    Failed,
+}
+
+/// Activate an already-installed plugin so the host tool discovers it.
+///
+/// Non-fatal: an install succeeds regardless of the report; this only describes
+/// the activation attempt. `Target::All` is rejected — callers must expand `All`
+/// into concrete targets first (one install dir per host).
+pub fn activate_plugin<C: CommandPort>(
+    target: Target,
+    plugin_dir: &Path,
+    slug: &str,
+    loc: &InstallLocations,
+    commands: &C,
+) -> Result<ActivationReport> {
+    match target {
+        Target::Claude => activate_claude(plugin_dir, slug, loc),
+        Target::Codex => activate_codex(plugin_dir, slug, commands),
+        Target::Agy => activate_agy(plugin_dir, slug, loc, commands),
+        Target::All => Err(ByohError::Other(
+            "activate_plugin does not support Target::All — expand it first".into(),
+        )),
+    }
+}
+
+/// Claude Code: link `<config>/skills/byoh-<slug>` → installed plugin dir. The
+/// directory under `skills/` is the official auto-load mechanism
+/// (`<name>@skills-dir`); no settings.json or host CLI needed.
+fn activate_claude(
+    plugin_dir: &Path,
+    slug: &str,
+    loc: &InstallLocations,
+) -> Result<ActivationReport> {
+    let name = format!("byoh-{slug}");
+    let link = loc.claude_config.join("skills").join(&name);
+    create_symlink_or_copy(plugin_dir, &link)?;
+    Ok(ActivationReport {
+        host: Target::Claude,
+        status: ActivationStatus::Activated,
+        message: format!(
+            "linked @skills-dir at {}; restart Claude Code to load",
+            link.display()
+        ),
+    })
+}
+
+/// Codex: register the plugin dir as a one-plugin local marketplace, then add
+/// the plugin. Codex owns the `~/.codex/config.toml` mutation.
+fn activate_codex<C: CommandPort>(
+    plugin_dir: &Path,
+    slug: &str,
+    commands: &C,
+) -> Result<ActivationReport> {
+    let name = format!("byoh-{slug}");
+    write_codex_marketplace(plugin_dir, &name)?;
+    let dir = plugin_dir.display().to_string();
+    let selector = format!("{name}@{name}");
+    let manual = format!(
+        "codex CLI not found. Run:\n  codex plugin marketplace add {dir}\n  codex plugin add {selector}"
+    );
+    if !commands.is_installed("codex") {
+        return Ok(ActivationReport {
+            host: Target::Codex,
+            status: ActivationStatus::ManualStepsRequired,
+            message: manual,
+        });
+    }
+    // `marketplace add` is idempotent; an "already exists" failure is fine.
+    match commands.run("codex", &["plugin", "marketplace", "add", &dir], None) {
+        CommandOutcome::Ran { .. } | CommandOutcome::Failed { .. } => {}
+        CommandOutcome::NotInstalled => {
+            return Ok(ActivationReport {
+                host: Target::Codex,
+                status: ActivationStatus::ManualStepsRequired,
+                message: manual,
+            });
+        }
+    }
+    match commands.run("codex", &["plugin", "add", &selector], None) {
+        CommandOutcome::Ran { .. } => Ok(ActivationReport {
+            host: Target::Codex,
+            status: ActivationStatus::Activated,
+            message: "marketplace registered + plugin added; restart Codex to load".into(),
+        }),
+        CommandOutcome::Failed { stderr, .. } if stderr.to_lowercase().contains("already") => {
+            Ok(ActivationReport {
+                host: Target::Codex,
+                status: ActivationStatus::Activated,
+                message: "plugin already added; restart Codex to load".into(),
+            })
+        }
+        CommandOutcome::Failed { stderr, .. } => Ok(ActivationReport {
+            host: Target::Codex,
+            status: ActivationStatus::Failed,
+            message: format!("codex plugin add failed: {stderr}"),
+        }),
+        CommandOutcome::NotInstalled => Ok(ActivationReport {
+            host: Target::Codex,
+            status: ActivationStatus::ManualStepsRequired,
+            message: manual,
+        }),
+    }
+}
+
+/// Write a one-plugin local `marketplace.json` so Codex treats the installed
+/// dir as its own marketplace via `codex plugin marketplace add <dir>`.
+///
+/// Codex discovers the manifest at `.agents/plugins/marketplace.json` (verified
+/// against the live `codex plugin marketplace add`); the plugin source is the
+/// dir itself (`source: local`, `path: "./"`), matching the `openai-curated`
+/// local-plugin layout.
+fn write_codex_marketplace(plugin_dir: &Path, name: &str) -> Result<()> {
+    let body = serde_json::json!({
+        "name": name,
+        "plugins": [{
+            "name": name,
+            "source": { "source": "local", "path": "./" },
+            "description": "Personalized BYOH harness."
+        }]
+    });
+    write_file(
+        &plugin_dir.join(".agents").join("plugins"),
+        "marketplace.json",
+        &body.to_string(),
+    )
+}
+
+/// agy: install the plugin dir into `~/.gemini/config/plugins` via the agy CLI,
+/// which records it in `import_manifest.json` and handles the claude/codex-shaped
+/// markers we already render.
+fn activate_agy<C: CommandPort>(
+    plugin_dir: &Path,
+    slug: &str,
+    loc: &InstallLocations,
+    commands: &C,
+) -> Result<ActivationReport> {
+    let name = format!("byoh-{slug}");
+    let dir = plugin_dir.display().to_string();
+    let manual =
+        format!("agy CLI not found. Run:\n  agy plugin install {dir}\n  agy plugin enable {name}");
+    if !commands.is_installed("agy") {
+        return Ok(ActivationReport {
+            host: Target::Agy,
+            status: ActivationStatus::ManualStepsRequired,
+            message: manual,
+        });
+    }
+    match commands.run("agy", &["plugin", "install", &dir], None) {
+        CommandOutcome::Ran { .. } => Ok(ActivationReport {
+            host: Target::Agy,
+            status: ActivationStatus::Activated,
+            message: format!("installed to {}; restart agy to load", loc.agy.display()),
+        }),
+        CommandOutcome::Failed { stderr, .. } if stderr.to_lowercase().contains("already") => {
+            Ok(ActivationReport {
+                host: Target::Agy,
+                status: ActivationStatus::Activated,
+                message: "plugin already installed; restart agy to load".into(),
+            })
+        }
+        CommandOutcome::Failed { stderr, .. } => Ok(ActivationReport {
+            host: Target::Agy,
+            status: ActivationStatus::Failed,
+            message: format!("agy plugin install failed: {stderr}"),
+        }),
+        CommandOutcome::NotInstalled => Ok(ActivationReport {
+            host: Target::Agy,
+            status: ActivationStatus::ManualStepsRequired,
+            message: manual,
+        }),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -188,6 +399,7 @@ mod tests {
             claude: dist.join("claude"),
             agy: dist.join("agy"),
             codex: dist.join("codex"),
+            claude_config: dist.join("claude-config"),
         }
     }
 
@@ -246,5 +458,137 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let loc = locs(dir.path());
         assert!(install_plugin(&bundle, Target::Claude, InstallDest::Dist, &loc, false).is_err());
+    }
+
+    /// Stub command port reporting every tool as missing — deterministic for
+    /// activation tests that exercise the "manual steps" path.
+    struct MissingCli;
+    impl CommandPort for MissingCli {
+        fn run(&self, _tool: &str, _args: &[&str], _cwd: Option<&Path>) -> CommandOutcome {
+            CommandOutcome::NotInstalled
+        }
+        fn is_installed(&self, _tool: &str) -> bool {
+            false
+        }
+    }
+
+    #[test]
+    fn claude_activation_creates_skills_symlink() {
+        let dir = tempfile::tempdir().unwrap();
+        let plugin = dir.path().join("byoh-dev");
+        std::fs::create_dir_all(&plugin).unwrap();
+        let loc = locs(dir.path());
+        let r = activate_plugin(Target::Claude, &plugin, "dev", &loc, &MissingCli).unwrap();
+        let link = dir
+            .path()
+            .join("claude-config")
+            .join("skills")
+            .join("byoh-dev");
+        assert!(link.exists(), "skills-dir link must exist");
+        assert_eq!(r.status, ActivationStatus::Activated);
+    }
+
+    #[test]
+    fn claude_activation_is_idempotent() {
+        let dir = tempfile::tempdir().unwrap();
+        let plugin = dir.path().join("byoh-dev");
+        std::fs::create_dir_all(&plugin).unwrap();
+        let loc = locs(dir.path());
+        activate_plugin(Target::Claude, &plugin, "dev", &loc, &MissingCli).unwrap();
+        // second activation must not error and leaves a single link.
+        let r2 = activate_plugin(Target::Claude, &plugin, "dev", &loc, &MissingCli).unwrap();
+        assert_eq!(r2.status, ActivationStatus::Activated);
+        let link = dir
+            .path()
+            .join("claude-config")
+            .join("skills")
+            .join("byoh-dev");
+        assert!(link.exists());
+    }
+
+    #[test]
+    fn claude_activation_driven_by_claude_config_field() {
+        // The skills link lands under loc.claude_config, not a hardcoded ~/.claude,
+        // proving activation is driven by InstallLocations (testable, no env).
+        let dir = tempfile::tempdir().unwrap();
+        let plugin = dir.path().join("byoh-dev");
+        std::fs::create_dir_all(&plugin).unwrap();
+        let loc = locs(dir.path());
+        let _ = activate_plugin(Target::Claude, &plugin, "dev", &loc, &MissingCli).unwrap();
+        let link = dir
+            .path()
+            .join("claude-config")
+            .join("skills")
+            .join("byoh-dev");
+        assert!(link.exists(), "link must be under loc.claude_config");
+    }
+
+    #[test]
+    fn codex_activation_writes_marketplace_json() {
+        let dir = tempfile::tempdir().unwrap();
+        let plugin = dir.path().join("byoh-dev");
+        std::fs::create_dir_all(&plugin).unwrap();
+        let loc = locs(dir.path());
+        let r = activate_plugin(Target::Codex, &plugin, "dev", &loc, &MissingCli).unwrap();
+        // Codex looks for the manifest at `.agents/plugins/marketplace.json`.
+        let mp: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(plugin.join(".agents/plugins/marketplace.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(mp["name"], "byoh-dev");
+        assert_eq!(mp["plugins"][0]["name"], "byoh-dev");
+        assert_eq!(mp["plugins"][0]["source"]["source"], "local");
+        assert_eq!(mp["plugins"][0]["source"]["path"], "./");
+        assert_eq!(r.status, ActivationStatus::ManualStepsRequired);
+    }
+
+    #[test]
+    fn codex_activation_manual_steps_message_has_commands() {
+        let dir = tempfile::tempdir().unwrap();
+        let plugin = dir.path().join("byoh-dev");
+        std::fs::create_dir_all(&plugin).unwrap();
+        let loc = locs(dir.path());
+        let r = activate_plugin(Target::Codex, &plugin, "dev", &loc, &MissingCli).unwrap();
+        assert_eq!(r.status, ActivationStatus::ManualStepsRequired);
+        assert!(
+            r.message.contains("codex plugin marketplace add"),
+            "{:?}",
+            r.message
+        );
+        assert!(r.message.contains("codex plugin add byoh-dev@byoh-dev"));
+    }
+
+    #[test]
+    fn agy_default_root_is_config_plugins() {
+        // Regression: the default agy root was ~/.gemini/antigravity-cli/plugins
+        // (nonexistent on disk); it must be ~/.gemini/config/plugins.
+        let loc = InstallLocations::from_env();
+        assert!(
+            loc.agy
+                .ends_with(std::path::Path::new(".gemini/config/plugins")),
+            "agy root must end with .gemini/config/plugins, got {}",
+            loc.agy.display()
+        );
+    }
+
+    #[test]
+    fn agy_activation_manual_steps_when_cli_missing() {
+        let dir = tempfile::tempdir().unwrap();
+        let plugin = dir.path().join("byoh-dev");
+        std::fs::create_dir_all(&plugin).unwrap();
+        let loc = locs(dir.path());
+        let r = activate_plugin(Target::Agy, &plugin, "dev", &loc, &MissingCli).unwrap();
+        assert_eq!(r.status, ActivationStatus::ManualStepsRequired);
+        assert!(r.message.contains("agy plugin install"));
+        assert!(r.message.contains("agy plugin enable byoh-dev"));
+    }
+
+    #[test]
+    fn activate_plugin_rejects_all_target() {
+        let dir = tempfile::tempdir().unwrap();
+        let plugin = dir.path().join("byoh-dev");
+        std::fs::create_dir_all(&plugin).unwrap();
+        let loc = locs(dir.path());
+        assert!(activate_plugin(Target::All, &plugin, "dev", &loc, &MissingCli).is_err());
     }
 }
