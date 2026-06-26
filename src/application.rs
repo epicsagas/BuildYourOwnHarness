@@ -1,5 +1,6 @@
 //! Application layer — orchestrators wiring ports.
 pub mod evolve_run;
+pub mod goal_pipelines;
 pub mod profiler;
 pub mod render_plugin;
 pub mod synthesis;

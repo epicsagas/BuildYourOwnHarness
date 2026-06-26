@@ -330,6 +330,23 @@ pub fn synthesize(profile: &UserProfile) -> Result<(HarnessBundle, SynthesisPlan
         inject_agent(&mut bundle, meta.genre, meta.agent_id)?;
     }
 
+    // 4c. Goal-pipeline overlay: if the profile's 30-day goal matches a
+    //     purposeful skill+agent assembly (e.g. product-launch), inject its
+    //     skill ladder + agent set on top. inject_* dedupes by id, so this
+    //     enriches/extends rather than duplicates. Recorded for reproducibility.
+    if let Some(gp) = crate::application::goal_pipelines::select_goal_pipeline(&plan.tags) {
+        for (sid, g) in gp.skills {
+            inject_preset(&mut bundle, *g, sid)?;
+        }
+        for (aid, g) in gp.agents {
+            inject_agent(&mut bundle, *g, aid)?;
+        }
+        bundle
+            .config
+            .extra
+            .insert("synthesis_goal_pipeline".to_string(), gp.id.to_string());
+    }
+
     // 5. Record the plan (reproducibility).
     bundle.config.extra.insert(
         "synthesis_plan".to_string(),
