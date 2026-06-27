@@ -415,9 +415,9 @@ fn run_doctor(lang: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Synthesize a confirmed profile then install the rendered plugin. Default
-/// destination is a safe project-local `dist/`; `--host` opts into the host's
-/// real plugin directory. `--force` overwrites a non-BYOH directory.
+/// Synthesize a confirmed profile then render it as a polyglot plugin into the
+/// safe project-local `dist/`. `--host` additionally activates it so each host
+/// (claude/codex/agy) discovers the tree. `--force` overwrites a non-BYOH dir.
 fn run_install(
     slug: &str,
     target: &str,
@@ -435,21 +435,33 @@ fn run_install(
     }
     let (bundle, _plan) = byoh::application::synthesize(&profile)?;
     let loc = byoh::deploy::InstallLocations::from_env();
-    let dest = if host {
-        byoh::deploy::InstallDest::Host
-    } else {
-        byoh::deploy::InstallDest::Dist
-    };
-    let path = byoh::deploy::install_plugin(&bundle, target, dest, &loc, force)?;
+
+    // Render ONE polyglot tree (all three hosts' manifests) to dist/.
+    let path = byoh::deploy::install_plugin(&bundle, &loc, force)?;
     println!(
-        "[byoh] installed '{slug}' → {} ({} skills, {} agents) at {}",
-        target.as_str(),
+        "[byoh] installed '{slug}' → polyglot plugin ({} skills, {} agents) at {}",
         bundle.skills.len(),
         bundle.agents.len(),
         path.display()
     );
+
     if !host {
-        println!("[byoh] (project-local dist; use --host to install into the host's plugin dir)");
+        println!(
+            "[byoh] (polyglot tree in dist; pass --host to activate claude/codex/agy against it)"
+        );
+        return Ok(());
+    }
+
+    // --host: activate each selected host against the dist tree. `all` activates
+    // all three; agy/codex copy the tree into their own root, claude links it.
+    let commands = StdCommand::new();
+    for t in target.concrete() {
+        let report = byoh::deploy::activate_plugin(*t, &path, slug, &loc, &commands)?;
+        let prefix = match report.status {
+            byoh::deploy::ActivationStatus::Failed => "activation failed —",
+            _ => "",
+        };
+        println!("[byoh] {}: {prefix}{}", t.as_str(), report.message);
     }
     Ok(())
 }

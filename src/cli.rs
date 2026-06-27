@@ -48,15 +48,18 @@ pub enum Command {
     },
     /// Run the doctor: verify dependency tools are installed.
     Doctor,
-    /// Install a rendered harness plugin for a slug. Defaults to a safe
-    /// project-local `dist/`; `--host` writes into the host's real plugin dir.
+    /// Render a harness plugin for a slug as a polyglot tree into a safe
+    /// project-local `dist/`; `--host` additionally activates it so each host
+    /// (claude/codex/agy) discovers the tree.
     Install {
         slug: String,
-        /// Target host: claude | codex | agy | all.
+        /// Which hosts to activate with `--host`: claude | codex | agy | all.
+        /// The dist render is always polyglot (all three manifests).
         #[arg(long, default_value = "all")]
         target: String,
-        /// Install into the host's real plugin directory (e.g. ~/.claude/plugins)
-        /// instead of the safe project-local `dist/`.
+        /// Activate the polyglot tree so each host loads it — Claude links
+        /// @skills-dir, Codex registers via its marketplace, agy via
+        /// `agy plugin install` + `enable`. Without this, only `dist/` is written.
         #[arg(long, default_value_t = false)]
         host: bool,
         /// Overwrite a non-BYOH directory of the same name (dangerous).

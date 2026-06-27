@@ -14,7 +14,9 @@ pub mod vendor;
 pub use agent_presets::{agent_catalog, agent_matches, inject_agent, AgentPresetMeta};
 pub use bootstrap::{cargo_binstall_toml, install_script_posix, install_script_powershell};
 pub use genre_map::infer_genre;
-pub use install::{install_plugin, InstallDest, InstallLocations};
+pub use install::{
+    activate_plugin, install_plugin, ActivationReport, ActivationStatus, InstallLocations,
+};
 pub use provider::{match_provider, CapabilityProfile};
 pub use registry::{Registry, RegistryEntry};
 pub use state::{crash_check, BuildStore};
