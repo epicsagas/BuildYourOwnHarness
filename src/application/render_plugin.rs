@@ -17,17 +17,15 @@ use crate::domain::bundle::{AgentSpec, HarnessBundle, SkillSpec};
 use crate::domain::render_target::Target;
 use crate::Result;
 
-/// Render `bundle` for `target` into `out`. For `Target::All`, each concrete
-/// target gets its own subdir (`out/claude/`, `out/codex/`, `out/agy/`).
+/// Render `bundle` for `target` into `out`. For `Target::All`, writes a single
+/// **polyglot** tree carrying all three hosts' manifests (`.claude-plugin/`,
+/// `.codex-plugin/`, root agy `plugin.json`) plus shared `skills/`/`agents/`.
+/// A single concrete target renders a host-only tree.
 pub fn render_target(bundle: &HarnessBundle, target: Target, out: &Path) -> Result<PathBuf> {
     if target == Target::All {
-        let root = out.to_path_buf();
-        for t in Target::All.concrete() {
-            let sub = root.join(t.as_str());
-            render_one(bundle, *t, &sub)?;
-        }
-        write_readme(bundle, &root, Target::All)?;
-        return Ok(root);
+        render_polyglot(bundle, out)?;
+        write_readme(bundle, out, Target::All)?;
+        return Ok(out.to_path_buf());
     }
     render_one(bundle, target, out)?;
     write_readme(bundle, out, target)?;
@@ -41,6 +39,86 @@ fn render_one(bundle: &HarnessBundle, target: Target, out: &Path) -> Result<()> 
         Target::Agy => render_agy(bundle, out),
         Target::All => unreachable!("All is expanded by render_target"),
     }
+}
+
+// ─── polyglot (Target::All) ─────────────────────────────────────────────────
+//
+// One directory, all three hosts' manifests + de-duplicated shared skills/
+// agents. The merge is conflict-free: the only overlapping root paths
+// (skills/, agents/*.md, AGENTS.md) come from host-agnostic helpers, so they
+// are written once. Each host reads its own manifest from this single tree;
+// at install time agy/codex copy it into their own root and claude links it.
+
+/// Render a single polyglot plugin tree into `out` (the Velith shape): root agy
+/// `plugin.json` + `.claude-plugin/` + `.codex-plugin/` + shared `skills/` and
+/// `agents/`, plus per-host hooks/MCP. See [`render_target`] for dispatch.
+fn render_polyglot(bundle: &HarnessBundle, out: &Path) -> Result<()> {
+    // agy marker (root, strict 3-key form).
+    crate::store::write_file(out, "plugin.json", &pretty(&agy_manifest(bundle)))?;
+
+    // Claude manifest.
+    crate::store::write_file(
+        &out.join(".claude-plugin"),
+        "plugin.json",
+        &pretty(&claude_manifest(bundle)),
+    )?;
+
+    // Codex manifest + TOML agents.
+    crate::store::write_file(
+        &out.join(".codex-plugin"),
+        "plugin.json",
+        &pretty(&codex_manifest(bundle)),
+    )?;
+    for agent in &bundle.agents {
+        crate::store::write_file(
+            &out.join(".codex-plugin").join("agents"),
+            &format!("{}.toml", agent.id),
+            &agent_toml(agent),
+        )?;
+    }
+
+    // Shared skills + agents (written once; Claude/agy share the .md layout).
+    write_skills(bundle, out)?;
+    write_agents_md(bundle, out)?;
+
+    // Per-host hooks (distinct paths + bodies).
+    if !bundle.hooks.is_empty() {
+        crate::store::write_file(
+            &out.join(".claude-plugin"),
+            "hooks.json",
+            &pretty(&hooks_json(bundle, "${CLAUDE_PLUGIN_ROOT}", false)),
+        )?;
+        crate::store::write_file(
+            &out.join(".codex-plugin"),
+            "hooks.json",
+            &pretty(&codex_hooks(bundle)),
+        )?;
+        crate::store::write_file(
+            out,
+            "hooks.json",
+            &pretty(&hooks_json(bundle, "${PLUGIN_ROOT}", false)),
+        )?;
+    }
+
+    // Per-host MCP (distinct filenames — no collision).
+    if !bundle.mcp_tools.is_empty() {
+        crate::store::write_file(out, ".mcp.json", &pretty(&mcp_servers(bundle)))?; // Claude
+        crate::store::write_file(out, "mcp_config.json", &pretty(&mcp_servers(bundle)))?; // agy
+    }
+
+    // Codex .codex/ config + symlinks. Relative targets still resolve: the
+    // polyglot root IS the codex root.
+    crate::store::write_file(&out.join(".codex"), "config.toml", &codex_config_toml(bundle))?;
+    let codex = out.join(".codex");
+    crate::store::create_symlink_or_copy(
+        &PathBuf::from("../.codex-plugin/agents"),
+        &codex.join("agents"),
+    )?;
+    crate::store::create_symlink_or_copy(&PathBuf::from("../skills"), &codex.join("skills"))?;
+
+    // Shared root system prompt (once).
+    crate::store::write_file(out, "AGENTS.md", &root_agents_md(bundle))?;
+    Ok(())
 }
 
 // ─── common builders ────────────────────────────────────────────────────────
@@ -64,6 +142,57 @@ fn base_manifest(bundle: &HarnessBundle) -> Value {
         "repository": repo_url(&bundle.slug),
         "license": "Apache-2.0",
         "keywords": ["byoh", "agent-harness", bundle.genre.as_str()],
+    })
+}
+
+/// `.claude-plugin/plugin.json`: base manifest + skills + agents array (paths).
+/// Adds `$schema` for editor/tooling parity with the reference plugins.
+fn claude_manifest(bundle: &HarnessBundle) -> Value {
+    let agent_paths: Vec<String> = bundle
+        .agents
+        .iter()
+        .map(|a| format!("./agents/{}.md", a.id))
+        .collect();
+    let mut manifest = base_manifest(bundle);
+    manifest["$schema"] =
+        json!("https://json.schemastore.org/claude-code-plugin-manifest.json");
+    manifest["skills"] = json!("./skills/");
+    if !agent_paths.is_empty() {
+        manifest["agents"] = json!(agent_paths);
+    }
+    manifest
+}
+
+/// `.codex-plugin/plugin.json`: base manifest + skills + agents dir + interface.
+fn codex_manifest(bundle: &HarnessBundle) -> Value {
+    let mut manifest = base_manifest(bundle);
+    manifest["skills"] = json!("./skills/");
+    manifest["agents"] = json!("./.codex-plugin/agents/");
+    manifest["interface"] = json!({
+        "displayName": format!("BYOH {}", bundle.genre.as_str()),
+        "shortDescription": manifest["description"].clone(),
+        "developerName": "byoh",
+        "category": "Development & Workflow",
+        "capabilities": ["Read", "Write"],
+    });
+    if !bundle.hooks.is_empty() {
+        manifest["hooks"] = json!("./.codex-plugin/hooks.json");
+    }
+    manifest
+}
+
+/// Root agy `plugin.json` — STRICT (additionalProperties:false): only `$schema`,
+/// `name`, `description`. agy rewrites this to a stub on install, so any extra
+/// key is rejected.
+fn agy_manifest(bundle: &HarnessBundle) -> Value {
+    json!({
+        "$schema": "https://antigravity.google/schemas/v1/plugin.json",
+        "name": format!("byoh-{}", bundle.slug),
+        "description": format!(
+            "BYOH-generated {} harness for '{}'.",
+            bundle.genre.as_str(),
+            bundle.slug
+        ),
     })
 }
 
@@ -152,30 +281,8 @@ fn write_skills(bundle: &HarnessBundle, root: &Path) -> Result<()> {
     Ok(())
 }
 
-// ─── Claude Code ────────────────────────────────────────────────────────────
-
-fn render_claude(bundle: &HarnessBundle, out: &Path) -> Result<()> {
-    // .claude-plugin/plugin.json — agents as array of file paths.
-    let agent_paths: Vec<String> = bundle
-        .agents
-        .iter()
-        .map(|a| format!("./agents/{}.md", a.id))
-        .collect();
-    let mut manifest = base_manifest(bundle);
-    manifest["skills"] = json!("./skills/");
-    if !agent_paths.is_empty() {
-        manifest["agents"] = json!(agent_paths);
-    }
-    crate::store::write_file(
-        &out.join(".claude-plugin"),
-        "plugin.json",
-        &pretty(&manifest),
-    )?;
-
-    // skills/<id>/SKILL.md
-    write_skills(bundle, out)?;
-
-    // agents/<id>.md
+/// Shared `agents/<id>.md` (Claude and agy share this format; Codex uses TOML).
+fn write_agents_md(bundle: &HarnessBundle, out: &Path) -> Result<()> {
     for agent in &bundle.agents {
         crate::store::write_file(
             &out.join("agents"),
@@ -183,6 +290,22 @@ fn render_claude(bundle: &HarnessBundle, out: &Path) -> Result<()> {
             &agent_md(agent),
         )?;
     }
+    Ok(())
+}
+
+// ─── Claude Code ────────────────────────────────────────────────────────────
+
+fn render_claude(bundle: &HarnessBundle, out: &Path) -> Result<()> {
+    // .claude-plugin/plugin.json — agents as array of file paths.
+    crate::store::write_file(
+        &out.join(".claude-plugin"),
+        "plugin.json",
+        &pretty(&claude_manifest(bundle)),
+    )?;
+
+    // skills/<id>/SKILL.md + agents/<id>.md
+    write_skills(bundle, out)?;
+    write_agents_md(bundle, out)?;
 
     // hooks.json (Claude: ${CLAUDE_PLUGIN_ROOT}).
     if !bundle.hooks.is_empty() {
@@ -207,23 +330,10 @@ fn render_claude(bundle: &HarnessBundle, out: &Path) -> Result<()> {
 
 fn render_codex(bundle: &HarnessBundle, out: &Path) -> Result<()> {
     // .codex-plugin/plugin.json — agents as directory path.
-    let mut manifest = base_manifest(bundle);
-    manifest["skills"] = json!("./skills/");
-    manifest["agents"] = json!("./.codex-plugin/agents/");
-    manifest["interface"] = json!({
-        "displayName": format!("BYOH {}", bundle.genre.as_str()),
-        "shortDescription": manifest["description"].clone(),
-        "developerName": "byoh",
-        "category": "Development & Workflow",
-        "capabilities": ["Read", "Write"],
-    });
-    if !bundle.hooks.is_empty() {
-        manifest["hooks"] = json!("./.codex-plugin/hooks.json");
-    }
     crate::store::write_file(
         &out.join(".codex-plugin"),
         "plugin.json",
-        &pretty(&manifest),
+        &pretty(&codex_manifest(bundle)),
     )?;
 
     // .codex-plugin/agents/<id>.toml (3-key proprietary syntax).
@@ -310,28 +420,11 @@ fn codex_config_toml(bundle: &HarnessBundle) -> String {
 fn render_agy(bundle: &HarnessBundle, out: &Path) -> Result<()> {
     // plugin.json — REQUIRED marker. Schema is strict (additionalProperties:false):
     // ONLY name + description (+ $schema). No version/author/etc.
-    let manifest = json!({
-        "$schema": "https://antigravity.google/schemas/v1/plugin.json",
-        "name": format!("byoh-{}", bundle.slug),
-        "description": format!(
-            "BYOH-generated {} harness for '{}'.",
-            bundle.genre.as_str(),
-            bundle.slug
-        ),
-    });
-    crate::store::write_file(out, "plugin.json", &pretty(&manifest))?;
+    crate::store::write_file(out, "plugin.json", &pretty(&agy_manifest(bundle)))?;
 
-    // skills/<id>/SKILL.md (frontmatter name+description + body).
+    // skills/<id>/SKILL.md + agents/<id>.md subagent templates.
     write_skills(bundle, out)?;
-
-    // agents/<id>.md subagent templates (frontmatter name+description[+tools]).
-    for agent in &bundle.agents {
-        crate::store::write_file(
-            &out.join("agents"),
-            &format!("{}.md", agent.id),
-            &agent_md(agent),
-        )?;
-    }
+    write_agents_md(bundle, out)?;
 
     // hooks.json at the plugin root (NOT a hooks/ subdir).
     if !bundle.hooks.is_empty() {
@@ -389,7 +482,7 @@ fn root_agents_md(bundle: &HarnessBundle) -> String {
 
 fn write_readme(bundle: &HarnessBundle, out: &Path, target: Target) -> Result<()> {
     let targets_line = if target == Target::All {
-        "`claude/` (Claude Code), `codex/` (Codex), and `agy/` (Antigravity)".to_string()
+        "polyglot (Claude Code + Codex + Antigravity)".to_string()
     } else {
         format!("target `{}`", target.as_str())
     };
@@ -552,14 +645,56 @@ mod tests {
     }
 
     #[test]
-    fn render_all_creates_three_subdirs() {
+    fn render_all_creates_polyglot_tree() {
         let bundle = compile_profile(&confirmed_profile()).unwrap();
         let dir = tempfile::tempdir().unwrap();
         render_target(&bundle, Target::All, dir.path()).unwrap();
-        for t in ["claude", "codex", "agy"] {
-            assert!(dir.path().join(t).is_dir(), "missing {t}/ subdir");
-        }
+
+        // One tree carrying all three hosts' manifests.
+        assert!(dir.path().join(".claude-plugin/plugin.json").exists());
+        assert!(dir.path().join(".codex-plugin/plugin.json").exists());
+        assert!(dir.path().join("plugin.json").exists(), "agy root plugin.json");
         assert!(dir.path().join("README.md").exists());
+
+        // No per-host subdir split.
+        for t in ["claude", "codex", "agy"] {
+            assert!(
+                !dir.path().join(t).exists(),
+                "{t}/ must not exist in a polyglot tree"
+            );
+        }
+    }
+
+    #[test]
+    fn render_polyglot_writes_shared_paths_once() {
+        let bundle = compile_profile(&confirmed_profile()).unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        render_target(&bundle, Target::All, dir.path()).unwrap();
+
+        // Shared skills/agents/AGENTS.md exist exactly once (not triplicated).
+        assert!(dir.path().join("AGENTS.md").exists());
+        assert!(dir.path().join("agents/code-reviewer.md").exists());
+        assert!(
+            std::fs::read_dir(dir.path().join("skills"))
+                .unwrap()
+                .count()
+                > 0,
+            "shared skills/ must be populated"
+        );
+    }
+
+    #[test]
+    fn render_polyglot_codex_toml_coexists_with_agents_md() {
+        let bundle = compile_profile(&confirmed_profile()).unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        render_target(&bundle, Target::All, dir.path()).unwrap();
+
+        // Codex TOML agents + shared .md agents coexist (different dirs).
+        assert!(dir
+            .path()
+            .join(".codex-plugin/agents/code-reviewer.toml")
+            .exists());
+        assert!(dir.path().join("agents/code-reviewer.md").exists());
     }
 
     #[test]

@@ -1,11 +1,13 @@
-//! Plugin installation — deploy a rendered harness to a host's plugin location.
+//! Plugin installation — render a polyglot harness plugin and (optionally)
+//! activate it so each host tool discovers it.
 //!
-//! The most dangerous operation in BYOH: it writes into directories the user
-//! cares about (`~/.claude/plugins/`, `~/.gemini/config/plugins/`).
-//! Guardrails (per the council Critic):
+//! `install_plugin` renders ONE polyglot plugin tree (Claude + Codex + agy
+//! manifests + shared skills/agents) into the safe project-local `dist/`. It
+//! never writes into a host's own plugin root — activation does that, and only
+//! when the caller opts in (`--host`). Guardrails (per the council Critic):
 //!
-//! - **HOME is opt-in**: the default destination is a project-local `dist/`.
-//!   Touching a host plugin dir requires an explicit target location.
+//! - **HOME is opt-in**: the default is a project-local `dist/`. Touching a
+//!   host plugin dir requires explicit `--host` activation.
 //! - **BYOH-owned only**: every install drops a `.byoh-manifest` marker. We
 //!   refuse to overwrite a directory that exists and lacks the marker unless
 //!   `force` is set — so a user's hand-edited / third-party plugin is never
@@ -30,18 +32,17 @@ use crate::Result;
 /// therefore safe to overwrite on re-install.
 pub const OWNED_MARKER: &str = ".byoh-manifest";
 
-/// Resolved per-host plugin install roots. `from_env` honors overrides (used by
-/// tests to redirect into a tempdir) and falls back to the host conventions.
+/// Resolved install roots used by install + activation. `from_env` honors
+/// overrides (used by tests to redirect into a tempdir) and falls back to the
+/// host conventions.
 #[derive(Debug, Clone)]
 pub struct InstallLocations {
-    /// Project-local default destination root (no HOME writes).
+    /// Project-local default destination root (no HOME writes). The polyglot
+    /// plugin tree is rendered here at `<dist>/byoh-<slug>/`.
     pub dist: PathBuf,
-    /// Claude Code plugins root (`~/.claude/plugins`).
-    pub claude: PathBuf,
-    /// Antigravity (agy) plugins root (`~/.gemini/config/plugins`).
+    /// Antigravity (agy) plugins root (`~/.gemini/config/plugins`), shown in the
+    /// activation report (agy copies the tree here on `agy plugin install`).
     pub agy: PathBuf,
-    /// Codex plugins root (`~/.codex/plugins`).
-    pub codex: PathBuf,
     /// Claude Code config root (`~/.claude`), honored from `CLAUDE_CONFIG_DIR`.
     /// Plugins are activated by linking under `<this>/skills/<name>/`.
     pub claude_config: PathBuf,
@@ -49,60 +50,34 @@ pub struct InstallLocations {
 
 impl InstallLocations {
     /// Resolve install roots. Env overrides (for tests / power users):
-    /// `BYOH_DIST_DIR`, `CLAUDE_PLUGIN_DIR`, `AGY_PLUGIN_DIR`, `CODEX_PLUGIN_DIR`,
-    /// `CLAUDE_CONFIG_DIR` (Claude config root, used for activation links).
+    /// `BYOH_DIST_DIR`, `AGY_PLUGIN_DIR`, `CLAUDE_CONFIG_DIR`.
     pub fn from_env() -> Self {
         let home = home_dir();
         Self {
             dist: env_or("BYOH_DIST_DIR", PathBuf::from("dist")),
-            claude: env_or("CLAUDE_PLUGIN_DIR", home.join(".claude").join("plugins")),
             agy: env_or(
                 "AGY_PLUGIN_DIR",
                 home.join(".gemini").join("config").join("plugins"),
             ),
-            codex: env_or("CODEX_PLUGIN_DIR", home.join(".codex").join("plugins")),
             claude_config: env_or("CLAUDE_CONFIG_DIR", home.join(".claude")),
         }
     }
-
-    /// The install root for a given host destination.
-    fn root_for(&self, dest: InstallDest, target: Target) -> PathBuf {
-        match dest {
-            InstallDest::Dist => self.dist.clone(),
-            InstallDest::Host => match target {
-                Target::Claude => self.claude.clone(),
-                Target::Agy => self.agy.clone(),
-                Target::Codex => self.codex.clone(),
-                // `all` installed to a host falls back to the dist root (one
-                // tree per concrete target is rendered under it).
-                Target::All => self.dist.clone(),
-            },
-        }
-    }
 }
 
-/// Where to install: the safe project-local `dist/` (default) or the host's
-/// real plugin directory (explicit opt-in, e.g. `--host`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum InstallDest {
-    Dist,
-    Host,
-}
-
-/// Install a compiled/synthesized bundle as a plugin.
+/// Install a compiled/synthesized bundle as a **polyglot** plugin.
 ///
-/// Renders `bundle` for `target` into a temp dir adjacent to the destination,
-/// then atomically swaps it into `<root>/byoh-<slug>/`. Returns the final path.
+/// Renders one tree carrying all three hosts' manifests + shared skills/agents
+/// into a temp dir adjacent to `<dist>/`, then atomically swaps it into
+/// `<dist>/byoh-<slug>/`. Returns the final path. This never writes into a
+/// host's own plugin root — that is activation's job (opt-in via `--host`).
 pub fn install_plugin(
     bundle: &HarnessBundle,
-    target: Target,
-    dest: InstallDest,
     loc: &InstallLocations,
     force: bool,
 ) -> Result<PathBuf> {
     let slug = sanitize_slug(&bundle.slug)?;
     let name = format!("byoh-{slug}");
-    let root = loc.root_for(dest, target);
+    let root = loc.dist.clone();
     let final_dir = root.join(&name);
 
     // Guardrail: refuse to clobber a non-BYOH directory unless forced.
@@ -118,7 +93,7 @@ pub fn install_plugin(
     // Render into a staging dir on the SAME parent (⇒ atomic rename).
     let staging = root.join(format!(".{name}.staging"));
     let _ = std::fs::remove_dir_all(&staging); // clean any prior aborted staging
-    render_target(bundle, target, &staging)?;
+    render_target(bundle, Target::All, &staging)?;
     // Drop the owned-marker into the staged tree.
     write_marker(&staging, &name)?;
 
@@ -349,23 +324,53 @@ fn activate_agy<C: CommandPort>(
             message: manual,
         });
     }
+
+    // Phase 1: `agy plugin install` imports the plugin. It does NOT enable it
+    // (agy keeps install + enable separate). Idempotent — "already" is fine.
     match commands.run("agy", &["plugin", "install", &dir], None) {
+        CommandOutcome::Ran { .. } => {}
+        CommandOutcome::Failed { stderr, .. } if stderr.to_lowercase().contains("already") => {}
+        CommandOutcome::Failed { stderr, .. } => {
+            return Ok(ActivationReport {
+                host: Target::Agy,
+                status: ActivationStatus::Failed,
+                message: format!("agy plugin install failed: {stderr}"),
+            });
+        }
+        CommandOutcome::NotInstalled => {
+            return Ok(ActivationReport {
+                host: Target::Agy,
+                status: ActivationStatus::ManualStepsRequired,
+                message: manual,
+            });
+        }
+    }
+
+    // Phase 2: enable so agy actually loads the plugin. Idempotent — an
+    // "already enabled" failure is success.
+    match commands.run("agy", &["plugin", "enable", &name], None) {
         CommandOutcome::Ran { .. } => Ok(ActivationReport {
             host: Target::Agy,
             status: ActivationStatus::Activated,
-            message: format!("installed to {}; restart agy to load", loc.agy.display()),
+            message: format!(
+                "installed + enabled; restart agy to load (copies to {})",
+                loc.agy.display()
+            ),
         }),
-        CommandOutcome::Failed { stderr, .. } if stderr.to_lowercase().contains("already") => {
+        CommandOutcome::Failed { stderr, .. }
+            if stderr.to_lowercase().contains("already")
+                || stderr.to_lowercase().contains("enabled") =>
+        {
             Ok(ActivationReport {
                 host: Target::Agy,
                 status: ActivationStatus::Activated,
-                message: "plugin already installed; restart agy to load".into(),
+                message: "plugin already enabled; restart agy to load".into(),
             })
         }
         CommandOutcome::Failed { stderr, .. } => Ok(ActivationReport {
             host: Target::Agy,
             status: ActivationStatus::Failed,
-            message: format!("agy plugin install failed: {stderr}"),
+            message: format!("agy plugin enable failed: {stderr}"),
         }),
         CommandOutcome::NotInstalled => Ok(ActivationReport {
             host: Target::Agy,
@@ -396,22 +401,23 @@ mod tests {
     fn locs(dist: &Path) -> InstallLocations {
         InstallLocations {
             dist: dist.to_path_buf(),
-            claude: dist.join("claude"),
             agy: dist.join("agy"),
-            codex: dist.join("codex"),
             claude_config: dist.join("claude-config"),
         }
     }
 
     #[test]
-    fn install_to_dist_atomic_with_marker() {
+    fn install_renders_polyglot_to_dist_atomic() {
         let bundle = compile_profile(&confirmed()).unwrap();
         let dir = tempfile::tempdir().unwrap();
         let loc = locs(dir.path());
-        let out = install_plugin(&bundle, Target::Claude, InstallDest::Dist, &loc, false).unwrap();
+        let out = install_plugin(&bundle, &loc, false).unwrap();
         assert!(out.ends_with("byoh-dev"));
         assert!(out.join(OWNED_MARKER).exists(), "marker must be present");
+        // polyglot: all three hosts' manifests in one tree.
         assert!(out.join(".claude-plugin/plugin.json").exists());
+        assert!(out.join(".codex-plugin/plugin.json").exists());
+        assert!(out.join("plugin.json").exists(), "agy root plugin.json");
         // no staging/backup left behind
         assert!(!dir.path().join(".byoh-dev.staging").exists());
         assert!(!dir.path().join(".byoh-dev.bak").exists());
@@ -422,9 +428,9 @@ mod tests {
         let bundle = compile_profile(&confirmed()).unwrap();
         let dir = tempfile::tempdir().unwrap();
         let loc = locs(dir.path());
-        let out1 = install_plugin(&bundle, Target::Claude, InstallDest::Dist, &loc, false).unwrap();
+        let out1 = install_plugin(&bundle, &loc, false).unwrap();
         // second install over the byoh-owned dir succeeds without --force
-        let out2 = install_plugin(&bundle, Target::Claude, InstallDest::Dist, &loc, false).unwrap();
+        let out2 = install_plugin(&bundle, &loc, false).unwrap();
         assert_eq!(out1, out2);
         assert!(out2.join(OWNED_MARKER).exists());
     }
@@ -440,13 +446,13 @@ mod tests {
         std::fs::write(target_dir.join("user-file.txt"), "precious").unwrap();
 
         let err =
-            install_plugin(&bundle, Target::Claude, InstallDest::Dist, &loc, false).unwrap_err();
+            install_plugin(&bundle, &loc, false).unwrap_err();
         assert!(matches!(err, ByohError::Other(_)));
         // user's file untouched
         assert!(target_dir.join("user-file.txt").exists());
 
         // with force, it installs (overwrites)
-        install_plugin(&bundle, Target::Claude, InstallDest::Dist, &loc, true).unwrap();
+        install_plugin(&bundle, &loc, true).unwrap();
         assert!(target_dir.join(OWNED_MARKER).exists());
     }
 
@@ -457,7 +463,7 @@ mod tests {
         let bundle = compile_profile(&p).unwrap();
         let dir = tempfile::tempdir().unwrap();
         let loc = locs(dir.path());
-        assert!(install_plugin(&bundle, Target::Claude, InstallDest::Dist, &loc, false).is_err());
+        assert!(install_plugin(&bundle, &loc, false).is_err());
     }
 
     /// Stub command port reporting every tool as missing — deterministic for
@@ -590,5 +596,91 @@ mod tests {
         std::fs::create_dir_all(&plugin).unwrap();
         let loc = locs(dir.path());
         assert!(activate_plugin(Target::All, &plugin, "dev", &loc, &MissingCli).is_err());
+    }
+
+    /// Records every `run()` call and reports the configured tools as installed,
+    /// returning `Ran`. For activation success-path tests (proves which host CLI
+    /// subcommands were actually invoked).
+    struct RecordingCli {
+        installed: Vec<String>,
+        calls: std::cell::RefCell<Vec<(String, Vec<String>)>>,
+    }
+    impl RecordingCli {
+        fn new(installed: &[&str]) -> Self {
+            Self {
+                installed: installed.iter().map(|s| s.to_string()).collect(),
+                calls: std::cell::RefCell::new(Vec::new()),
+            }
+        }
+    }
+    impl CommandPort for RecordingCli {
+        fn run(&self, tool: &str, args: &[&str], _cwd: Option<&Path>) -> CommandOutcome {
+            self.calls.borrow_mut().push((
+                tool.to_string(),
+                args.iter().map(|s| s.to_string()).collect(),
+            ));
+            CommandOutcome::Ran {
+                stdout: String::new(),
+            }
+        }
+        fn is_installed(&self, tool: &str) -> bool {
+            self.installed.iter().any(|s| s == tool)
+        }
+    }
+
+    #[test]
+    fn agy_activation_runs_enable_after_install() {
+        let dir = tempfile::tempdir().unwrap();
+        let plugin = dir.path().join("byoh-dev");
+        std::fs::create_dir_all(&plugin).unwrap();
+        let loc = locs(dir.path());
+        let cli = RecordingCli::new(&["agy"]);
+        let r = activate_plugin(Target::Agy, &plugin, "dev", &loc, &cli).unwrap();
+        assert_eq!(r.status, ActivationStatus::Activated);
+
+        // install imports; a SEPARATE enable makes agy load it. Assert both ran.
+        let calls = cli.calls.borrow();
+        let ran = |sub: &str, name: Option<&str>| {
+            calls.iter().any(|(t, a)| {
+                t == "agy"
+                    && a.get(1).map(|s| s.as_str()) == Some(sub)
+                    && name.is_none_or(|n| a.get(2).map(|s| s.as_str()) == Some(n))
+            })
+        };
+        assert!(ran("install", None), "must run agy plugin install, got {calls:?}");
+        assert!(
+            ran("enable", Some("byoh-dev")),
+            "must run agy plugin enable byoh-dev, got {calls:?}"
+        );
+    }
+
+    /// install succeeds; enable reports "already enabled" (re-install idempotency).
+    struct AgyAlreadyEnabled;
+    impl CommandPort for AgyAlreadyEnabled {
+        fn run(&self, _tool: &str, args: &[&str], _cwd: Option<&Path>) -> CommandOutcome {
+            if args.get(1).copied() == Some("enable") {
+                CommandOutcome::Failed {
+                    code: 1,
+                    stderr: "already enabled".into(),
+                }
+            } else {
+                CommandOutcome::Ran {
+                    stdout: String::new(),
+                }
+            }
+        }
+        fn is_installed(&self, _tool: &str) -> bool {
+            true
+        }
+    }
+
+    #[test]
+    fn agy_enable_already_enabled_is_idempotent() {
+        let dir = tempfile::tempdir().unwrap();
+        let plugin = dir.path().join("byoh-dev");
+        std::fs::create_dir_all(&plugin).unwrap();
+        let loc = locs(dir.path());
+        let r = activate_plugin(Target::Agy, &plugin, "dev", &loc, &AgyAlreadyEnabled).unwrap();
+        assert_eq!(r.status, ActivationStatus::Activated);
     }
 }

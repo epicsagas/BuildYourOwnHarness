@@ -413,7 +413,7 @@ impl ByohServer {
     }
 
     #[tool(
-        description = "Install a synthesized harness plugin for a slug. Defaults to a SAFE project-local dist/ ; set host=true to write into the host's real plugin dir (~/.claude etc.). Refuses to overwrite a non-BYOH dir unless force=true. Atomic. Filesystem-heavy: runs via spawn_blocking."
+        description = "Render a synthesized harness plugin for a slug as a polyglot tree into the SAFE project-local dist/. Set host=true to additionally activate it so each host (claude/codex/agy) discovers the tree. Refuses to overwrite a non-BYOH dir unless force=true. Atomic. Filesystem-heavy: runs via spawn_blocking."
     )]
     pub async fn install_plugin(
         &self,
@@ -476,8 +476,8 @@ fn render_plugin_blocking(p: &RenderPluginParams) -> CallToolResult {
     }
 }
 
-/// Synchronous body of `install_plugin`. Synthesizes then installs the plugin
-/// to the safe dist/ (or host dir if requested), atomically + BYOH-owned-gated.
+/// Synchronous body of `install_plugin`. Renders the polyglot tree to dist/;
+/// if `host`, activates each selected host against it.
 fn install_plugin_blocking(p: &InstallPluginParams) -> CallToolResult {
     let target: crate::domain::render_target::Target = match p.target.parse() {
         Ok(t) => t,
@@ -492,21 +492,34 @@ fn install_plugin_blocking(p: &InstallPluginParams) -> CallToolResult {
         Err(e) => return err_result(e),
     };
     let loc = crate::deploy::InstallLocations::from_env();
-    let dest = if p.host {
-        crate::deploy::InstallDest::Host
-    } else {
-        crate::deploy::InstallDest::Dist
+    let path = match crate::deploy::install_plugin(&bundle, &loc, p.force) {
+        Ok(path) => path,
+        Err(e) => return err_result(e),
     };
-    match crate::deploy::install_plugin(&bundle, target, dest, &loc, p.force) {
-        Ok(path) => ok_value(json!({
-            "installed_to": path.to_string_lossy(),
-            "target": target.as_str(),
-            "host": p.host,
-            "skills": bundle.skills.len(),
-            "agents": bundle.agents.len(),
-        })),
-        Err(e) => err_result(e),
+    let mut result = json!({
+        "installed_to": path.to_string_lossy(),
+        "skills": bundle.skills.len(),
+        "agents": bundle.agents.len(),
+    });
+    if p.host {
+        let commands = crate::adapters::StdCommand::new();
+        let mut activations = Vec::new();
+        for t in target.concrete() {
+            let entry = match crate::deploy::activate_plugin(*t, &path, &p.slug, &loc, &commands) {
+                Ok(r) => json!({
+                    "host": t.as_str(),
+                    "status": format!("{:?}", r.status),
+                    "message": r.message,
+                }),
+                Err(e) => json!({ "host": t.as_str(), "error": e.to_string() }),
+            };
+            activations.push(entry);
+        }
+        result["activations"] = json!(activations);
+    } else {
+        result["host"] = json!(false);
     }
+    ok_value(result)
 }
 
 /// Synchronous body of `profile_scan`. Owned inputs so it can move into a
