@@ -337,3 +337,6 @@ stitch-designs/
 
 # BYOH install output (polyglot plugin tree) — `byoh install` default dest
 /dist/
+
+# BYOH local store (profiles, state) — `byoh` home default
+/.byoh/
