@@ -334,3 +334,6 @@ stitch-designs/
 
 # compile output (byoh compile default out)
 /bundle/
+
+# BYOH install output (polyglot plugin tree) — `byoh install` default dest
+/dist/
