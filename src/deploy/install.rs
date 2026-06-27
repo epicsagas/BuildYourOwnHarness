@@ -106,7 +106,11 @@ pub fn install_plugin(
     match std::fs::rename(&staging, &final_dir) {
         Ok(()) => {
             let _ = std::fs::remove_dir_all(&backup);
-            Ok(final_dir)
+            // Return an absolute, symlink-safe path: the dist root may be a
+            // relative dir (default "dist"), and activation links/registers this
+            // path from a different cwd (e.g. ~/.claude/skills/<name>), where a
+            // relative target would dangle.
+            Ok(std::fs::canonicalize(&final_dir).unwrap_or(final_dir))
         }
         Err(e) => {
             // Roll back: restore the backup, drop the staging.
