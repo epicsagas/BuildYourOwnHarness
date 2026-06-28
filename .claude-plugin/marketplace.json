@@ -1,17 +1,18 @@
 {
-  "name": "byoh",
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "epicsagas",
   "owner": {
     "name": "epicsagas",
     "url": "https://github.com/epicsagas"
   },
   "metadata": {
-    "description": "BuildYourOwnHarness — personalized AI agent harness builder (profile → compile → install → evolve)."
+    "description": "Handcrafted plugins for serious AI-assisted development."
   },
   "plugins": [
     {
       "name": "byoh",
       "source": "./",
-      "description": "Build, deploy, and evolve a personalized AI agent harness from an interview."
+      "description": "BuildYourOwnHarness — build, deploy, and evolve a personalized AI agent harness from an interview."
     }
   ]
 }
