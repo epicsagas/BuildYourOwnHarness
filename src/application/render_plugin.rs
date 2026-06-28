@@ -100,12 +100,9 @@ fn render_polyglot(bundle: &HarnessBundle, out: &Path) -> Result<()> {
         )?;
     }
 
-    // MCP at the root. Claude reads `.mcp.json` (auto + via the manifest `mcp`
-    // field); agy reads `mcp_config.json`. The two hosts require different
-    // filenames, so both are emitted with shared content. Codex's manifest
-    // references `.mcp.json` via its `mcp` field.
+    // Shared MCP: one `mcp_config.json` at the root. Claude and Codex reference
+    // it via their manifest `mcpServers` field; agy reads it from the root.
     if !bundle.mcp_tools.is_empty() {
-        crate::store::write_file(out, ".mcp.json", &pretty(&mcp_servers(bundle)))?;
         crate::store::write_file(out, "mcp_config.json", &pretty(&mcp_servers(bundle)))?;
     }
 
@@ -164,7 +161,7 @@ fn claude_manifest(bundle: &HarnessBundle) -> Value {
         manifest["agents"] = json!(agent_paths);
     }
     if !bundle.mcp_tools.is_empty() {
-        manifest["mcp"] = json!("./.mcp.json");
+        manifest["mcpServers"] = json!("./mcp_config.json");
     }
     manifest
 }
@@ -185,7 +182,7 @@ fn codex_manifest(bundle: &HarnessBundle) -> Value {
         manifest["hooks"] = json!("./.codex-plugin/hooks.json");
     }
     if !bundle.mcp_tools.is_empty() {
-        manifest["mcp"] = json!("./.mcp.json");
+        manifest["mcpServers"] = json!("./mcp_config.json");
     }
     manifest
 }
@@ -266,7 +263,7 @@ fn hooks_json(bundle: &HarnessBundle, root_var: &str, versioned: bool) -> Value 
     }
 }
 
-/// `.mcp.json` (Claude) / mcp block: { mcpServers: { name: {command, args} } }.
+/// `mcp_config.json` (shared MCP config): { mcpServers: { name: {command, args} } }.
 fn mcp_servers(bundle: &HarnessBundle) -> Value {
     let servers: Vec<(String, Value)> = bundle
         .mcp_tools
@@ -325,9 +322,9 @@ fn render_claude(bundle: &HarnessBundle, out: &Path) -> Result<()> {
         )?;
     }
 
-    // .mcp.json
+    // mcp_config.json at the root (referenced by the manifest's `mcpServers` field).
     if !bundle.mcp_tools.is_empty() {
-        crate::store::write_file(out, ".mcp.json", &pretty(&mcp_servers(bundle)))?;
+        crate::store::write_file(out, "mcp_config.json", &pretty(&mcp_servers(bundle)))?;
     }
 
     // AGENTS.md root system prompt.
@@ -381,9 +378,9 @@ fn render_codex(bundle: &HarnessBundle, out: &Path) -> Result<()> {
         )?;
     }
 
-    // .mcp.json at the root — referenced by the codex manifest's `mcp` field.
+    // mcp_config.json at the root (referenced by the codex manifest's `mcpServers` field).
     if !bundle.mcp_tools.is_empty() {
-        crate::store::write_file(out, ".mcp.json", &pretty(&mcp_servers(bundle)))?;
+        crate::store::write_file(out, "mcp_config.json", &pretty(&mcp_servers(bundle)))?;
     }
 
     // AGENTS.md.
@@ -666,19 +663,22 @@ mod tests {
     }
 
     #[test]
-    fn render_codex_emits_mcp_json_and_manifest_ref() {
+    fn render_codex_emits_mcp_config_and_manifest_ref() {
         let bundle = bundle_with_mcp();
         let dir = tempfile::tempdir().unwrap();
         render_codex(&bundle, dir.path()).unwrap();
         assert!(
-            dir.path().join(".mcp.json").exists(),
-            "codex must emit shared .mcp.json"
+            dir.path().join("mcp_config.json").exists(),
+            "codex must emit shared mcp_config.json"
         );
         let m: Value = serde_json::from_str(
             &std::fs::read_to_string(dir.path().join(".codex-plugin/plugin.json")).unwrap(),
         )
         .unwrap();
-        assert_eq!(m["mcp"], "./.mcp.json", "codex manifest must reference .mcp.json");
+        assert_eq!(
+            m["mcpServers"], "./mcp_config.json",
+            "codex manifest must reference mcp_config.json via mcpServers"
+        );
     }
 
     #[test]
@@ -686,24 +686,30 @@ mod tests {
         let bundle = bundle_with_mcp();
         let dir = tempfile::tempdir().unwrap();
         render_claude(&bundle, dir.path()).unwrap();
-        assert!(dir.path().join(".mcp.json").exists());
+        assert!(dir.path().join("mcp_config.json").exists());
         let m: Value = serde_json::from_str(
             &std::fs::read_to_string(dir.path().join(".claude-plugin/plugin.json")).unwrap(),
         )
         .unwrap();
-        assert_eq!(m["mcp"], "./.mcp.json", "claude manifest must reference .mcp.json");
+        assert_eq!(
+            m["mcpServers"], "./mcp_config.json",
+            "claude manifest must reference mcp_config.json via mcpServers"
+        );
     }
 
     #[test]
-    fn render_polyglot_emits_both_mcp_files() {
+    fn render_polyglot_emits_single_mcp_config() {
         let bundle = bundle_with_mcp();
         let dir = tempfile::tempdir().unwrap();
         render_target(&bundle, Target::All, dir.path()).unwrap();
-        // Claude reads .mcp.json; agy reads mcp_config.json — both emitted (shared content).
-        assert!(dir.path().join(".mcp.json").exists(), "claude reads .mcp.json");
+        // One shared mcp_config.json — claude/codex via mcpServers field, agy from root.
         assert!(
             dir.path().join("mcp_config.json").exists(),
-            "agy reads mcp_config.json"
+            "polyglot tree has shared mcp_config.json"
+        );
+        assert!(
+            !dir.path().join(".mcp.json").exists(),
+            "no legacy .mcp.json (consolidated to mcp_config.json)"
         );
     }
 

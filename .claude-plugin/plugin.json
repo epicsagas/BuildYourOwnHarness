@@ -10,5 +10,5 @@
   "keywords": ["ai", "agent-harness", "mcp", "profiling", "rag", "harness-compiler"],
   "skills": "./skills/",
   "agents": ["./agents/byoh-guide.md"],
-  "mcp": ".mcp.json"
+  "mcpServers": "./mcp_config.json"
 }
