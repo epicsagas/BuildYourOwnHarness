@@ -100,11 +100,13 @@ fn render_polyglot(bundle: &HarnessBundle, out: &Path) -> Result<()> {
         )?;
     }
 
-    // Shared MCP at the root: agy reads `.mcp.json` from the plugin root,
-    // Claude auto-reads it, and the Claude/Codex manifests reference it via
-    // their `mcp` field (like `skills`). One file serves all three hosts.
+    // MCP at the root. Claude reads `.mcp.json` (auto + via the manifest `mcp`
+    // field); agy reads `mcp_config.json`. The two hosts require different
+    // filenames, so both are emitted with shared content. Codex's manifest
+    // references `.mcp.json` via its `mcp` field.
     if !bundle.mcp_tools.is_empty() {
         crate::store::write_file(out, ".mcp.json", &pretty(&mcp_servers(bundle)))?;
+        crate::store::write_file(out, "mcp_config.json", &pretty(&mcp_servers(bundle)))?;
     }
 
     // Codex .codex/ config + symlinks. Relative targets still resolve: the
@@ -447,9 +449,9 @@ fn render_agy(bundle: &HarnessBundle, out: &Path) -> Result<()> {
         )?;
     }
 
-    // .mcp.json at the plugin root — agy reads MCP from here.
+    // mcp_config.json at the plugin root — agy reads MCP from here (NOT .mcp.json).
     if !bundle.mcp_tools.is_empty() {
-        crate::store::write_file(out, ".mcp.json", &pretty(&mcp_servers(bundle)))?;
+        crate::store::write_file(out, "mcp_config.json", &pretty(&mcp_servers(bundle)))?;
     }
 
     // AGENTS.md root system prompt (still useful as a harness overview).
@@ -651,15 +653,15 @@ mod tests {
     }
 
     #[test]
-    fn render_agy_uses_dot_mcp_json() {
+    fn render_agy_uses_mcp_config_json() {
         let bundle = bundle_with_mcp();
         let dir = tempfile::tempdir().unwrap();
         render_agy(&bundle, dir.path()).unwrap();
-        // agy reads MCP from `.mcp.json` at the plugin root.
-        assert!(dir.path().join(".mcp.json").exists());
+        // agy reads MCP from mcp_config.json (verified live — it does NOT read .mcp.json).
+        assert!(dir.path().join("mcp_config.json").exists());
         assert!(
-            !dir.path().join("mcp_config.json").exists(),
-            "agy must not emit legacy mcp_config.json"
+            !dir.path().join(".mcp.json").exists(),
+            "agy must not emit .mcp.json (it reads mcp_config.json)"
         );
     }
 
@@ -693,14 +695,15 @@ mod tests {
     }
 
     #[test]
-    fn render_polyglot_emits_single_dot_mcp_json() {
+    fn render_polyglot_emits_both_mcp_files() {
         let bundle = bundle_with_mcp();
         let dir = tempfile::tempdir().unwrap();
         render_target(&bundle, Target::All, dir.path()).unwrap();
-        assert!(dir.path().join(".mcp.json").exists(), "polyglot tree has shared .mcp.json");
+        // Claude reads .mcp.json; agy reads mcp_config.json — both emitted (shared content).
+        assert!(dir.path().join(".mcp.json").exists(), "claude reads .mcp.json");
         assert!(
-            !dir.path().join("mcp_config.json").exists(),
-            "no legacy mcp_config.json in polyglot tree"
+            dir.path().join("mcp_config.json").exists(),
+            "agy reads mcp_config.json"
         );
     }
 
