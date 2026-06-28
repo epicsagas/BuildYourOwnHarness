@@ -46,24 +46,25 @@ Releases are built by [cargo-dist](https://github.com/axodotdev/cargo-dist) on t
 
 BYOH ships as a **polyglot plugin**: `.claude-plugin/` (Claude), `.codex-plugin/` (Codex), root `plugin.json` (agy), sharing `skills/`, `agents/`, and `mcp_config.json`. Load it so your host gets the skills/agents and the `byoh` MCP server (`byoh serve`).
 
+- **Claude Code** — the plugin ships an in-repo marketplace (`epicsagas`), so add it then install:
+  ```bash
+  claude plugin marketplace add epicsagas/BuildYourOwnHarness   # public: or epicsagas/plugins
+  claude plugin install byoh@epicsagas
+  ```
 - **agy (Antigravity)** — reads the plugin from a directory:
   ```bash
   agy plugin install /path/to/BuildYourOwnHarness
   agy plugin enable byoh
   ```
-- **Claude Code** — link as a `@skills-dir` (auto-loads next session):
-  ```bash
-  ln -s /path/to/BuildYourOwnHarness ~/.claude/skills/byoh
-  ```
 - **Codex** — register the repo as a local marketplace:
   ```bash
   codex plugin marketplace add /path/to/BuildYourOwnHarness
-  codex plugin add byoh@byoh
+  codex plugin add byoh@epicsagas
   ```
 
 The plugin's `SessionStart` hook (`.claude-plugin/hooks.json` → `registry/scripts/install.js`) auto-installs the `byoh` binary cross-platform if it's missing when the plugin loads — so Rust is never a prerequisite.
 
-> The repo is currently **private**: use local paths above. Once public, `/path/to/...` → `epicsagas/BuildYourOwnHarness`. One-shot `/plugin marketplace add epicsagas/BuildYourOwnHarness` (Claude) needs a `marketplace.json` — a planned follow-up.
+> The repo is currently **private**: use local paths / `epicsagas/BuildYourOwnHarness` above. Once public, BYOH will also be listed in the shared [`epicsagas/plugins`](https://github.com/epicsagas/plugins) marketplace (`/plugin marketplace add epicsagas/plugins` → `byoh@epicsagas`).
 
 ## Build & verify
 
