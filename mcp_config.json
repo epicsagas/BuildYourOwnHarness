@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "byoh": {
+      "command": "byoh",
+      "args": ["serve"]
+    }
+  }
+}
