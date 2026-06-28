@@ -14,6 +14,57 @@ A confirmed user profile (genre + expertise + 30-day goal) drives a synthesis en
 profile (interview → genre → confirm) → compile → synthesize → render → install → run → evolve
 ```
 
+## Installation
+
+### Binary (recommended — no Rust toolchain required)
+
+**macOS / Linux** (one line):
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/epicsagas/BuildYourOwnHarness/releases/latest/download/install.sh | sh
+```
+
+**Windows** (PowerShell):
+```powershell
+irm https://github.com/epicsagas/BuildYourOwnHarness/releases/latest/download/install.ps1 | iex
+```
+
+**Rust users**:
+```bash
+cargo install byoh --git https://github.com/epicsagas/BuildYourOwnHarness   # build from source
+# cargo binstall byoh                                                        # once on crates.io
+```
+
+Verify:
+```bash
+byoh --version
+```
+
+Releases are built by [cargo-dist](https://github.com/axodotdev/cargo-dist) on tag push; the installers detect OS/arch and download the matching prebuilt binary to `~/.local/bin`.
+
+### Load the BYOH plugin into your host
+
+BYOH ships as a **polyglot plugin**: `.claude-plugin/` (Claude), `.codex-plugin/` (Codex), root `plugin.json` (agy), sharing `skills/`, `agents/`, and `.mcp.json`. Load it so your host gets the skills/agents and the `byoh` MCP server (`byoh serve`).
+
+- **agy (Antigravity)** — reads the plugin from a directory:
+  ```bash
+  agy plugin install /path/to/BuildYourOwnHarness
+  agy plugin enable byoh
+  ```
+- **Claude Code** — link as a `@skills-dir` (auto-loads next session):
+  ```bash
+  ln -s /path/to/BuildYourOwnHarness ~/.claude/skills/byoh
+  ```
+- **Codex** — register the repo as a local marketplace:
+  ```bash
+  codex plugin marketplace add /path/to/BuildYourOwnHarness
+  codex plugin add byoh@byoh
+  ```
+
+The plugin's `SessionStart` hook (`.claude-plugin/hooks.json` → `registry/scripts/install.js`) auto-installs the `byoh` binary cross-platform if it's missing when the plugin loads — so Rust is never a prerequisite.
+
+> The repo is currently **private**: use local paths above. Once public, `/path/to/...` → `epicsagas/BuildYourOwnHarness`. One-shot `/plugin marketplace add epicsagas/BuildYourOwnHarness` (Claude) needs a `marketplace.json` — a planned follow-up.
+
 ## Build & verify
 
 ```bash

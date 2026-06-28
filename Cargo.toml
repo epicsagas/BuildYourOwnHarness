@@ -78,7 +78,10 @@ pretty_assertions = "1"
 serial_test = "3"
 
 [features]
-default = []
+# `mcp` is on by default: the primary BYOH interface is the stdio MCP server
+# (`byoh serve`, agent-led mode), and the shipped plugin's .mcp.json calls it.
+# This also ensures cargo-dist release binaries support serve out of the box.
+default = ["mcp"]
 # Enable BYOH's self-contained RAG subsystem (genre indexes, hybrid search).
 # Turns on llm-kernel's fastembed backend (local multilingual-e5-small model).
 # OpenAI embeddings remain behind the `rag-openai` sub-feature (opt-in).

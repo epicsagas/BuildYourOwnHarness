@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/registry/scripts/install.js\"",
+            "description": "Install byoh binary if missing (cross-platform, non-fatal)"
+          }
+        ]
+      }
+    ]
+  }
+}
