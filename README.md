@@ -44,7 +44,7 @@ Releases are built by [cargo-dist](https://github.com/axodotdev/cargo-dist) on t
 
 ### Load the BYOH plugin into your host
 
-BYOH ships as a **polyglot plugin**: `.claude-plugin/` (Claude), `.codex-plugin/` (Codex), root `plugin.json` (agy), sharing `skills/`, `agents/`, and `.mcp.json`. Load it so your host gets the skills/agents and the `byoh` MCP server (`byoh serve`).
+BYOH ships as a **polyglot plugin**: `.claude-plugin/` (Claude), `.codex-plugin/` (Codex), root `plugin.json` (agy), sharing `skills/`, `agents/`, and `mcp_config.json`. Load it so your host gets the skills/agents and the `byoh` MCP server (`byoh serve`).
 
 - **agy (Antigravity)** — reads the plugin from a directory:
   ```bash

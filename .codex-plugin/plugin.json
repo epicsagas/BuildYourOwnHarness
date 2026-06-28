@@ -19,7 +19,7 @@
     "evolve"
   ],
   "skills": "./skills/",
-  "mcpServers": "./.mcp.json",
+  "mcpServers": "./mcp_config.json",
   "interface": {
     "displayName": "BuildYourOwnHarness",
     "shortDescription": "Personalized AI agent harness builder.",
