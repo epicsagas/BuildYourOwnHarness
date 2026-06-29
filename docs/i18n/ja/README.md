@@ -40,22 +40,37 @@ byoh compile <slug> [--dry-run]          # static gate + dry-run gate → Harnes
 byoh render <slug> --target claude       # claude | codex | agy | all (git-ready)
 byoh install <slug>                      # safe dist/ install (--host for live plugin dir)
 byoh run <slug>
-byoh evolve <slug>                       # 3-gate evolution cycle
+byoh evolve <slug>                       # 3ゲート進化サイクル
+byoh catalog index [--limit N]           # awesomeclaudeplugins.com クロール → ~/.byoh/catalog.json
+byoh catalog search "<クエリ>" [--genre <g>] [--tags k1,k2] [--limit N]
+byoh catalog vendor <owner/repo> [--genre <g>] [--keywords k1,k2]
 ```
 
-### Agent-led mode (MCP server)
+### エージェント主導モード（MCPサーバー）
 
-`byoh serve` (`--features mcp`) starts a stdio MCP server so an LLM agent **drives BYOH** — the CLI becomes secondary (control inversion). 12 tools (`profile_*`, `rag_*`, `genre_list`, `compile`, `evolve_cycle`, `registry_clone_skill`) are discoverable via `tools/list`. The conversation *is* the interview/wizard.
+`byoh serve`（`--features mcp`）はstdio MCPサーバーを起動し、LLMエージェントが**BYOHを駆動**します — CLIは副次的な手段になります（制御の逆転）。14個のツール（`profile_*`、`rag_*`、`genre_list`、`compile`、`evolve_cycle`、`registry_clone_skill`、`catalog_search`、`catalog_vendor`）が`tools/list`で検索可能です。会話そのものがインタビュー/ウィザードです。
 
 ```bash
 cargo build --release --features mcp
 byoh serve
 ```
 
-## Core: synthesis + vendoring
+## コア：シンセシス・ベンダリング・カタログ
 
-- **Synthesis engine** — `synthesize(profile)` matches registry skills against profile tags, orders them into a pipeline, and forces a 3-gate re-pass (no bypass). Goal-oriented pipelines (product-launch / decision / research-report / secure-ship / …) overlay a skill ladder + agent set when the 30-day goal matches.
-- **Community skill vendoring** (RFC M3) — `byoh vendor add` fetches an external `SKILL.md` (local path or git URL), runs static validation + sha256, and embeds it into **Ring 3** (most-restricted) at build time via `build.rs`. External skills join synthesis as untrusted code.
+- **シンセシスエンジン** — `synthesize(profile)` はプロファイルタグに対してレジストリスキルをマッチングし、パイプラインに整序して3ゲートの再パスを強制します（バイパス不可）。30日間の目標がマッチした場合、ゴール指向パイプライン（product-launch / decision / research-report / secure-ship / …）がスキルラダーとエージェントセットを重ねます。
+- **コミュニティスキルベンダリング**（RFC M3） — `byoh vendor add` は外部の `SKILL.md`（ローカルパスまたはgit URL）を取得し、静的検証とsha256を実行して、`build.rs` によりビルド時に**Ring 3**（最も制限された）に組み込みます。外部スキルは非信頼コードとしてシンセシスに参加します。
+- **プラグインカタログ** — `byoh catalog index`（`--features catalog` が必要）は [awesomeclaudeplugins.com](https://awesomeclaudeplugins.com)（`sitemap.xml` + JSON-LD 経由で24,000以上のプラグイン）をクロールし、オフラインキャッシュを `~/.byoh/catalog.json` に保存します。それ以降、`catalog search` と `catalog vendor` は完全オフラインで動作します。S2ウィザードインタビュー中、`profile_interview` は自動的に `catalog_suggestions`（ジャンルにマッチした最大5件のプラグイン推薦）を含めます — 追加のツール呼び出し不要です。
+
+  ```bash
+  # 初回インデックス（ネットワーク必須；約24,000ページ）
+  byoh catalog index --limit 500          # 少数から開始；0 = フルクロール
+
+  # オフライン検索 — ネットワーク不要
+  byoh catalog search "test driven development" --genre developer --limit 5
+
+  # 見つかったプラグインを registry/vendored/ にベンダリング
+  byoh catalog vendor obra/superpowers --genre developer
+  ```
 
 ## Status
 

@@ -39,23 +39,38 @@ byoh render <slug> --target claude       # claude | codex | agy | all (git-ready
 byoh install <slug>                      # 안전한 dist/ 설치 (--host 로 실제 플러그인 디렉토리)
 byoh run <slug>
 byoh evolve <slug>                       # 3중 게이트 진화 사이클
+byoh catalog index [--limit N]           # awesomeclaudeplugins.com 크롤 → ~/.byoh/catalog.json
+byoh catalog search "<쿼리>" [--genre <g>] [--tags k1,k2] [--limit N]
+byoh catalog vendor <owner/repo> [--genre <g>] [--keywords k1,k2]
 ```
 
 `--language` 옵션(기본 `auto`)은 `LC_ALL`/`LANG`에서 언어를 자동 감지합니다.
 
 ### 에이전트 주도 모드 (MCP 서버)
 
-`byoh serve`(`--features mcp`)가 stdio MCP 서버를 띄워 **LLM 에이전트가 BYOH를 주도**합니다 — CLI는 보조로 전환됩니다(제어권 역전). 12개 도구(`profile_*`, `rag_*`, `genre_list`, `compile`, `evolve_cycle`, `registry_clone_skill`)를 `tools/list`로 발견해 호출합니다. 대화 자체가 인터뷰/위자드입니다.
+`byoh serve`(`--features mcp`)가 stdio MCP 서버를 띄워 **LLM 에이전트가 BYOH를 주도**합니다 — CLI는 보조로 전환됩니다(제어권 역전). 14개 도구(`profile_*`, `rag_*`, `genre_list`, `compile`, `evolve_cycle`, `registry_clone_skill`, `catalog_search`, `catalog_vendor`)를 `tools/list`로 발견해 호출합니다. 대화 자체가 인터뷰/위자드입니다.
 
 ```bash
 cargo build --release --features mcp
 byoh serve
 ```
 
-## 핵심: 합성 + 벤더링
+## 핵심: 합성, 벤더링, 카탈로그
 
 - **합성 엔진** — `synthesize(profile)`이 레지스트리 스킬을 프로필 태그로 매칭·순서화하고, 3중 게이트 재통과를 강제합니다(우회 불가). 목표 지향 파이프라인(product-launch / decision / research-report / secure-ship / …)이 30일 목표가 매칭되면 스킬 사다리 + 에이전트 세트를 overlay 합니다.
 - **커뮤니티 스킬 벤더링** (RFC M3) — `byoh vendor add`가 외부 `SKILL.md`(로컬 경로 또는 git URL)를 가져와 정적 검증 + sha256을 거치고, `build.rs`가 빌드 타임에 **Ring 3**(최제한 링)으로 임베드합니다. 외부 스킬은 신뢰할 수 없는 코드로 합성에 참여합니다.
+- **플러그인 카탈로그** — `byoh catalog index`(`--features catalog` 필요)가 [awesomeclaudeplugins.com](https://awesomeclaudeplugins.com) 24,000여 개 플러그인을 `sitemap.xml` + JSON-LD 방식으로 크롤하여 `~/.byoh/catalog.json`에 오프라인 캐시로 저장합니다. 이후 `catalog search`와 `catalog vendor`는 네트워크 없이 완전히 오프라인으로 동작합니다. S2 위자드 인터뷰 중 `profile_interview`가 자동으로 `catalog_suggestions`를 포함시켜, LLM이 추가 도구 호출 없이 장르에 맞는 플러그인을 최대 5개까지 추천할 수 있습니다.
+
+  ```bash
+  # 최초 1회 인덱싱 (네트워크 필요; 약 24,000페이지)
+  byoh catalog index --limit 500          # 소규모로 시작; 0 = 전체 크롤
+
+  # 오프라인 검색 — 네트워크 불필요
+  byoh catalog search "테스트 주도 개발" --genre developer --limit 5
+
+  # 검색한 플러그인을 registry/vendored/에 벤더링
+  byoh catalog vendor obra/superpowers --genre developer
+  ```
 
 ## 상태
 

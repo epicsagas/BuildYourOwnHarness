@@ -40,22 +40,37 @@ byoh compile <slug> [--dry-run]          # static gate + dry-run gate → Harnes
 byoh render <slug> --target claude       # claude | codex | agy | all (git-ready)
 byoh install <slug>                      # safe dist/ install (--host for live plugin dir)
 byoh run <slug>
-byoh evolve <slug>                       # 3-gate evolution cycle
+byoh evolve <slug>                       # ciclo de evolución con 3 puertas
+byoh catalog index [--limit N]           # rastrear awesomeclaudeplugins.com → ~/.byoh/catalog.json
+byoh catalog search "<consulta>" [--genre <g>] [--tags k1,k2] [--limit N]
+byoh catalog vendor <owner/repo> [--genre <g>] [--keywords k1,k2]
 ```
 
-### Agent-led mode (MCP server)
+### Modo dirigido por agente (servidor MCP)
 
-`byoh serve` (`--features mcp`) starts a stdio MCP server so an LLM agent **drives BYOH** — the CLI becomes secondary (control inversion). 12 tools (`profile_*`, `rag_*`, `genre_list`, `compile`, `evolve_cycle`, `registry_clone_skill`) are discoverable via `tools/list`. The conversation *is* the interview/wizard.
+`byoh serve` (`--features mcp`) inicia un servidor MCP sobre stdio para que un agente LLM **maneje BYOH** — la CLI se vuelve secundaria (inversión de control). 14 herramientas (`profile_*`, `rag_*`, `genre_list`, `compile`, `evolve_cycle`, `registry_clone_skill`, `catalog_search`, `catalog_vendor`) son descubribles via `tools/list`. La conversación *es* la entrevista/asistente.
 
 ```bash
 cargo build --release --features mcp
 byoh serve
 ```
 
-## Core: synthesis + vendoring
+## Núcleo: síntesis, vendoring y catálogo
 
-- **Synthesis engine** — `synthesize(profile)` matches registry skills against profile tags, orders them into a pipeline, and forces a 3-gate re-pass (no bypass). Goal-oriented pipelines (product-launch / decision / research-report / secure-ship / …) overlay a skill ladder + agent set when the 30-day goal matches.
-- **Community skill vendoring** (RFC M3) — `byoh vendor add` fetches an external `SKILL.md` (local path or git URL), runs static validation + sha256, and embeds it into **Ring 3** (most-restricted) at build time via `build.rs`. External skills join synthesis as untrusted code.
+- **Motor de síntesis** — `synthesize(profile)` combina habilidades del registro según las etiquetas del perfil, las ordena en un pipeline y fuerza un nuevo pase por las 3 puertas (sin bypass). Los pipelines orientados a objetivos (lanzamiento de producto / decisión / informe de investigación / entrega segura / …) superponen una escalera de habilidades + conjunto de agentes cuando el objetivo a 30 días coincide.
+- **Vendoring de habilidades comunitarias** (RFC M3) — `byoh vendor add` obtiene un `SKILL.md` externo (ruta local o URL de git), ejecuta validación estática + sha256 y lo integra en **Ring 3** (más restringido) en tiempo de compilación via `build.rs`. Las habilidades externas se unen a la síntesis como código no confiable.
+- **Catálogo de plugins** — `byoh catalog index` (requiere `--features catalog`) rastrea [awesomeclaudeplugins.com](https://awesomeclaudeplugins.com) (más de 24 000 plugins via `sitemap.xml` + JSON-LD) y guarda un caché offline en `~/.byoh/catalog.json`. Después, `catalog search` y `catalog vendor` funcionan completamente sin conexión. Durante la entrevista del asistente S2, `profile_interview` incluye automáticamente `catalog_suggestions` — hasta 5 plugins coincidentes por género que el LLM puede recomendar sin llamadas adicionales a herramientas.
+
+  ```bash
+  # Indexación única (red; ~24 000 páginas)
+  byoh catalog index --limit 500          # comenzar pequeño; 0 = rastreo completo
+
+  # Búsqueda offline — sin red
+  byoh catalog search "desarrollo orientado a pruebas" --genre developer --limit 5
+
+  # Agregar un plugin encontrado a registry/vendored/
+  byoh catalog vendor obra/superpowers --genre developer
+  ```
 
 ## Status
 

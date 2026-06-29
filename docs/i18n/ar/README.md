@@ -41,21 +41,36 @@ byoh render <slug> --target claude       # claude | codex | agy | all (git-ready
 byoh install <slug>                      # safe dist/ install (--host for live plugin dir)
 byoh run <slug>
 byoh evolve <slug>                       # 3-gate evolution cycle
+byoh catalog index [--limit N]           # استكشاف awesomeclaudeplugins.com → ~/.byoh/catalog.json
+byoh catalog search "<استعلام>" [--genre <g>] [--tags k1,k2] [--limit N]
+byoh catalog vendor <owner/repo> [--genre <g>] [--keywords k1,k2]
 ```
 
-### Agent-led mode (MCP server)
+### وضع الأتمتة عبر MCP (خادم MCP)
 
-`byoh serve` (`--features mcp`) starts a stdio MCP server so an LLM agent **drives BYOH** — the CLI becomes secondary (control inversion). 12 tools (`profile_*`, `rag_*`, `genre_list`, `compile`, `evolve_cycle`, `registry_clone_skill`) are discoverable via `tools/list`. The conversation *is* the interview/wizard.
+`byoh serve` (`--features mcp`) يُشغّل خادم MCP عبر stdio ليتولى وكيل LLM **قيادة BYOH** مباشرةً — يصبح سطر الأوامر ثانويًا (عكس التحكم). 14 أداة (`profile_*`، `rag_*`، `genre_list`، `compile`، `evolve_cycle`، `registry_clone_skill`، `catalog_search`، `catalog_vendor`) قابلة للاكتشاف عبر `tools/list`. المحادثة *هي* المقابلة/المعالج.
 
 ```bash
 cargo build --release --features mcp
 byoh serve
 ```
 
-## Core: synthesis + vendoring
+## الجوهر: التوليف والاستيراد وكتالوج المكونات
 
-- **Synthesis engine** — `synthesize(profile)` matches registry skills against profile tags, orders them into a pipeline, and forces a 3-gate re-pass (no bypass). Goal-oriented pipelines (product-launch / decision / research-report / secure-ship / …) overlay a skill ladder + agent set when the 30-day goal matches.
-- **Community skill vendoring** (RFC M3) — `byoh vendor add` fetches an external `SKILL.md` (local path or git URL), runs static validation + sha256, and embeds it into **Ring 3** (most-restricted) at build time via `build.rs`. External skills join synthesis as untrusted code.
+- **محرك التوليف** — `synthesize(profile)` يطابق مهارات السجل مع وسوم الملف الشخصي، يرتّبها في خط أنابيب، ويُجبر على إعادة المرور عبر بوابات الأمان الثلاث (بلا تجاوز). تُوفّر خطوط الأنابيب الموجّهة بالأهداف (إطلاق منتج / قرار / تقرير بحثي / شحن آمن / …) سلّمًا من المهارات ومجموعة وكلاء عند تطابق هدف الـ 30 يومًا.
+- **استيراد مهارات المجتمع** (RFC M3) — `byoh vendor add` يجلب ملف `SKILL.md` خارجيًا (مسار محلي أو رابط git)، يُجري التحقق الثابت + sha256، ويُدمجه في **Ring 3** (الأشد تقييدًا) وقت البناء عبر `build.rs`. تنضم المهارات الخارجية إلى التوليف كشيفرة غير موثوقة.
+- **كتالوج المكونات** — `byoh catalog index` (يتطلب `--features catalog`) يستكشف [awesomeclaudeplugins.com](https://awesomeclaudeplugins.com) (أكثر من 24 000 مكوّن عبر `sitemap.xml` + JSON-LD) ويحفظ ذاكرة تخزين مؤقت في `~/.byoh/catalog.json`. بعد ذلك يعمل `catalog search` و`catalog vendor` بالكامل بدون اتصال. خلال مقابلة المعالج S2، يُضمّن `profile_interview` تلقائيًا `catalog_suggestions` — ما يصل إلى 5 مكونات مطابقة للنوع يمكن للـ LLM التوصية بها دون استدعاءات أدوات إضافية.
+
+  ```bash
+  # فهرسة لمرة واحدة (تتطلب شبكة؛ ~24 000 صفحة)
+  byoh catalog index --limit 500          # ابدأ بعدد صغير؛ 0 = استكشاف كامل
+
+  # بحث بدون اتصال
+  byoh catalog search "test driven development" --genre developer --limit 5
+
+  # استيراد مكوّن موجود إلى registry/vendored/
+  byoh catalog vendor obra/superpowers --genre developer
+  ```
 
 ## Status
 

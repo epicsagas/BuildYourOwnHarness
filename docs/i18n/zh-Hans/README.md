@@ -40,22 +40,37 @@ byoh compile <slug> [--dry-run]          # static gate + dry-run gate → Harnes
 byoh render <slug> --target claude       # claude | codex | agy | all (git-ready)
 byoh install <slug>                      # safe dist/ install (--host for live plugin dir)
 byoh run <slug>
-byoh evolve <slug>                       # 3-gate evolution cycle
+byoh evolve <slug>                       # 3门安全门进化循环
+byoh catalog index [--limit N]           # 抓取 awesomeclaudeplugins.com → ~/.byoh/catalog.json
+byoh catalog search "<查询>" [--genre <g>] [--tags k1,k2] [--limit N]
+byoh catalog vendor <owner/repo> [--genre <g>] [--keywords k1,k2]
 ```
 
-### Agent-led mode (MCP server)
+### 代理驱动模式（MCP 服务器）
 
-`byoh serve` (`--features mcp`) starts a stdio MCP server so an LLM agent **drives BYOH** — the CLI becomes secondary (control inversion). 12 tools (`profile_*`, `rag_*`, `genre_list`, `compile`, `evolve_cycle`, `registry_clone_skill`) are discoverable via `tools/list`. The conversation *is* the interview/wizard.
+`byoh serve`（`--features mcp`）启动一个 stdio MCP 服务器，让 LLM 代理**驱动 BYOH** — CLI 退为次要（控制反转）。14 个工具（`profile_*`、`rag_*`、`genre_list`、`compile`、`evolve_cycle`、`registry_clone_skill`、`catalog_search`、`catalog_vendor`）可通过 `tools/list` 发现。对话本身即为采访/向导流程。
 
 ```bash
 cargo build --release --features mcp
 byoh serve
 ```
 
-## Core: synthesis + vendoring
+## 核心：合成、外部引入与插件目录
 
-- **Synthesis engine** — `synthesize(profile)` matches registry skills against profile tags, orders them into a pipeline, and forces a 3-gate re-pass (no bypass). Goal-oriented pipelines (product-launch / decision / research-report / secure-ship / …) overlay a skill ladder + agent set when the 30-day goal matches.
-- **Community skill vendoring** (RFC M3) — `byoh vendor add` fetches an external `SKILL.md` (local path or git URL), runs static validation + sha256, and embeds it into **Ring 3** (most-restricted) at build time via `build.rs`. External skills join synthesis as untrusted code.
+- **合成引擎** — `synthesize(profile)` 将注册表技能与 profile 标签匹配，按顺序组成流水线，并强制经过三门安全门重新验证（不可绕过）。当 30 天目标匹配时，目标导向流水线（product-launch / decision / research-report / secure-ship / …）会叠加技能阶梯和代理集合。
+- **社区技能外部引入**（RFC M3）— `byoh vendor add` 获取外部 `SKILL.md`（本地路径或 git URL），执行静态校验 + sha256 哈希，并在构建时通过 `build.rs` 嵌入 **Ring 3**（限制最严）。外部技能作为不信任代码加入合成流程。
+- **插件目录** — `byoh catalog index`（需要 `--features catalog`）抓取 [awesomeclaudeplugins.com](https://awesomeclaudeplugins.com)（通过 `sitemap.xml` + JSON-LD，覆盖 24 000+ 插件），并将离线缓存保存至 `~/.byoh/catalog.json`。之后，`catalog search` 和 `catalog vendor` 完全在本地离线运行。在 S2 向导采访过程中，`profile_interview` 会自动在响应中附带 `catalog_suggestions`（最多 5 个按 genre 匹配的插件推荐），LLM 无需额外调用工具即可向用户推荐相关插件。
+
+  ```bash
+  # 一次性建立索引（需要网络；约 24 000 个页面）
+  byoh catalog index --limit 500          # 从小规模开始；0 = 完整抓取
+
+  # 离线搜索 — 无需网络
+  byoh catalog search "test driven development" --genre developer --limit 5
+
+  # 将找到的插件引入 registry/vendored/
+  byoh catalog vendor obra/superpowers --genre developer
+  ```
 
 ## Status
 

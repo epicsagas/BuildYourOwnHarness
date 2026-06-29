@@ -41,21 +41,36 @@ byoh render <slug> --target claude       # claude | codex | agy | all (git-ready
 byoh install <slug>                      # safe dist/ install (--host for live plugin dir)
 byoh run <slug>
 byoh evolve <slug>                       # 3-gate evolution cycle
+byoh catalog index [--limit N]           # обход awesomeclaudeplugins.com → ~/.byoh/catalog.json
+byoh catalog search "<запрос>" [--genre <g>] [--tags k1,k2] [--limit N]
+byoh catalog vendor <owner/repo> [--genre <g>] [--keywords k1,k2]
 ```
 
 ### Agent-led mode (MCP server)
 
-`byoh serve` (`--features mcp`) starts a stdio MCP server so an LLM agent **drives BYOH** — the CLI becomes secondary (control inversion). 12 tools (`profile_*`, `rag_*`, `genre_list`, `compile`, `evolve_cycle`, `registry_clone_skill`) are discoverable via `tools/list`. The conversation *is* the interview/wizard.
+`byoh serve` (`--features mcp`) starts a stdio MCP server so an LLM agent **drives BYOH** — the CLI becomes secondary (control inversion). 14 tools (`profile_*`, `rag_*`, `genre_list`, `compile`, `evolve_cycle`, `registry_clone_skill`, `catalog_search`, `catalog_vendor`) are discoverable via `tools/list`. The conversation *is* the interview/wizard.
 
 ```bash
 cargo build --release --features mcp
 byoh serve
 ```
 
-## Core: synthesis + vendoring
+## Основные механизмы: синтез, вендоринг и каталог
 
-- **Synthesis engine** — `synthesize(profile)` matches registry skills against profile tags, orders them into a pipeline, and forces a 3-gate re-pass (no bypass). Goal-oriented pipelines (product-launch / decision / research-report / secure-ship / …) overlay a skill ladder + agent set when the 30-day goal matches.
-- **Community skill vendoring** (RFC M3) — `byoh vendor add` fetches an external `SKILL.md` (local path or git URL), runs static validation + sha256, and embeds it into **Ring 3** (most-restricted) at build time via `build.rs`. External skills join synthesis as untrusted code.
+- **Синтез-движок** — `synthesize(profile)` подбирает скиллы реестра по тегам профиля, выстраивает их в упорядоченный пайплайн и принудительно прогоняет через 3 защитных шлюза (без обходов). Целевые пайплайны (product-launch / decision / research-report / secure-ship / …) накладывают лестницу скиллов + набор агентов, если 30-дневная цель совпадает.
+- **Вендоринг скиллов сообщества** (RFC M3) — `byoh vendor add` загружает внешний `SKILL.md` (локальный путь или git URL), выполняет статическую валидацию + sha256 и встраивает его в **Ring 3** (наиболее ограниченный) во время сборки через `build.rs`. Внешние скиллы включаются в синтез как недоверенный код.
+- **Каталог плагинов** — `byoh catalog index` (требует `--features catalog`) обходит [awesomeclaudeplugins.com](https://awesomeclaudeplugins.com) (24 000+ плагинов через `sitemap.xml` + JSON-LD) и сохраняет офлайн-кэш в `~/.byoh/catalog.json`. После этого `catalog search` и `catalog vendor` работают полностью офлайн. Во время S2-интервью мастера `profile_interview` автоматически включает `catalog_suggestions` — до 5 плагинов, подобранных по жанру, которые LLM может рекомендовать без дополнительных вызовов инструментов.
+
+  ```bash
+  # Однократная индексация (сеть; ~24 000 страниц)
+  byoh catalog index --limit 500          # начать с малого; 0 = полный обход
+
+  # Офлайн-поиск — без сети
+  byoh catalog search "test driven development" --genre developer --limit 5
+
+  # Вендоринг найденного плагина в registry/vendored/
+  byoh catalog vendor obra/superpowers --genre developer
+  ```
 
 ## Status
 

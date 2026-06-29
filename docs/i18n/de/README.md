@@ -1,22 +1,20 @@
 > Dieses Dokument ist eine Übersetzung von [README.md](../../README.md). Die englische Version ist maßgeblich und kann aktueller sein.
 >
-> ⚠️ Auto-translation pending — the English source below awaits translation via the i18n workflow.
-
 # BuildYourOwnHarness (BYOH)
 
-> Interactively collect a user's tacit knowledge, data, business genre, and goals — then **generate, deploy, operate, and evolve a personalized AI agent harness**.
+> Erfasst interaktiv das Wissen, die Daten, das Genre und die Ziele eines Nutzers — und **generiert, deployt, betreibt und entwickelt einen personalisierten KI-Agenten-Harness**.
 
-BYOH adds a **generation layer** on top of the validated building blocks of the [epiccounty](https://github.com/epicsagas) workspace. Instead of shipping a fixed skill/memory/pipeline set, it compiles a *unique* harness per user from an interview.
+BYOH ergänzt die validierten Bausteine des [epiccounty](https://github.com/epicsagas)-Workspace um eine **Generierungsschicht**. Statt ein fixes Skill-/Memory-/Pipeline-Set auszuliefern, kompiliert es auf Basis eines Interviews einen *einzigartigen* Harness pro Nutzer.
 
-## What it does
+## Was es tut
 
-A confirmed user profile (genre + expertise + 30-day goal) drives a synthesis engine that **recombines registry skills by keyword** into an ordered pipeline, producing a `HarnessBundle` that is *not* a fixed genre template. The whole pipeline is closed-loop and gated by three safety gates (Critic / Seesaw / Stagnation) that can never be bypassed.
+Ein bestätigtes Nutzerprofil (Genre + Expertise + 30-Tage-Ziel) treibt eine Synthese-Engine an, die **Registry-Skills nach Stichwörtern rekombiniert** und in eine geordnete Pipeline überführt — das Ergebnis ist ein `HarnessBundle`, das *kein* festes Genre-Template ist. Die gesamte Pipeline ist geschlossen und durch drei Sicherheitsgates (Critic / Seesaw / Stagnation) abgesichert, die nie umgangen werden können.
 
 ```
 profile (interview → genre → confirm) → compile → synthesize → render → install → run → evolve
 ```
 
-## Build & verify
+## Build & Verifizierung
 
 ```bash
 cargo build --release
@@ -25,44 +23,59 @@ cargo test                       # unit + e2e
 ./target/release/byoh --help
 ```
 
-Hexagonal architecture: `domain / ports / adapters / application / compiler / evolve / templates / deploy / i18n / obs / security / cli`.
+Hexagonale Architektur: `domain / ports / adapters / application / compiler / evolve / templates / deploy / i18n / obs / security / cli`.
 
 ## CLI
 
 ```bash
-byoh profile init <slug> [--paths ...]   # S1 autoscan (non-destructive)
-byoh profile interview <slug>            # S2 interview (Suggest + Council)
-byoh profile confirm <slug> --genre <g>  # S3 wizard confirm
+byoh profile init <slug> [--paths ...]   # S1 Autoscan (nicht-destruktiv)
+byoh profile interview <slug>            # S2 Interview (Vorschlag + Council)
+byoh profile confirm <slug> --genre <g>  # S3 Wizard-Bestätigung
 byoh vendor add <src> --genre <g> --id <id> [--keywords k1,k2] [--trust] [--sha <s>]
 byoh vendor list
 byoh vendor remove <id> --genre <g>
-byoh compile <slug> [--dry-run]          # static gate + dry-run gate → HarnessBundle
+byoh compile <slug> [--dry-run]          # statisches Gate + Dry-Run-Gate → HarnessBundle
 byoh render <slug> --target claude       # claude | codex | agy | all (git-ready)
-byoh install <slug>                      # safe dist/ install (--host for live plugin dir)
+byoh install <slug>                      # sicheres dist/-Install (--host für live Plugin-Dir)
 byoh run <slug>
-byoh evolve <slug>                       # 3-gate evolution cycle
+byoh evolve <slug>                       # 3-Gate-Evolutionszyklus
+byoh catalog index [--limit N]           # awesomeclaudeplugins.com crawlen → ~/.byoh/catalog.json
+byoh catalog search "<Suchanfrage>" [--genre <g>] [--tags k1,k2] [--limit N]
+byoh catalog vendor <owner/repo> [--genre <g>] [--keywords k1,k2]
 ```
 
-### Agent-led mode (MCP server)
+### Agent-gesteuerter Modus (MCP-Server)
 
-`byoh serve` (`--features mcp`) starts a stdio MCP server so an LLM agent **drives BYOH** — the CLI becomes secondary (control inversion). 12 tools (`profile_*`, `rag_*`, `genre_list`, `compile`, `evolve_cycle`, `registry_clone_skill`) are discoverable via `tools/list`. The conversation *is* the interview/wizard.
+`byoh serve` (`--features mcp`) startet einen stdio-MCP-Server, damit ein LLM-Agent **BYOH steuert** — das CLI wird sekundär (Kontrollumkehr). 14 Tools (`profile_*`, `rag_*`, `genre_list`, `compile`, `evolve_cycle`, `registry_clone_skill`, `catalog_search`, `catalog_vendor`) sind über `tools/list` abrufbar. Das Gespräch *ist* das Interview/der Wizard.
 
 ```bash
 cargo build --release --features mcp
 byoh serve
 ```
 
-## Core: synthesis + vendoring
+## Kern: Synthese, Vendoring und Katalog
 
-- **Synthesis engine** — `synthesize(profile)` matches registry skills against profile tags, orders them into a pipeline, and forces a 3-gate re-pass (no bypass). Goal-oriented pipelines (product-launch / decision / research-report / secure-ship / …) overlay a skill ladder + agent set when the 30-day goal matches.
-- **Community skill vendoring** (RFC M3) — `byoh vendor add` fetches an external `SKILL.md` (local path or git URL), runs static validation + sha256, and embeds it into **Ring 3** (most-restricted) at build time via `build.rs`. External skills join synthesis as untrusted code.
+- **Synthese-Engine** — `synthesize(profile)` gleicht Registry-Skills mit Profil-Tags ab, ordnet sie in eine Pipeline und erzwingt einen erneuten 3-Gate-Durchlauf (kein Bypass). Zielorientierte Pipelines (Produktlaunch / Entscheidung / Forschungsbericht / Secure-Ship / …) legen eine Skill-Leiter und ein Agenten-Set überlagert, wenn das 30-Tage-Ziel übereinstimmt.
+- **Community-Skill-Vendoring** (RFC M3) — `byoh vendor add` lädt ein externes `SKILL.md` (lokaler Pfad oder Git-URL), führt statische Validierung + sha256 durch und bettet es zur Build-Zeit über `build.rs` in **Ring 3** (am stärksten eingeschränkt) ein. Externe Skills nehmen als nicht vertrauenswürdiger Code an der Synthese teil.
+- **Plugin-Katalog** — `byoh catalog index` (erfordert `--features catalog`) crawlt [awesomeclaudeplugins.com](https://awesomeclaudeplugins.com) (über 24 000 Plugins via `sitemap.xml` + JSON-LD) und speichert einen Offline-Cache unter `~/.byoh/catalog.json`. Danach funktionieren `catalog search` und `catalog vendor` vollständig offline. Während des S2-Wizard-Interviews fügt `profile_interview` automatisch `catalog_suggestions` hinzu — bis zu 5 genre-passende Plugins, die das LLM ohne zusätzliche Tool-Aufrufe empfehlen kann.
+
+  ```bash
+  # Einmalige Indexierung (Netzwerk; ~24 000 Seiten)
+  byoh catalog index --limit 500          # klein anfangen; 0 = vollständiger Crawl
+
+  # Offline-Suche — kein Netzwerk
+  byoh catalog search "testgetriebene Entwicklung" --genre developer --limit 5
+
+  # Gefundenes Plugin in registry/vendored/ einbetten
+  byoh catalog vendor obra/superpowers --genre developer
+  ```
 
 ## Status
 
-Rust implementation of the generation layer: profiler + interview + genre templates + compiler (4-ring, MCP-tool codegen, static gate) + evolution engine + self-contained RAG (optional `native-rag` feature) + MCP server (optional `mcp` feature). See `AGENTS.md` for the architecture guide.
+Rust-Implementierung der Generierungsschicht: Profiler + Interview + Genre-Templates + Compiler (4-Ring, MCP-Tool-Codegen, statisches Gate) + Evolutions-Engine + selbstständige RAG (optionales `native-rag`-Feature) + MCP-Server (optionales `mcp`-Feature). Architekturübersicht in `AGENTS.md`.
 
-The RAG layer is a **persistent knowledge base**: `byoh index` saves the genre index + a corpus sidecar under `$BYOH_HOME/indexes/`, and a later `byoh search` (or the `rag_search` MCP tool) with no `--corpus` reuses it via `load_index` — no re-embedding. Re-indexing is **incremental** — a content-hash manifest re-embeds only added/changed docs and drops removed ones (reported as `+a ~c -r`); `--force` does a full rebuild.
+Die RAG-Schicht ist eine **persistente Wissensbasis**: `byoh index` speichert den Genre-Index und einen Corpus-Sidecar unter `$BYOH_HOME/indexes/`, und ein späteres `byoh search` (oder das `rag_search`-MCP-Tool) ohne `--corpus` nutzt ihn via `load_index` — ohne erneutes Einbetten. Re-Indexierung ist **inkrementell** — ein Content-Hash-Manifest bettet nur hinzugefügte/geänderte Dokumente neu ein und verwirft entfernte (gemeldet als `+a ~c -r`); `--force` erzwingt einen vollständigen Neuaufbau.
 
-## License
+## Lizenz
 
 Apache-2.0.
