@@ -55,7 +55,7 @@ indexmap = { version = "2", features = ["serde"] }
 # llm-kernel — native RAG (embeddings + quantized vector index + CJK chunking).
 # OPTIONAL: only pulled in via the `native-rag` feature so default builds stay
 # light (no fastembed/ort model download). Maps to spec R1.
-llm-kernel = { version = "0.9.1", optional = true }
+llm-kernel = { version = "0.10", optional = true }
 
 # MCP server (PR #3) — expose BYOH capabilities as a stdio MCP server (`byoh serve`).
 # OPTIONAL: only pulled in via the `mcp` feature so default builds stay light
