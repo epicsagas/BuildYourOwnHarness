@@ -61,7 +61,8 @@ fn main() -> anyhow::Result<()> {
             home,
             max_tokens,
             overlap,
-        } => run_index(&slug, &genre, &corpus, &home, max_tokens, overlap)?,
+            force,
+        } => run_index(&slug, &genre, &corpus, &home, max_tokens, overlap, force)?,
         Command::Search {
             slug,
             query,
@@ -562,11 +563,12 @@ fn run_index(
     home: &std::path::Path,
     max_tokens: usize,
     overlap: usize,
+    force: bool,
 ) -> anyhow::Result<()> {
     let genre_v: Genre = genre.parse()?;
     let docs = collect_corpus(corpus)?;
     let opts = byoh::rag::ChunkOptions::new(max_tokens, overlap);
-    let report = index_build(&genre_v, &docs, &opts, home)?;
+    let report = index_build(&genre_v, &docs, &opts, home, force)?;
 
     println!(
         "[byoh] indexed slug={slug} genre={genre}: {} docs / {} chunks / dim={} / backend={}",
@@ -581,7 +583,9 @@ fn index_build(
     docs: &[byoh::rag::InputDoc],
     opts: &byoh::rag::ChunkOptions,
     home: &std::path::Path,
+    _force: bool,
 ) -> anyhow::Result<byoh::rag::BuildReport> {
+    // native (TurbovecStore) does a full build; incremental is the in-memory path.
     let embedder = make_embedder_native()?;
     let (report, handle) =
         byoh::rag::pipeline::native::build_index_native(&*embedder, *genre_v, docs, opts, 4)?;
@@ -595,10 +599,27 @@ fn index_build(
     docs: &[byoh::rag::InputDoc],
     opts: &byoh::rag::ChunkOptions,
     home: &std::path::Path,
+    force: bool,
 ) -> anyhow::Result<byoh::rag::BuildReport> {
     let embedder = make_embedder()?;
-    let (report, handle) = byoh::rag::build_index(&*embedder, *genre_v, docs, opts)?;
-    byoh::rag::save_index(&handle, home)?;
+    if force {
+        let (report, handle) = byoh::rag::build_index(&*embedder, *genre_v, docs, opts)?;
+        byoh::rag::save_index(&handle, home)?;
+        // Refresh the manifest so subsequent incremental runs have a baseline.
+        let mut counts = std::collections::BTreeMap::new();
+        for d in docs {
+            counts.insert(
+                d.id.clone(),
+                byoh::rag::chunk_document(&d.id, &d.text, opts).len(),
+            );
+        }
+        byoh::rag::IndexManifest::from_docs(docs, &counts).save(home, *genre_v)?;
+        return Ok(report);
+    }
+    // Incremental: re-embed only changed/added docs; report the delta.
+    let (report, delta) =
+        byoh::rag::build_index_incremental(&*embedder, home, *genre_v, docs, opts)?;
+    println!("[byoh] reindex delta: {}", delta.summary());
     Ok(report)
 }
 

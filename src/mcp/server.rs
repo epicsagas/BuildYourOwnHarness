@@ -641,8 +641,9 @@ fn rag_index_impl(
     let docs = crate::store::collect_corpus(std::path::Path::new(corpus))?;
     let opts = crate::rag::ChunkOptions::new(max_tokens, overlap);
     let embedder = crate::store::make_embedder()?;
-    let (report, handle) = crate::rag::build_index(&*embedder, genre, &docs, &opts)?;
-    crate::rag::save_index(&handle, home)?;
+    // Incremental: re-embed only changed/added docs against the persisted index.
+    let (report, _delta) =
+        crate::rag::build_index_incremental(&*embedder, home, genre, &docs, &opts)?;
     Ok(report)
 }
 

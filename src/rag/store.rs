@@ -78,6 +78,17 @@ impl InMemoryStore {
             .map(|r| (r.id.clone(), r.text.clone()))
             .collect()
     }
+
+    /// Remove every chunk belonging to `doc_id` (chunk ids are `<doc_id>::<n>`).
+    /// Used by incremental reindex to drop removed/changed documents before
+    /// re-adding their fresh chunks. Returns the number of rows removed.
+    pub fn remove_doc(&mut self, doc_id: &str) -> usize {
+        let prefix = format!("{doc_id}::");
+        let before = self.rows.len();
+        self.rows
+            .retain(|r| r.id != doc_id && !r.id.starts_with(&prefix));
+        before - self.rows.len()
+    }
 }
 
 impl VectorStore for InMemoryStore {

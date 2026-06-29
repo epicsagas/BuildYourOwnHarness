@@ -112,6 +112,9 @@ pub enum Command {
         /// Chunk overlap.
         #[arg(long, default_value_t = 32)]
         overlap: usize,
+        /// Force a full rebuild instead of incremental (re-embed everything).
+        #[arg(long, default_value_t = false)]
+        force: bool,
     },
     /// Hybrid search a genre RAG index (vector → BM25 → grep).
     Search {

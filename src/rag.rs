@@ -14,14 +14,17 @@
 
 pub mod chunk;
 pub mod genre_index;
+pub mod manifest;
 pub mod pipeline;
 pub mod search;
 pub mod store;
 
 pub use chunk::{chunk_document, Chunk, ChunkOptions};
 pub use genre_index::{genre_bm25_weights, GenreIndexCatalog, GenreWeights};
+pub use manifest::{index_status, IndexDelta, IndexManifest};
 pub use pipeline::{
-    build_index, load_index, save_index, BuildReport, IndexHandle, InputDoc, SearchHit,
+    build_index, build_index_incremental, load_index, save_index, BuildReport, IndexHandle,
+    InputDoc, SearchHit,
 };
 pub use search::{bm25_search, grep_search, hybrid_search, SearchMode};
 #[cfg(feature = "native-rag")]
