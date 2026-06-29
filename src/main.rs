@@ -85,7 +85,6 @@ fn main() -> anyhow::Result<()> {
 fn run_catalog(action: CatalogAction) -> anyhow::Result<()> {
     let home = byoh::store::byoh_home();
     match action {
-        #[cfg(feature = "catalog")]
         CatalogAction::Index { limit, ttl_hours } => {
             let cache = byoh::catalog::load_cache(&home)?;
             if byoh::catalog::cache_is_fresh(&cache, ttl_hours) {

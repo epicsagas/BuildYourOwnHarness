@@ -111,7 +111,7 @@ byoh serve
 
 - **Synthesis engine** — `synthesize(profile)` matches registry skills against profile tags, orders them into a pipeline, and forces a 3-gate re-pass (no bypass). Goal-oriented pipelines (product-launch / decision / research-report / secure-ship / …) overlay a skill ladder + agent set when the 30-day goal matches.
 - **Community skill vendoring** (RFC M3) — `byoh vendor add` fetches an external `SKILL.md` (local path or git URL), runs static validation + sha256, and embeds it into **Ring 3** (most-restricted) at build time via `build.rs`. External skills join synthesis as untrusted code.
-- **Plugin catalog** — `byoh catalog index` (requires `--features catalog`) crawls [awesomeclaudeplugins.com](https://awesomeclaudeplugins.com) (24 000+ plugins via `sitemap.xml` + JSON-LD) and saves an offline cache at `~/.byoh/catalog.json`. After that, `catalog search` and `catalog vendor` work entirely offline. During the S2 wizard interview, `profile_interview` automatically includes `catalog_suggestions` — up to 5 genre-matched plugins the LLM can recommend without extra tool calls.
+- **Plugin catalog** — `byoh catalog index` crawls [awesomeclaudeplugins.com](https://awesomeclaudeplugins.com) (24 000+ plugins via `sitemap.xml` + JSON-LD) and saves an offline cache at `~/.byoh/catalog.json`. After that, `catalog search` and `catalog vendor` work entirely offline. During the S2 wizard interview, `profile_interview` automatically includes `catalog_suggestions` — up to 5 genre-matched plugins the LLM can recommend without extra tool calls.
 
   ```bash
   # One-time index (network; ~24 000 pages)

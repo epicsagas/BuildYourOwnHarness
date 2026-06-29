@@ -57,10 +57,8 @@ indexmap = { version = "2", features = ["serde"] }
 # light (no fastembed/ort model download). Maps to spec R1.
 llm-kernel = { version = "0.10", optional = true }
 
-# Catalog indexer — HTTP client for awesomeclaudeplugins.com sitemap crawl.
-# OPTIONAL: only needed for `byoh catalog index` (network). Search/vendor work
-# offline against the local ~/.byoh/catalog.json cache with no ureq dependency.
-ureq = { version = "2", optional = true, features = ["tls"] }
+# HTTP client for awesomeclaudeplugins.com sitemap crawl (`byoh catalog index`).
+ureq = { version = "2", features = ["tls"] }
 
 # MCP server (PR #3) — expose BYOH capabilities as a stdio MCP server (`byoh serve`).
 # OPTIONAL: only pulled in via the `mcp` feature so default builds stay light
@@ -91,9 +89,6 @@ default = ["mcp"]
 # Turns on llm-kernel's fastembed backend (local multilingual-e5-small model).
 # OpenAI embeddings remain behind the `rag-openai` sub-feature (opt-in).
 native-rag = ["dep:llm-kernel", "llm-kernel/embedding", "llm-kernel/embedding-fastembed", "llm-kernel/vector-index", "llm-kernel/tokens"]
-# Enable the catalog indexer (network crawl of awesomeclaudeplugins.com).
-# Search + vendor work without this feature — only `byoh catalog index` needs it.
-catalog = ["dep:ureq"]
 # Opt-in: use OpenAI embeddings instead of/in addition to local fastembed.
 # Requires an API key at runtime; off by default (no external LLM calls in default builds).
 rag-openai = ["native-rag", "llm-kernel/embedding-openai"]

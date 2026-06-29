@@ -195,8 +195,7 @@ pub enum VendorAction {
 #[derive(Debug, Subcommand)]
 pub enum CatalogAction {
     /// Fetch awesomeclaudeplugins.com sitemap + per-page JSON-LD → rebuild
-    /// `~/.byoh/catalog.json`. Requires the `catalog` cargo feature (network).
-    #[cfg(feature = "catalog")]
+    /// `~/.byoh/catalog.json`.
     Index {
         /// Max number of plugin pages to fetch (0 = all).
         #[arg(long, default_value_t = 0)]

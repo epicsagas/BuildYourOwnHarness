@@ -6,7 +6,6 @@
 pub mod search;
 pub mod vendor_from_catalog;
 
-#[cfg(feature = "catalog")]
 pub mod index;
 
 use crate::domain::genre::Genre;
