@@ -661,7 +661,12 @@ fn rag_search_impl(
         let (_report, handle) = crate::rag::build_index(&*embedder, genre, &docs, &opts)?;
         return handle.search(&*embedder, query, k);
     }
-    // No corpus: grep-only tier against an empty corpus via hybrid_search.
+    // No corpus supplied: reuse a previously-persisted index if one exists
+    // (the "persistent knowledge base" — no re-embedding needed).
+    if let Some(handle) = crate::rag::load_index(&crate::store::byoh_home(), genre)? {
+        return handle.search(&*embedder, query, k);
+    }
+    // Otherwise: grep-only tier against an empty corpus via hybrid_search.
     let empty: Vec<(String, String)> = Vec::new();
     let qe = embedder.embed(query)?;
     let hits = crate::rag::hybrid_search(None, Some(&qe), &empty, query, k, genre);

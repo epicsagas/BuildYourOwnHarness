@@ -449,8 +449,7 @@ mod tests {
         std::fs::create_dir_all(&target_dir).unwrap();
         std::fs::write(target_dir.join("user-file.txt"), "precious").unwrap();
 
-        let err =
-            install_plugin(&bundle, &loc, false).unwrap_err();
+        let err = install_plugin(&bundle, &loc, false).unwrap_err();
         assert!(matches!(err, ByohError::Other(_)));
         // user's file untouched
         assert!(target_dir.join("user-file.txt").exists());
@@ -651,7 +650,10 @@ mod tests {
                     && name.is_none_or(|n| a.get(2).map(|s| s.as_str()) == Some(n))
             })
         };
-        assert!(ran("install", None), "must run agy plugin install, got {calls:?}");
+        assert!(
+            ran("install", None),
+            "must run agy plugin install, got {calls:?}"
+        );
         assert!(
             ran("enable", Some("byoh-dev")),
             "must run agy plugin enable byoh-dev, got {calls:?}"

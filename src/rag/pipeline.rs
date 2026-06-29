@@ -121,13 +121,93 @@ pub fn build_index(
     ))
 }
 
-/// Persist an index to disk under `root` keyed by genre.
+/// Sidecar path holding the `(chunk_id, text)` corpus next to a genre index.
+/// The corpus is what powers the BM25/grep fallback tiers after a load — the
+/// vector store alone (esp. quantized native stores) may not retain raw text.
+pub fn corpus_sidecar_path(root: &Path, genre: Genre) -> std::path::PathBuf {
+    root.join("indexes")
+        .join(format!("{}.corpus.json", genre.as_str()))
+}
+
+/// Persist an index to disk under `root` keyed by genre: the vector store plus
+/// a corpus sidecar so [`load_index`] can fully reconstruct the [`IndexHandle`].
 pub fn save_index<S: VectorStore>(
     handle: &IndexHandle<S>,
     root: &Path,
 ) -> crate::domain::Result<()> {
     let path = genre_index_path(root, handle.genre);
-    handle.store.save(&path)
+    handle.store.save(&path)?;
+    save_corpus_sidecar(root, handle.genre, &handle.corpus)
+}
+
+/// Write the corpus sidecar (`<genre>.corpus.json`).
+pub(crate) fn save_corpus_sidecar(
+    root: &Path,
+    genre: Genre,
+    corpus: &[(String, String)],
+) -> crate::domain::Result<()> {
+    let path = corpus_sidecar_path(root, genre);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let payload: Vec<serde_json::Value> = corpus
+        .iter()
+        .map(|(id, text)| serde_json::json!({ "id": id, "text": text }))
+        .collect();
+    std::fs::write(&path, serde_json::to_vec_pretty(&payload)?)?;
+    Ok(())
+}
+
+/// Read the corpus sidecar, if present.
+pub(crate) fn load_corpus_sidecar(
+    root: &Path,
+    genre: Genre,
+) -> crate::domain::Result<Vec<(String, String)>> {
+    let path = corpus_sidecar_path(root, genre);
+    let body = std::fs::read_to_string(&path)?;
+    let v: serde_json::Value = serde_json::from_str(&body)?;
+    Ok(v.as_array()
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|row| {
+                    let id = row.get("id")?.as_str()?.to_string();
+                    let text = row.get("text")?.as_str()?.to_string();
+                    Some((id, text))
+                })
+                .collect()
+        })
+        .unwrap_or_default())
+}
+
+/// Load a previously-saved in-memory genre index from `root`.
+///
+/// Returns `Ok(None)` when no index has been persisted for this genre (so the
+/// caller can fall back to building ephemerally or to the grep tier). The
+/// `(store, corpus)` pair is restored so all three search tiers (vector → BM25
+/// → grep) work without re-embedding.
+pub fn load_index(
+    root: &Path,
+    genre: Genre,
+) -> crate::domain::Result<Option<IndexHandle<InMemoryStore>>> {
+    let store_path = genre_index_path(root, genre);
+    if !store_path.exists() {
+        return Ok(None);
+    }
+    let mut store = InMemoryStore::new(0);
+    store.load(&store_path)?;
+    // Prefer the explicit sidecar; fall back to reconstructing corpus from the
+    // store rows (InMemoryStore retains id+text) if the sidecar is absent.
+    let corpus = match load_corpus_sidecar(root, genre) {
+        Ok(c) if !c.is_empty() => c,
+        _ => store.corpus_pairs(),
+    };
+    let backend = store.backend().to_string();
+    Ok(Some(IndexHandle {
+        genre,
+        store,
+        corpus,
+        backend,
+    }))
 }
 
 #[cfg(feature = "native-rag")]
@@ -188,13 +268,38 @@ pub mod native {
         ))
     }
 
-    /// Save a native index.
+    /// Save a native index (vector store + corpus sidecar).
     pub fn save_index_native(
         handle: &IndexHandle<TurbovecStore>,
         root: &Path,
     ) -> crate::domain::Result<()> {
         let path = genre_index_path(root, handle.genre);
-        handle.store.save(&path)
+        handle.store.save(&path)?;
+        crate::rag::pipeline::save_corpus_sidecar(root, handle.genre, &handle.corpus)
+    }
+
+    /// Load a persisted native index, or `Ok(None)` if none exists for `genre`.
+    /// `dim`/`bit_width` seed the store before `load` repopulates it.
+    pub fn load_index_native(
+        root: &Path,
+        genre: Genre,
+        dim: usize,
+        bit_width: u8,
+    ) -> crate::domain::Result<Option<IndexHandle<TurbovecStore>>> {
+        let store_path = genre_index_path(root, genre);
+        if !store_path.exists() {
+            return Ok(None);
+        }
+        let mut store = TurbovecStore::new(dim, bit_width)?;
+        store.load(&store_path)?;
+        let corpus = crate::rag::pipeline::load_corpus_sidecar(root, genre).unwrap_or_default();
+        let backend = store.backend().to_string();
+        Ok(Some(IndexHandle {
+            genre,
+            store,
+            corpus,
+            backend,
+        }))
     }
 }
 
@@ -231,5 +336,73 @@ mod tests {
         let (report, _handle) =
             build_index(&emb, Genre::Creator, &[], &ChunkOptions::default()).unwrap();
         assert_eq!(report.chunks, 0);
+    }
+
+    fn sample_docs() -> Vec<InputDoc> {
+        vec![
+            InputDoc {
+                id: "d1".into(),
+                text: "rust async runtime tokio".into(),
+            },
+            InputDoc {
+                id: "d2".into(),
+                text: "python data science pandas".into(),
+            },
+        ]
+    }
+
+    #[test]
+    fn save_writes_corpus_sidecar() {
+        let emb = DummyEmbedder::new();
+        let dir = tempfile::tempdir().unwrap();
+        let (_r, handle) = build_index(
+            &emb,
+            Genre::Developer,
+            &sample_docs(),
+            &ChunkOptions::default(),
+        )
+        .unwrap();
+        save_index(&handle, dir.path()).unwrap();
+        let sidecar = corpus_sidecar_path(dir.path(), Genre::Developer);
+        assert!(sidecar.exists(), "corpus sidecar must be written");
+        let body = std::fs::read_to_string(&sidecar).unwrap();
+        assert!(body.contains("\"id\""), "sidecar holds corpus rows");
+    }
+
+    #[test]
+    fn load_index_none_when_absent() {
+        let dir = tempfile::tempdir().unwrap();
+        let loaded = load_index(dir.path(), Genre::Developer).unwrap();
+        assert!(loaded.is_none(), "no persisted index → None");
+    }
+
+    #[test]
+    fn persist_roundtrip_matches_fresh_build() {
+        let emb = DummyEmbedder::new();
+        let dir = tempfile::tempdir().unwrap();
+        let docs = sample_docs();
+
+        // build → save → load
+        let (_r, built) =
+            build_index(&emb, Genre::Developer, &docs, &ChunkOptions::default()).unwrap();
+        save_index(&built, dir.path()).unwrap();
+        let loaded = load_index(dir.path(), Genre::Developer)
+            .unwrap()
+            .expect("index should load");
+
+        // corpus + store survived
+        assert_eq!(loaded.corpus.len(), built.corpus.len());
+        assert_eq!(loaded.store.len(), built.store.len());
+
+        // search on loaded == search on freshly built (DummyEmbedder is deterministic)
+        let q = "rust tokio";
+        let fresh = built.search(&emb, q, 3).unwrap();
+        let from_disk = loaded.search(&emb, q, 3).unwrap();
+        let fresh_ids: Vec<&str> = fresh.iter().map(|h| h.id.as_str()).collect();
+        let disk_ids: Vec<&str> = from_disk.iter().map(|h| h.id.as_str()).collect();
+        assert_eq!(
+            fresh_ids, disk_ids,
+            "loaded index must return identical hits"
+        );
     }
 }

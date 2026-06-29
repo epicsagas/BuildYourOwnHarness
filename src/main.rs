@@ -606,13 +606,10 @@ fn run_search(
     slug: &str,
     query: &str,
     genre: &str,
-    _home: &std::path::Path,
+    home: &std::path::Path,
     k: usize,
     corpus: Option<&std::path::Path>,
 ) -> anyhow::Result<()> {
-    // NOTE: `home` would select a persisted genre index under <home>/indexes/.
-    // For now we build an ephemeral index from the supplied corpus (or run the
-    // grep tier). Loading a persisted TurbovecIndex is a native-rag path.
     let genre_v: Genre = genre.parse()?;
 
     // Mask any secret in the query before logging/output (R10/AC10).
@@ -642,7 +639,28 @@ fn run_search(
         return Ok(());
     }
 
-    // No corpus supplied: run grep-only fallback against an empty corpus.
+    // No corpus supplied: reuse a previously-persisted index under
+    // <home>/indexes/ if one exists (the persistent knowledge base).
+    if let Some(handle) = byoh::rag::load_index(home, genre_v)? {
+        let hits = handle.search(&*embedder, query, k)?;
+        println!(
+            "[byoh] search slug={slug} genre={genre} q=\"{masked_query_log}\" → {} hits (persisted index)",
+            hits.len()
+        );
+        for h in hits {
+            let text = byoh::security::mask(&h.text);
+            println!(
+                "[{}] id={} score={:.4} :: {}",
+                h.mode,
+                h.id,
+                h.score,
+                truncate_str(&text, 120)
+            );
+        }
+        return Ok(());
+    }
+
+    // No corpus and no persisted index: grep-only fallback against an empty corpus.
     let empty: Vec<(String, String)> = Vec::new();
     let qe = embedder.embed(query)?;
     let hits = byoh::rag::hybrid_search(None, Some(&qe), &empty, query, k, genre_v);
