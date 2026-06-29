@@ -87,12 +87,12 @@ byoh profile interview <slug>            # S2 interview (Suggest + Council)
 byoh profile confirm <slug> --genre <g>  # S3 wizard confirm
 byoh vendor add <src> --genre <g> --id <id> [--keywords k1,k2] [--trust] [--sha <s>]
 byoh vendor list
-byoh vendor remove <id> --genre <g>           # positional: id first, then --genre
+byoh vendor remove <id> --genre <g>
 byoh compile <slug> [--dry-run]          # static gate + dry-run gate → HarnessBundle
 byoh render <slug> --target claude       # claude | codex | agy | all (git-ready)
 byoh install <slug>                      # safe dist/ install (--host for live plugin dir)
 byoh run <slug>
-byoh evolve <slug> [--genre <g>] [--edit-type <t>] [--score-with <f>] [--score-without <f>] [--samples <n>]
+byoh evolve <slug>                       # 3-gate evolution cycle
 ```
 
 ### Agent-led mode (MCP server)
@@ -104,137 +104,10 @@ cargo build --release --features mcp
 byoh serve
 ```
 
-## Genres
-
-BYOH ships four genre templates. `mvp=true` means the genre is fully wired end-to-end; non-MVP genres compile and deploy without warnings — the MVP flag is classification metadata only, not a compile gate.
-
-| Genre | Ring 1 pipeline | Ring 2 quality skills | Skills | Agents | MVP |
-|-------|----------------|----------------------|--------|--------|-----|
-| `creator` | draft → edit → proofread → publish | continuity, character_consistency | 9 | 2 | ✅ |
-| `developer` | spec → go → check → ship | tdd, debug, secure, perf | 19 | 3 | ✅ |
-| `researcher` | spec → literature_review → go → check → ship | citation_accuracy, source_verification | 13 | 1 | — |
-| `business` | goal → analyze → decide → execute | roi_evaluation, risk_assessment | 16 | 1 | — |
-
-Skills/Agents counts are from `byoh render --target all`. `developer` has the most (19 skills, 3 agents: code-reviewer, debugger, tech-debt-auditor) because Ring 2 carries four quality gates.
-
-Pass `--genre <g>` to `profile confirm`. The 30-day goal in your profile steers which skill ladder the synthesis engine selects — the pipeline above is the base; goals like "ship a secure API" or "finish a research report" overlay an extra skill set.
-
-## Vendor: extending the skill registry
-
-`byoh vendor` lets you pull an external `SKILL.md` into the local registry without forking BYOH. Vendored skills are committed to disk (`registry/vendored/`) and sha256-pinned — no network at runtime.
-
-### Local path
-
-```bash
-# Single file
-byoh vendor add ./my-hook-writer.md --genre creator --id hook-writer \
-  --keywords hook,opening,youtube
-
-# Directory laid out as skills/<id>/SKILL.md
-byoh vendor add /path/to/plugin-repo --genre developer --id my-linter \
-  --keywords lint,quality
-```
-
-### Remote git repo
-
-```bash
-# Trusted source (github.com/anthropics/*) — no --trust needed
-byoh vendor add https://github.com/anthropics/claude-plugins-official \
-  --genre developer --id official-tdd --keywords tdd,test
-
-# Untrusted third-party source — explicit --trust required
-byoh vendor add https://github.com/someone/my-skills --genre creator \
-  --id scene-writer --keywords scene,screenplay --trust
-
-# Pin to a specific commit sha (recommended for reproducible builds)
-byoh vendor add https://github.com/anthropics/claude-plugins-official \
-  --genre developer --id official-tdd --sha abc1234
-```
-
-### Security model
-
-`vendor add` runs a static blocklist scan before writing anything. Patterns like `curl`, `wget`, `rm -rf`, `~/`, `$HOME` cause an immediate refusal:
-
-```
-Error: vendor add refused — static validation flagged: [curl]
-```
-
-Pass `--trust` only for remote sources not in the `github.com/anthropics/` allowlist. The vendored `.md` is stored verbatim and sha256-stamped in `registry/vendored/MANIFEST.toml`.
-
-### List / remove
-
-```bash
-byoh vendor list
-# skill_id      genre     license    sha256
-# hook-writer   creator   unknown    e98eb282d625...
-
-byoh vendor remove hook-writer --genre creator
-# removed vendored 'hook-writer' (creator)
-```
-
-### How vendored skills enter synthesis
-
-At `byoh compile` time, `build.rs` embeds all files in `registry/vendored/` into the binary's preset catalog. The synthesis engine matches vendored skills by their `--keywords` against profile tags — a vendored skill with `keywords = ["hook","youtube"]` activates when the profile's automation targets include those keywords. Vendored skills land in **Ring 3** (highest restriction, 3-gate protected).
-
-> **Note:** After `vendor add`, run `cargo build --release` and replace your binary for the vendored skill to take effect in `byoh compile`. A pre-built binary cannot pick up new vendor entries added after the build.
-
-## Evolution gates
-
-`byoh evolve` runs three safety gates in sequence — none can be bypassed:
-
-| Gate | Triggers on | Outcome |
-|------|-------------|---------|
-| **Critic** | reward-hacking pattern detected | `Rejected` |
-| **Seesaw** | edit score < baseline (catastrophic forgetting) | `RolledBack` or `AutoTuned` |
-| **Stagnation** | consecutive cycles with no improvement | `AutoTuned` |
-
-`AutoTuned` means the gate intervened to adjust the edit rather than fully rolling back — seen on early cycles when the Seesaw has limited history. `RolledBack` is a hard revert; it appears once the Seesaw has enough cycle history to be certain the edit regresses quality. `Approved` passes all three.
-
-```
-# Approved path (score improves)
-byoh evolve solo-creator --genre creator --edit-type AddSkill \
-  --score-with 0.82 --score-without 0.5 --samples 3
-# → cycle #N: Approved  (Critic: no reward-hacking)
-
-# Regression path (score drops) → Seesaw blocks
-byoh evolve solo-creator --genre creator --edit-type AddSkill \
-  --score-with 0.3 --score-without 0.5 --samples 3
-# → cycle #N: RolledBack  (seesaw: catastrophic forgetting detected)
-```
-
 ## Core: synthesis + vendoring
 
 - **Synthesis engine** — `synthesize(profile)` matches registry skills against profile tags, orders them into a pipeline, and forces a 3-gate re-pass (no bypass). Goal-oriented pipelines (product-launch / decision / research-report / secure-ship / …) overlay a skill ladder + agent set when the 30-day goal matches.
-- **Community skill vendoring** (RFC M1) — `byoh vendor add` fetches an external `SKILL.md` (local path or git URL), runs static validation + sha256, and commits it to `registry/vendored/`. The `build.rs` embeds vendored files into the binary preset catalog at build time — no network at runtime.
-
-## Examples
-
-`examples/` contains ready-to-load plugin trees — the output of `byoh render --target all` + `byoh install`, committed so you can load them without running the full pipeline yourself.
-
-```
-examples/
-├── byoh-solo-creator/    # creator genre  — 9 skills, 2 agents (draft-writer, consistency-editor)
-├── byoh-solo-developer/  # developer genre — 19 skills, 3 agents (code-reviewer, debugger, tech-debt-auditor)
-├── byoh-solo-researcher/ # researcher genre — 13 skills, 1 agent (research-analyst)
-└── byoh-solo-business/   # business genre  — 16 skills, 1 agent (decision-analyst)
-```
-
-Each directory is a **polyglot plugin tree** — load it directly into any supported host:
-
-```bash
-# Claude Code
-claude plugin install ./examples/byoh-solo-developer
-
-# agy (Antigravity)
-agy plugin install ./examples/byoh-solo-developer
-agy plugin enable byoh-solo-developer
-
-# Codex
-codex plugin marketplace add ./examples
-codex plugin add byoh-solo-developer@local
-```
-
-These examples were generated from real profiles (30-day goals, Korean output, all three hosts) and passed the full `compile --dry-run → render → install → evolve` pipeline. They are the canonical reference for what BYOH produces.
+- **Community skill vendoring** (RFC M3) — `byoh vendor add` fetches an external `SKILL.md` (local path or git URL), runs static validation + sha256, and embeds it into **Ring 3** (most-restricted) at build time via `build.rs`. External skills join synthesis as untrusted code.
 
 ## Status
 

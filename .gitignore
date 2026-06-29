@@ -340,6 +340,3 @@ stitch-designs/
 
 # BYOH local store (profiles, state) — `byoh` home default
 /.byoh/
-
-# fastembed / ort model cache
-.fastembed_cache/

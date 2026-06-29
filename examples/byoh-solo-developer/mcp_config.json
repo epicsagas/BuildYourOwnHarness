@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "search_code": {
-      "args": [],
-      "command": "byoh-search_code"
-    }
-  }
-}

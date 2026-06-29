@@ -1,5 +1,0 @@
-{
-  "$schema": "https://antigravity.google/schemas/v1/plugin.json",
-  "description": "BYOH-generated developer harness for 'solo-developer'.",
-  "name": "byoh-solo-developer"
-}
