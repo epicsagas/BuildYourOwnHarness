@@ -213,11 +213,24 @@ pub(crate) fn cosine(a: &[f32], b: &[f32]) -> f32 {
 pub mod turbovec {
     //! Quantized ANN index backed by `llm_kernel::embedding::TurbovecIndex`.
 
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
 
     // VectorIndex trait is required to call add_with_ids / search / save on the
     // concrete TurbovecIndex.
     use llm_kernel::embedding::VectorIndex;
+
+    /// BYOH's own sidecar path for ids/texts — uses `.byoh.json` instead of
+    /// `.meta.json` to avoid colliding with llm-kernel's own `.meta.json` sidecar
+    /// (which TurbovecIndex::load reads to restore dim/bit_width).
+    fn byoh_sidecar_path(index_path: &Path) -> PathBuf {
+        // Strip any existing extension then append `.byoh.json`.
+        let stem = index_path
+            .file_stem()
+            .unwrap_or(index_path.as_os_str());
+        index_path
+            .with_file_name(stem)
+            .with_extension("byoh.json")
+    }
 
     use crate::ports::embedder::Embedding;
     use crate::rag::store::{cosine, VectorHit, VectorStore};
@@ -316,8 +329,9 @@ pub mod turbovec {
             self.index
                 .save(path)
                 .map_err(|e| crate::domain::ByohError::Other(format!("turbovec save: {e}")))?;
-            // Sidecar for ids/texts.
-            let sidecar = path.with_extension("meta.json");
+            // BYOH sidecar for ids/texts/raw — use .byoh.json to avoid colliding
+            // with llm-kernel's own .meta.json (which it reads in TurbovecIndex::load).
+            let sidecar = byoh_sidecar_path(path);
             let payload = serde_json::json!({
                 "ids": self.ids,
                 "texts": self.texts,
@@ -330,7 +344,9 @@ pub mod turbovec {
         fn load(&mut self, path: &Path) -> crate::domain::Result<()> {
             self.index = llm_kernel::embedding::TurbovecIndex::load(path)
                 .map_err(|e| crate::domain::ByohError::Other(format!("turbovec load: {e}")))?;
-            let sidecar = path.with_extension("meta.json");
+            // Sync dim from the loaded index so search dimension checks are consistent.
+            self.dim = self.index.dim();
+            let sidecar = byoh_sidecar_path(path);
             let body = std::fs::read_to_string(&sidecar)?;
             let v: serde_json::Value = serde_json::from_str(&body)?;
             self.ids = v

@@ -664,6 +664,18 @@ fn rag_search_impl(
     }
     // No corpus supplied: reuse a previously-persisted index if one exists
     // (the "persistent knowledge base" — no re-embedding needed).
+    // native-rag: index was saved by rag_index_impl as TurbovecStore, so load
+    // it with load_index_native. Non-native path uses InMemoryStore throughout.
+    #[cfg(feature = "native-rag")]
+    if let Some(handle) = crate::rag::pipeline::native::load_index_native(
+        &crate::store::byoh_home(),
+        genre,
+        embedder.dim(),
+        crate::rag::pipeline::native::DEFAULT_BIT_WIDTH,
+    )? {
+        return handle.search(&*embedder, query, k);
+    }
+    #[cfg(not(feature = "native-rag"))]
     if let Some(handle) = crate::rag::load_index(&crate::store::byoh_home(), genre)? {
         return handle.search(&*embedder, query, k);
     }

@@ -131,11 +131,14 @@ pub mod native {
     #[cfg(feature = "rag-openai")]
     impl OpenAIEmbedder {
         pub fn new(model: &str, api_key: &str) -> crate::domain::Result<Self> {
-            let inner = llm_kernel::embedding::OpenAIEmbeddingClient::new(model, api_key)
-                .map_err(|e| crate::domain::ByohError::Other(format!("openai embed init: {e}")))?;
+            // llm-kernel 0.10: new_with_model(api_key, model, dim) — infallible.
+            let dim = if model.contains("3-large") { 3072 } else { 1536 };
+            let inner = llm_kernel::embedding::OpenAIEmbeddingClient::new_with_model(
+                api_key, model, dim,
+            );
             Ok(Self {
                 inner,
-                dim_cache: 1536, // text-embedding-3-small default
+                dim_cache: dim,
             })
         }
     }
