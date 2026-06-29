@@ -1,0 +1,5 @@
+{
+  "$schema": "https://antigravity.google/schemas/v1/plugin.json",
+  "description": "BYOH-generated creator harness for 'solo-creator'.",
+  "name": "byoh-solo-creator"
+}
