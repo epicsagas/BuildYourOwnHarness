@@ -210,6 +210,93 @@ pub fn load_index(
     }))
 }
 
+/// Incrementally (re)build + persist a genre index: re-embed only docs that are
+/// new or changed since the last index, drop removed docs, keep unchanged docs
+/// as-is. Falls back to a full build when no prior index/manifest exists.
+///
+/// Returns the build report and the [`IndexDelta`] describing what changed.
+/// Saves the store + corpus sidecar + manifest. The result is byte-for-byte
+/// equivalent to a full `build_index` for the same doc set (deterministic
+/// embedder), but skips re-embedding unchanged docs.
+pub fn build_index_incremental(
+    embedder: &dyn EmbedderProvider,
+    root: &Path,
+    genre: Genre,
+    docs: &[InputDoc],
+    opts: &ChunkOptions,
+) -> crate::domain::Result<(BuildReport, crate::rag::manifest::IndexDelta)> {
+    use crate::rag::manifest::{diff, IndexManifest};
+    use std::collections::BTreeMap;
+
+    let manifest = IndexManifest::load(root, genre)?;
+    let delta = diff(manifest.as_ref().unwrap_or(&IndexManifest::default()), docs);
+
+    // No prior index (or manifest) → full build.
+    let prior = load_index(root, genre)?;
+    let (mut store, mut corpus): (InMemoryStore, Vec<(String, String)>) = match prior {
+        Some(h) if manifest.is_some() => (h.store, h.corpus),
+        _ => (InMemoryStore::new(embedder.dim()), Vec::new()),
+    };
+
+    let to_refresh = delta.to_embed(); // added ∪ changed
+    let drop_ids: Vec<&String> = delta.removed.iter().chain(delta.changed.iter()).collect();
+
+    // Drop removed + changed docs from store + corpus.
+    for id in &drop_ids {
+        store.remove_doc(id);
+    }
+    let dropped: std::collections::BTreeSet<String> =
+        drop_ids.iter().map(|s| (*s).clone()).collect();
+    // Keep chunks whose doc-id (prefix before "::") is not in the dropped set.
+    corpus.retain(|(cid, _)| {
+        let doc_id = cid.split("::").next().unwrap_or(cid.as_str());
+        !dropped.contains(doc_id)
+    });
+
+    // Embed added + changed docs.
+    let refresh_set: std::collections::BTreeSet<&str> =
+        to_refresh.iter().map(|s| s.as_str()).collect();
+    let mut chunk_counts: BTreeMap<String, usize> = BTreeMap::new();
+    // seed counts for unchanged docs from the prior manifest
+    if let Some(m) = &manifest {
+        for (id, e) in &m.entries {
+            if delta.unchanged.contains(id) {
+                chunk_counts.insert(id.clone(), e.chunks);
+            }
+        }
+    }
+    for doc in docs {
+        if !refresh_set.contains(doc.id.as_str()) {
+            continue;
+        }
+        let chunks = chunk_document(&doc.id, &doc.text, opts);
+        for chunk in &chunks {
+            let embedding = embedder.embed(&chunk.text)?;
+            store.add(&chunk.id, &embedding, &chunk.text)?;
+            corpus.push((chunk.id.clone(), chunk.text.clone()));
+        }
+        chunk_counts.insert(doc.id.clone(), chunks.len());
+    }
+
+    let handle = IndexHandle {
+        genre,
+        store,
+        corpus,
+        backend: embedder.backend().to_string(),
+    };
+    save_index(&handle, root)?;
+    IndexManifest::from_docs(docs, &chunk_counts).save(root, genre)?;
+
+    let report = BuildReport {
+        genre,
+        docs: docs.len(),
+        chunks: handle.store.len(),
+        dim: embedder.dim(),
+        backend: handle.backend.clone(),
+    };
+    Ok((report, delta))
+}
+
 #[cfg(feature = "native-rag")]
 pub mod native {
     //! native-rag pipeline: uses TurbovecStore (quantized ANN) + persistence.
@@ -404,5 +491,186 @@ mod tests {
             fresh_ids, disk_ids,
             "loaded index must return identical hits"
         );
+    }
+
+    // ── incremental reindex ──────────────────────────────────────────────
+
+    use crate::ports::embedder::Embedding;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    /// DummyEmbedder wrapper that counts `embed` calls (to prove unchanged docs
+    /// are not re-embedded). `AtomicUsize` keeps it `Sync` without `unsafe`.
+    struct CountingEmbedder {
+        inner: DummyEmbedder,
+        calls: AtomicUsize,
+    }
+    impl CountingEmbedder {
+        fn new() -> Self {
+            Self {
+                inner: DummyEmbedder::new(),
+                calls: AtomicUsize::new(0),
+            }
+        }
+        fn count(&self) -> usize {
+            self.calls.load(Ordering::Relaxed)
+        }
+    }
+    impl EmbedderProvider for CountingEmbedder {
+        fn embed(&self, text: &str) -> crate::domain::Result<Embedding> {
+            self.calls.fetch_add(1, Ordering::Relaxed);
+            self.inner.embed(text)
+        }
+        fn dim(&self) -> usize {
+            self.inner.dim()
+        }
+        fn backend(&self) -> &'static str {
+            self.inner.backend()
+        }
+    }
+
+    fn idocs(pairs: &[(&str, &str)]) -> Vec<InputDoc> {
+        pairs
+            .iter()
+            .map(|(id, t)| InputDoc {
+                id: (*id).into(),
+                text: (*t).into(),
+            })
+            .collect()
+    }
+
+    #[test]
+    fn incremental_full_build_when_no_manifest() {
+        let emb = DummyEmbedder::new();
+        let dir = tempfile::tempdir().unwrap();
+        let docs = idocs(&[("a", "alpha text"), ("b", "beta text")]);
+        let (report, delta) = build_index_incremental(
+            &emb,
+            dir.path(),
+            Genre::Developer,
+            &docs,
+            &ChunkOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(delta.added.len(), 2, "first run = all added");
+        assert!(delta.unchanged.is_empty());
+        assert!(report.chunks >= 2);
+    }
+
+    #[test]
+    fn incremental_skips_unchanged_docs() {
+        let dir = tempfile::tempdir().unwrap();
+        let docs = idocs(&[("a", "alpha"), ("b", "beta"), ("c", "gamma")]);
+
+        // initial full index
+        let emb0 = DummyEmbedder::new();
+        build_index_incremental(
+            &emb0,
+            dir.path(),
+            Genre::Developer,
+            &docs,
+            &ChunkOptions::default(),
+        )
+        .unwrap();
+
+        // change only "b"; a,c unchanged
+        let docs2 = idocs(&[("a", "alpha"), ("b", "beta CHANGED"), ("c", "gamma")]);
+        let counter = CountingEmbedder::new();
+        let (_r, delta) = build_index_incremental(
+            &counter,
+            dir.path(),
+            Genre::Developer,
+            &docs2,
+            &ChunkOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(delta.changed, vec!["b"]);
+        assert_eq!(delta.unchanged, vec!["a", "c"]);
+        // only "b" (1 chunk) re-embedded → exactly 1 embed call (a,c skipped).
+        assert_eq!(counter.count(), 1, "only changed doc re-embedded");
+    }
+
+    #[test]
+    fn incremental_handles_removed_doc() {
+        let dir = tempfile::tempdir().unwrap();
+        let emb = DummyEmbedder::new();
+        build_index_incremental(
+            &emb,
+            dir.path(),
+            Genre::Developer,
+            &idocs(&[("a", "alpha"), ("b", "beta")]),
+            &ChunkOptions::default(),
+        )
+        .unwrap();
+        // drop "b"
+        let (_r, delta) = build_index_incremental(
+            &emb,
+            dir.path(),
+            Genre::Developer,
+            &idocs(&[("a", "alpha")]),
+            &ChunkOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(delta.removed, vec!["b"]);
+        let loaded = load_index(dir.path(), Genre::Developer).unwrap().unwrap();
+        assert!(
+            loaded
+                .corpus
+                .iter()
+                .all(|(id, _)| !id.starts_with("b::") && id != "b"),
+            "removed doc's chunks must be gone"
+        );
+    }
+
+    #[test]
+    fn incremental_equivalent_to_full_rebuild() {
+        let docs = idocs(&[("a", "alpha one"), ("b", "beta two"), ("c", "gamma three")]);
+        let docs2 = idocs(&[
+            ("a", "alpha one"),
+            ("b", "beta TWO changed"),
+            ("d", "delta four"),
+        ]);
+
+        // incremental path: build docs, then reindex docs2
+        let dir_inc = tempfile::tempdir().unwrap();
+        let emb = DummyEmbedder::new();
+        build_index_incremental(
+            &emb,
+            dir_inc.path(),
+            Genre::Developer,
+            &docs,
+            &ChunkOptions::default(),
+        )
+        .unwrap();
+        build_index_incremental(
+            &emb,
+            dir_inc.path(),
+            Genre::Developer,
+            &docs2,
+            &ChunkOptions::default(),
+        )
+        .unwrap();
+        let inc = load_index(dir_inc.path(), Genre::Developer)
+            .unwrap()
+            .unwrap();
+
+        // full path: build docs2 from scratch
+        let dir_full = tempfile::tempdir().unwrap();
+        let (_r, full) =
+            build_index(&emb, Genre::Developer, &docs2, &ChunkOptions::default()).unwrap();
+        save_index(&full, dir_full.path()).unwrap();
+        let full = load_index(dir_full.path(), Genre::Developer)
+            .unwrap()
+            .unwrap();
+
+        // same corpus content (order-independent)
+        let mut inc_ids: Vec<&str> = inc.corpus.iter().map(|(id, _)| id.as_str()).collect();
+        let mut full_ids: Vec<&str> = full.corpus.iter().map(|(id, _)| id.as_str()).collect();
+        inc_ids.sort();
+        full_ids.sort();
+        assert_eq!(
+            inc_ids, full_ids,
+            "incremental corpus == full-rebuild corpus"
+        );
+        assert_eq!(inc.store.len(), full.store.len(), "same vector count");
     }
 }
