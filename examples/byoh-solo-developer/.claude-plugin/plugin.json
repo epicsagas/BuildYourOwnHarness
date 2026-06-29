@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "agents": [
+    "./agents/code-reviewer.md",
+    "./agents/debugger.md",
+    "./agents/tech-debt-auditor.md"
+  ],
+  "author": {
+    "name": "byoh",
+    "url": "https://github.com/epicsagas/BuildYourOwnHarness"
+  },
+  "description": "BYOH-generated developer harness for 'solo-developer'.",
+  "homepage": "https://github.com/epicsagas/BuildYourOwnHarness",
+  "keywords": [
+    "byoh",
+    "agent-harness",
+    "developer"
+  ],
+  "license": "Apache-2.0",
+  "mcpServers": "./mcp_config.json",
+  "name": "byoh-solo-developer",
+  "repository": "https://github.com/epicsagas/byoh-solo-developer",
+  "skills": "./skills/",
+  "version": "1.0.0"
+}

@@ -1,0 +1,31 @@
+{
+  "agents": "./.codex-plugin/agents/",
+  "author": {
+    "name": "byoh",
+    "url": "https://github.com/epicsagas/BuildYourOwnHarness"
+  },
+  "description": "BYOH-generated researcher harness for 'solo-researcher'.",
+  "homepage": "https://github.com/epicsagas/BuildYourOwnHarness",
+  "hooks": "./.codex-plugin/hooks.json",
+  "interface": {
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "category": "Development & Workflow",
+    "developerName": "byoh",
+    "displayName": "BYOH researcher",
+    "shortDescription": "BYOH-generated researcher harness for 'solo-researcher'."
+  },
+  "keywords": [
+    "byoh",
+    "agent-harness",
+    "researcher"
+  ],
+  "license": "Apache-2.0",
+  "mcpServers": "./mcp_config.json",
+  "name": "byoh-solo-researcher",
+  "repository": "https://github.com/epicsagas/byoh-solo-researcher",
+  "skills": "./skills/",
+  "version": "1.0.0"
+}

@@ -1,0 +1,31 @@
+{
+  "agents": "./.codex-plugin/agents/",
+  "author": {
+    "name": "byoh",
+    "url": "https://github.com/epicsagas/BuildYourOwnHarness"
+  },
+  "description": "BYOH-generated business harness for 'solo-business'.",
+  "homepage": "https://github.com/epicsagas/BuildYourOwnHarness",
+  "hooks": "./.codex-plugin/hooks.json",
+  "interface": {
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "category": "Development & Workflow",
+    "developerName": "byoh",
+    "displayName": "BYOH business",
+    "shortDescription": "BYOH-generated business harness for 'solo-business'."
+  },
+  "keywords": [
+    "byoh",
+    "agent-harness",
+    "business"
+  ],
+  "license": "Apache-2.0",
+  "mcpServers": "./mcp_config.json",
+  "name": "byoh-solo-business",
+  "repository": "https://github.com/epicsagas/byoh-solo-business",
+  "skills": "./skills/",
+  "version": "1.0.0"
+}
