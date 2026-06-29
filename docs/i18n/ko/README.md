@@ -61,6 +61,8 @@ byoh serve
 
 생성 계층의 Rust 구현: 프로파일러 + 인터뷰 + 장르 템플릿 + 컴파일러(4-ring, MCP 도구 자동생성, 정적 게이트) + 진화 엔진 + 자체 RAG(선택 `native-rag`) + MCP 서버(선택 `mcp`). 아키텍처 가이드는 `AGENTS.md`를 참고하세요.
 
+RAG 계층은 **영속 지식베이스**다. `byoh index`가 장르 인덱스 + corpus 사이드카를 `$BYOH_HOME/indexes/`에 저장하고, 이후 `byoh search`(또는 `rag_search` MCP 도구)를 `--corpus` 없이 호출하면 `load_index`로 재사용한다 — 재임베딩 없음. 재인덱싱은 **증분**으로 동작한다 — 콘텐츠 해시 매니페스트가 추가/변경된 문서만 재임베딩하고 삭제된 문서는 제거한다(`+a ~c -r`로 보고). `--force`는 전체 재빌드.
+
 ## 라이선스
 
 Apache-2.0.
