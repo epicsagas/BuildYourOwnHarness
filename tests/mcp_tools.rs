@@ -144,6 +144,45 @@ async fn rag_index_with_small_corpus() {
 }
 
 #[serial]
+#[tokio::test]
+async fn rag_search_reuses_persisted_index_without_corpus() {
+    let s = server(); // server() isolates BYOH_HOME into a fresh tempdir
+    let dir = tempfile::tempdir().unwrap();
+    let note_path = dir.path().join("note.md");
+    std::fs::write(&note_path, "rust async runtime tokio await futures").unwrap();
+    let corpus = note_path.to_string_lossy().into_owned();
+    std::mem::forget(dir);
+
+    // 1. Index → persists under BYOH_HOME/indexes/.
+    let idx = s
+        .rag_index(Parameters(RagIndexParams {
+            genre: "developer".into(),
+            corpus,
+            max_tokens: 512,
+            overlap: 64,
+        }))
+        .await;
+    assert!(!idx.is_error.unwrap_or(false));
+
+    // 2. Search WITHOUT corpus → must reuse the persisted index (not grep-only).
+    let res = s
+        .rag_search(Parameters(RagSearchParams {
+            query: "tokio async".into(),
+            genre: "developer".into(),
+            corpus: None,
+            k: 5,
+        }))
+        .await;
+    assert!(!res.is_error.unwrap_or(false));
+    // The persisted index has content → at least one hit (grep-only on empty corpus would be 0).
+    let text = format!("{:?}", res.content);
+    assert!(
+        text.contains("tokio") || text.contains("rust"),
+        "persisted index should return content: {text}"
+    );
+}
+
+#[serial]
 #[test]
 fn evolve_cycle_runs_under_safety_gates() {
     let s = server();

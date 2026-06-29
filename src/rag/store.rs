@@ -69,6 +69,15 @@ impl InMemoryStore {
             rows: Vec::new(),
         }
     }
+
+    /// The `(id, text)` pairs of every stored vector — used to reconstruct the
+    /// hybrid-search corpus when loading a persisted index without a sidecar.
+    pub fn corpus_pairs(&self) -> Vec<(String, String)> {
+        self.rows
+            .iter()
+            .map(|r| (r.id.clone(), r.text.clone()))
+            .collect()
+    }
 }
 
 impl VectorStore for InMemoryStore {

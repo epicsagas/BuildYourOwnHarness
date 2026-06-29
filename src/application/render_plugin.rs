@@ -108,7 +108,11 @@ fn render_polyglot(bundle: &HarnessBundle, out: &Path) -> Result<()> {
 
     // Codex .codex/ config + symlinks. Relative targets still resolve: the
     // polyglot root IS the codex root.
-    crate::store::write_file(&out.join(".codex"), "config.toml", &codex_config_toml(bundle))?;
+    crate::store::write_file(
+        &out.join(".codex"),
+        "config.toml",
+        &codex_config_toml(bundle),
+    )?;
     let codex = out.join(".codex");
     crate::store::create_symlink_or_copy(
         &PathBuf::from("../.codex-plugin/agents"),
@@ -154,8 +158,7 @@ fn claude_manifest(bundle: &HarnessBundle) -> Value {
         .map(|a| format!("./agents/{}.md", a.id))
         .collect();
     let mut manifest = base_manifest(bundle);
-    manifest["$schema"] =
-        json!("https://json.schemastore.org/claude-code-plugin-manifest.json");
+    manifest["$schema"] = json!("https://json.schemastore.org/claude-code-plugin-manifest.json");
     manifest["skills"] = json!("./skills/");
     if !agent_paths.is_empty() {
         manifest["agents"] = json!(agent_paths);
@@ -722,7 +725,10 @@ mod tests {
         // One tree carrying all three hosts' manifests.
         assert!(dir.path().join(".claude-plugin/plugin.json").exists());
         assert!(dir.path().join(".codex-plugin/plugin.json").exists());
-        assert!(dir.path().join("plugin.json").exists(), "agy root plugin.json");
+        assert!(
+            dir.path().join("plugin.json").exists(),
+            "agy root plugin.json"
+        );
         assert!(dir.path().join("README.md").exists());
 
         // No per-host subdir split.
