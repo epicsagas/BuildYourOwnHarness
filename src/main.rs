@@ -4,7 +4,8 @@ use std::path::PathBuf;
 
 use byoh::adapters::{FilesystemSource, RuleInterview, RuleLlm, StaticWizard, StdCommand};
 use byoh::application::ProfileOrchestrator;
-use byoh::cli::{Cli, Command, ProfileAction};
+use byoh::catalog::search::{SearchOptions, catalog_search};
+use byoh::cli::{CatalogAction, Cli, Command, ProfileAction};
 use byoh::compiler::{compile_profile, dry_run, static_gate};
 use byoh::deploy::registry::Registry;
 use byoh::domain::genre::Genre;
@@ -74,8 +75,102 @@ fn main() -> anyhow::Result<()> {
         Command::Hook { name } => run_hook(&name, &lang)?,
         Command::Render { slug, target, out } => run_render(&slug, &target, &out)?,
         Command::Vendor { action } => run_vendor(action, &lang)?,
+        Command::Catalog { action } => run_catalog(action)?,
         #[cfg(feature = "mcp")]
         Command::Serve => run_serve(&lang)?,
+    }
+    Ok(())
+}
+
+fn run_catalog(action: CatalogAction) -> anyhow::Result<()> {
+    let home = byoh::store::byoh_home();
+    match action {
+        #[cfg(feature = "catalog")]
+        CatalogAction::Index { limit, ttl_hours } => {
+            let cache = byoh::catalog::load_cache(&home)?;
+            if byoh::catalog::cache_is_fresh(&cache, ttl_hours) {
+                println!(
+                    "[byoh catalog] cache is fresh ({} entries, TTL {}h) — skip re-index. Use --ttl-hours 0 to force.",
+                    cache.entries.len(),
+                    ttl_hours
+                );
+                return Ok(());
+            }
+            let effective_limit = if limit == 0 { usize::MAX } else { limit };
+            let cache = byoh::catalog::index::catalog_index(
+                &home,
+                effective_limit,
+                ttl_hours,
+                |fetched, total| {
+                    if fetched % 100 == 0 || fetched == total {
+                        eprint!("\r[byoh catalog] indexing {fetched}/{total}...");
+                    }
+                },
+            )?;
+            eprintln!();
+            println!(
+                "[byoh catalog] indexed {} entries → {}",
+                cache.entries.len(),
+                byoh::catalog::catalog_path(&home).display()
+            );
+        }
+        CatalogAction::Search { query, genre, tags, limit } => {
+            let genre_parsed = genre.as_deref().map(|g| g.parse::<Genre>()).transpose()?;
+            let tag_list: Vec<String> = tags
+                .map(|t| t.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect())
+                .unwrap_or_default();
+            let opts = SearchOptions {
+                query: &query,
+                genre: genre_parsed,
+                tags: &tag_list,
+                limit,
+            };
+            let results = catalog_search(&home, &opts)?;
+            if results.is_empty() {
+                println!("(no results for \"{query}\")");
+            } else {
+                println!("{:<40} {:<12} {:<6} {}", "id", "genre", "stars", "description");
+                for e in &results {
+                    let g = e.byoh_genre.map(|g| g.as_str().to_string()).unwrap_or_else(|| "?".into());
+                    let s = e.stars.map(|n| n.to_string()).unwrap_or_else(|| "-".into());
+                    let desc = truncate_str(&e.description, 60);
+                    println!("{:<40} {:<12} {:<6} {}", e.id, g, s, desc);
+                }
+                println!("({} results)", results.len());
+            }
+        }
+        CatalogAction::Vendor { plugin_id, genre, keywords } => {
+            let genre_parsed = genre.as_deref().map(|g| g.parse::<Genre>()).transpose()?;
+            let extra_kw: Vec<String> = keywords
+                .map(|k| k.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect())
+                .unwrap_or_default();
+            // Look up the plugin in the catalog cache.
+            let cache = byoh::catalog::load_cache(&home)?;
+            let entry = cache
+                .entries
+                .iter()
+                .find(|e| e.id == plugin_id)
+                .ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "plugin '{plugin_id}' not found in catalog cache. Run `byoh catalog index` first."
+                    )
+                })?;
+            let repo_root = std::env::current_dir()?;
+            let vendor_entry = byoh::catalog::vendor_from_catalog::catalog_vendor(
+                entry,
+                genre_parsed,
+                &extra_kw,
+                &repo_root,
+            )?;
+            println!(
+                "vendored '{}' ({}) → registry/vendored/{}/{}.md (sha256 {}...)",
+                plugin_id,
+                vendor_entry.genre,
+                vendor_entry.genre,
+                vendor_entry.skill_id,
+                &vendor_entry.sha256[..12.min(vendor_entry.sha256.len())]
+            );
+        }
     }
     Ok(())
 }

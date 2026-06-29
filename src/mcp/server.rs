@@ -206,9 +206,35 @@ impl ByohServer {
         match orch.stage2_interview(&mut profile, &p.answers) {
             Ok(council) => {
                 let _ = crate::store::write_profile(&profile);
+                // Enrich with catalog suggestions so the LLM can recommend plugins
+                // mid-interview without a separate tool call.
+                let tags = crate::application::synthesis::profile_tags(&profile);
+                let catalog_suggestions = match crate::catalog::search::catalog_search(
+                    &self.ctx.home,
+                    &crate::catalog::search::SearchOptions {
+                        query: &tags.join(" "),
+                        genre: profile.candidates.identity.genre.as_ref().map(|g| g.value),
+                        tags: &[],
+                        limit: 5,
+                    },
+                ) {
+                    Ok(entries) => entries
+                        .into_iter()
+                        .map(|e| json!({
+                            "id": e.id,
+                            "name": e.name,
+                            "description": e.description,
+                            "github_url": e.github_url,
+                            "stars": e.stars,
+                            "genre": e.byoh_genre.map(|g| g.as_str()),
+                        }))
+                        .collect::<Vec<_>>(),
+                    Err(_) => vec![],
+                };
                 ok_value(json!({
                     "profile": serde_json::to_value(&profile).unwrap_or(Value::Null),
                     "council_questions": council.len(),
+                    "catalog_suggestions": catalog_suggestions,
                 }))
             }
             Err(e) => err_result(e),
@@ -424,6 +450,67 @@ impl ByohServer {
             Ok(r) => r,
             Err(join_err) => err_result(crate::domain::error::ByohError::Other(format!(
                 "install task join failed: {join_err}"
+            ))),
+        }
+    }
+
+    #[tool(
+        description = "Search the local awesomeclaudeplugins.com catalog cache (~/.byoh/catalog.json). \
+                       Returns ranked plugin entries (id, name, description, github_url, stars, genre). \
+                       Offline — no network. Run `byoh catalog index` to populate the cache first. \
+                       Use this during the wizard to recommend external plugins the user can vendor."
+    )]
+    pub fn catalog_search(
+        &self,
+        Parameters(p): Parameters<CatalogSearchParams>,
+    ) -> CallToolResult {
+        let genre = match p.genre.as_deref().map(parse_genre).transpose() {
+            Ok(g) => g,
+            Err(e) => return err_result(e),
+        };
+        let opts = crate::catalog::search::SearchOptions {
+            query: &p.query,
+            genre,
+            tags: &p.tags,
+            limit: p.limit,
+        };
+        match crate::catalog::search::catalog_search(&self.ctx.home, &opts) {
+            Ok(entries) => {
+                let out: Vec<Value> = entries
+                    .into_iter()
+                    .map(|e| json!({
+                        "id": e.id,
+                        "name": e.name,
+                        "description": e.description,
+                        "github_url": e.github_url,
+                        "stars": e.stars,
+                        "genre": e.byoh_genre.map(|g| g.as_str()),
+                        "keywords": e.keywords,
+                    }))
+                    .collect();
+                ok_value(json!(out))
+            }
+            Err(e) => err_result(e),
+        }
+    }
+
+    #[tool(
+        description = "Vendor a plugin from the awesomeclaudeplugins.com catalog into registry/vendored/. \
+                       Looks up `plugin_id` (owner/repo) in the local cache, shallow-clones its GitHub repo, \
+                       and delegates to vendor_add. Run catalog_search first to find the right plugin_id. \
+                       Returns the vendored entry (skill_id, genre, sha256). \
+                       Filesystem + git heavy: runs via spawn_blocking."
+    )]
+    pub async fn catalog_vendor(
+        &self,
+        Parameters(p): Parameters<CatalogVendorParams>,
+    ) -> CallToolResult {
+        let home = self.ctx.home.clone();
+        let res = tokio::task::spawn_blocking(move || catalog_vendor_blocking(&home, &p)).await;
+        match res {
+            Ok(r) => r,
+            Err(join_err) => err_result(crate::domain::error::ByohError::Other(format!(
+                "catalog_vendor task join failed: {join_err}"
             ))),
         }
     }
@@ -692,4 +779,40 @@ fn rag_search_impl(
             mode: h.mode.as_str(),
         })
         .collect())
+}
+
+/// Synchronous body of `catalog_vendor`.
+fn catalog_vendor_blocking(home: &std::path::Path, p: &CatalogVendorParams) -> CallToolResult {
+    let genre = match p.genre.as_deref().map(parse_genre).transpose() {
+        Ok(g) => g,
+        Err(e) => return err_result(e),
+    };
+    let cache = match crate::catalog::load_cache(home) {
+        Ok(c) => c,
+        Err(e) => return err_result(e),
+    };
+    let entry = match cache.entries.iter().find(|e| e.id == p.plugin_id) {
+        Some(e) => e.clone(),
+        None => {
+            return err_result(crate::domain::ByohError::Schema(format!(
+                "plugin '{}' not in catalog cache — run `byoh catalog index` first",
+                p.plugin_id
+            )));
+        }
+    };
+    let repo_root = match std::env::current_dir() {
+        Ok(d) => d,
+        Err(e) => {
+            return err_result(crate::domain::ByohError::Other(format!("cwd: {e}")));
+        }
+    };
+    match crate::catalog::vendor_from_catalog::catalog_vendor(&entry, genre, &p.extra_keywords, &repo_root) {
+        Ok(v) => ok_value(json!({
+            "skill_id": v.skill_id,
+            "genre": v.genre,
+            "sha256": v.sha256,
+            "license": v.license,
+        })),
+        Err(e) => err_result(e),
+    }
 }

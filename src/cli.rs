@@ -147,6 +147,11 @@ pub enum Command {
         #[arg(long, default_value = "./harness-plugin")]
         out: PathBuf,
     },
+    /// Search or index the awesomeclaudeplugins.com plugin catalog.
+    Catalog {
+        #[command(subcommand)]
+        action: CatalogAction,
+    },
     /// Start the BYOH MCP server over stdio (LLM agents drive BYOH via MCP tools).
     /// Requires the `mcp` cargo feature.
     #[cfg(feature = "mcp")]
@@ -184,6 +189,48 @@ pub enum VendorAction {
         /// Genre the skill was vendored under.
         #[arg(long)]
         genre: String,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum CatalogAction {
+    /// Fetch awesomeclaudeplugins.com sitemap + per-page JSON-LD → rebuild
+    /// `~/.byoh/catalog.json`. Requires the `catalog` cargo feature (network).
+    #[cfg(feature = "catalog")]
+    Index {
+        /// Max number of plugin pages to fetch (0 = all).
+        #[arg(long, default_value_t = 0)]
+        limit: usize,
+        /// Cache TTL in hours (existing cache is reused if still fresh).
+        #[arg(long, default_value_t = 24)]
+        ttl_hours: u64,
+    },
+    /// Keyword search the local `~/.byoh/catalog.json` — no network required.
+    Search {
+        /// Natural-language query (searches name, id, keywords, description).
+        query: String,
+        /// Filter by genre: developer | creator | researcher | business.
+        #[arg(long)]
+        genre: Option<String>,
+        /// AND-filter tags (comma-separated); entry must contain ALL listed tags.
+        #[arg(long)]
+        tags: Option<String>,
+        /// Max results to show.
+        #[arg(long, default_value_t = 10)]
+        limit: usize,
+    },
+    /// Vendor a catalog plugin into `registry/vendored/` — fetches its GitHub repo
+    /// and delegates to `byoh vendor add`.
+    Vendor {
+        /// Plugin id as listed in the catalog (owner/repo slug).
+        plugin_id: String,
+        /// Genre override: developer | creator | researcher | business.
+        /// Required when the catalog entry has no inferred genre.
+        #[arg(long)]
+        genre: Option<String>,
+        /// Extra keywords to merge (comma-separated).
+        #[arg(long)]
+        keywords: Option<String>,
     },
 }
 

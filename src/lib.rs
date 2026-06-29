@@ -27,6 +27,7 @@
 
 pub mod adapters;
 pub mod application;
+pub mod catalog;
 pub mod cli;
 pub mod compiler;
 pub mod deploy;

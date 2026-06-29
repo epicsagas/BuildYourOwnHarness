@@ -143,6 +143,33 @@ pub struct InstallPluginParams {
     pub force: bool,
 }
 
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct CatalogSearchParams {
+    /// Natural-language query (searched in name, id, keywords, description).
+    pub query: String,
+    /// Optional genre filter: "developer" | "creator" | "researcher" | "business".
+    #[serde(default)]
+    pub genre: Option<String>,
+    /// AND-filter tags. Entry must contain ALL of these.
+    #[serde(default)]
+    pub tags: Vec<String>,
+    #[serde(default = "default_k")]
+    pub limit: usize,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct CatalogVendorParams {
+    /// Plugin id as listed in the catalog ("owner/repo" slug).
+    pub plugin_id: String,
+    /// Genre override: "developer" | "creator" | "researcher" | "business".
+    /// Required when the catalog entry has no inferred genre.
+    #[serde(default)]
+    pub genre: Option<String>,
+    /// Extra keywords to merge into the vendored entry.
+    #[serde(default)]
+    pub extra_keywords: Vec<String>,
+}
+
 fn default_target() -> String {
     "all".to_string()
 }
