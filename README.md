@@ -93,7 +93,7 @@ byoh render <slug> --target claude       # claude | codex | agy | all (git-ready
 byoh install <slug>                      # safe dist/ install (--host for live plugin dir)
 byoh run <slug>
 byoh evolve <slug>                       # 3-gate evolution cycle
-byoh catalog index [--limit N]           # crawl awesomeclaudeplugins.com → ~/.byoh/catalog.json
+byoh catalog index [--limit N]           # parse quemsah top-100 README → ~/.byoh/catalog.json
 byoh catalog search "<query>" [--genre <g>] [--tags k1,k2] [--limit N]
 byoh catalog vendor <owner/repo> [--genre <g>] [--keywords k1,k2]
 ```
@@ -111,13 +111,14 @@ byoh serve
 
 - **Synthesis engine** — `synthesize(profile)` matches registry skills against profile tags, orders them into a pipeline, and forces a 3-gate re-pass (no bypass). Goal-oriented pipelines (product-launch / decision / research-report / secure-ship / …) overlay a skill ladder + agent set when the 30-day goal matches.
 - **Community skill vendoring** (RFC M3) — `byoh vendor add` fetches an external `SKILL.md` (local path or git URL), runs static validation + sha256, and embeds it into **Ring 3** (most-restricted) at build time via `build.rs`. External skills join synthesis as untrusted code.
-- **Plugin catalog** — `byoh catalog index` builds an offline cache at `~/.byoh/catalog.json` from [awesomeclaudeplugins.com](https://awesomeclaudeplugins.com) (24 000+ plugins via `sitemap.xml`; each page parsed from JSON-LD when present, falling back to `<title>` + `<meta>` tags otherwise). By default it first downloads a **maintainer-built bundle** (a weekly GitHub Release asset — seconds, no crawl); only if that is unreachable does it crawl the site itself. After indexing, `catalog search` and `catalog vendor` work entirely offline. During the S2 wizard interview, `profile_interview` automatically includes `catalog_suggestions` — up to 5 genre-matched plugins the LLM can recommend without extra tool calls.
+- **Plugin catalog** — `byoh catalog index` builds an offline cache at `~/.byoh/catalog.json` from the curated [quemsah/awesome-claude-plugins](https://github.com/quemsah/awesome-claude-plugins) README (top 100 repos by stars, refreshed daily upstream). A single fetch + parse — no per-page crawl — and each entry carries real `stars`. By default it first downloads a **maintainer-built bundle** (a weekly GitHub Release asset — seconds); only if that is unreachable does it parse the README itself. After indexing, `catalog search` and `catalog vendor` work entirely offline. During the S2 wizard interview, `profile_interview` automatically includes `catalog_suggestions` — up to 5 genre-matched plugins the LLM can recommend without extra tool calls.
 
   ```bash
-  # One-time index — downloads the prebuilt bundle, or crawls ~24 000 pages
-  # if the bundle is unavailable. --no-bundle forces a direct crawl.
-  byoh catalog index                       # bundle first, crawl fallback
-  byoh catalog index --no-bundle --limit 500   # direct crawl, capped
+  # One-time index — downloads the prebuilt bundle, or parses the README
+  # directly if the bundle is unavailable. --no-bundle forces a direct parse.
+  byoh catalog index                       # bundle first, README fallback
+  byoh catalog index --no-bundle           # parse the README directly
+  byoh catalog index --no-bundle --limit 20   # top 20 only
 
   # Point at a self-hosted / local mirror of catalog.json.gz (e.g. for testing):
   #   BYOH_BUNDLE_URL=http://localhost:18099/catalog.json.gz byoh catalog index

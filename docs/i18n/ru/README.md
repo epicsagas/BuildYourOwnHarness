@@ -41,7 +41,7 @@ byoh render <slug> --target claude       # claude | codex | agy | all (git-ready
 byoh install <slug>                      # safe dist/ install (--host for live plugin dir)
 byoh run <slug>
 byoh evolve <slug>                       # 3-gate evolution cycle
-byoh catalog index [--limit N]           # обход awesomeclaudeplugins.com → ~/.byoh/catalog.json
+byoh catalog index [--limit N]           # парсить README топ-100 от quemsah → ~/.byoh/catalog.json
 byoh catalog search "<запрос>" [--genre <g>] [--tags k1,k2] [--limit N]
 byoh catalog vendor <owner/repo> [--genre <g>] [--keywords k1,k2]
 ```
@@ -59,7 +59,7 @@ byoh serve
 
 - **Синтез-движок** — `synthesize(profile)` подбирает скиллы реестра по тегам профиля, выстраивает их в упорядоченный пайплайн и принудительно прогоняет через 3 защитных шлюза (без обходов). Целевые пайплайны (product-launch / decision / research-report / secure-ship / …) накладывают лестницу скиллов + набор агентов, если 30-дневная цель совпадает.
 - **Вендоринг скиллов сообщества** (RFC M3) — `byoh vendor add` загружает внешний `SKILL.md` (локальный путь или git URL), выполняет статическую валидацию + sha256 и встраивает его в **Ring 3** (наиболее ограниченный) во время сборки через `build.rs`. Внешние скиллы включаются в синтез как недоверенный код.
-- **Каталог плагинов** — `byoh catalog index` строит офлайн-кэш в `~/.byoh/catalog.json` из [awesomeclaudeplugins.com](https://awesomeclaudeplugins.com) (24 000+ плагинов через `sitemap.xml`; каждая страница сначала разбирается из JSON-LD, с откатом на теги `<title>` + `<meta>` при его отсутствии). По умолчанию сначала скачивает **готовый bundle от мейнтейнера** (еженедельный asset GitHub Release — секунды, без обхода) и обходит сайт сам лишь если он недоступен. После индексации `catalog search` и `catalog vendor` работают полностью офлайн. Во время S2-интервью мастера `profile_interview` автоматически включает `catalog_suggestions` — до 5 плагинов, подобранных по жанру, которые LLM может рекомендовать без дополнительных вызовов инструментов.
+- **Каталог плагинов** — `byoh catalog index` строит офлайн-кэш в `~/.byoh/catalog.json` из курируемого README [quemsah/awesome-claude-plugins](https://github.com/quemsah/awesome-claude-plugins) (топ-100 по звёздам, обновляется ежедневно). Один запрос + разбор (без обхода страниц), и каждая запись несёт реальные `stars`. По умолчанию сначала скачивает **готовый bundle от мейнтейнера** (еженедельный asset GitHub Release — секунды) и разбирает README сам лишь если он недоступен. После индексации `catalog search` и `catalog vendor` работают полностью офлайн. Во время S2-интервью мастера `profile_interview` автоматически включает `catalog_suggestions` — до 5 плагинов, подобранных по жанру, которые LLM может рекомендовать без дополнительных вызовов инструментов.
 
   ```bash
   # Однократная индексация (сеть; ~24 000 страниц)

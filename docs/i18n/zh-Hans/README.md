@@ -41,7 +41,7 @@ byoh render <slug> --target claude       # claude | codex | agy | all (git-ready
 byoh install <slug>                      # safe dist/ install (--host for live plugin dir)
 byoh run <slug>
 byoh evolve <slug>                       # 3门安全门进化循环
-byoh catalog index [--limit N]           # 抓取 awesomeclaudeplugins.com → ~/.byoh/catalog.json
+byoh catalog index [--limit N]           # 解析 quemsah 前 100 README → ~/.byoh/catalog.json
 byoh catalog search "<查询>" [--genre <g>] [--tags k1,k2] [--limit N]
 byoh catalog vendor <owner/repo> [--genre <g>] [--keywords k1,k2]
 ```
@@ -59,7 +59,7 @@ byoh serve
 
 - **合成引擎** — `synthesize(profile)` 将注册表技能与 profile 标签匹配，按顺序组成流水线，并强制经过三门安全门重新验证（不可绕过）。当 30 天目标匹配时，目标导向流水线（product-launch / decision / research-report / secure-ship / …）会叠加技能阶梯和代理集合。
 - **社区技能外部引入**（RFC M3）— `byoh vendor add` 获取外部 `SKILL.md`（本地路径或 git URL），执行静态校验 + sha256 哈希，并在构建时通过 `build.rs` 嵌入 **Ring 3**（限制最严）。外部技能作为不信任代码加入合成流程。
-- **插件目录** — `byoh catalog index` 从 [awesomeclaudeplugins.com](https://awesomeclaudeplugins.com)（通过 `sitemap.xml`，覆盖 24 000+ 插件）构建离线缓存至 `~/.byoh/catalog.json`（每个页面优先解析 JSON-LD，若不存在则回退到 `<title>` + `<meta>` 标签）。默认先下载 **维护者预构建的 bundle**（每周的 GitHub Release 资产 — 数秒、无需爬取），仅当其不可达时才直接爬取。索引完成后，`catalog search` 和 `catalog vendor` 完全在本地离线运行。在 S2 向导采访过程中，`profile_interview` 会自动在响应中附带 `catalog_suggestions`（最多 5 个按 genre 匹配的插件推荐），LLM 无需额外调用工具即可向用户推荐相关插件。
+- **插件目录** — `byoh catalog index` 从精选的 [quemsah/awesome-claude-plugins](https://github.com/quemsah/awesome-claude-plugins) README（按 Stars 排序的前 100 名，上游每日更新）构建离线缓存至 `~/.byoh/catalog.json`。单次抓取 + 解析（无逐页爬取），每个条目带有真实的 `stars`。默认先下载 **维护者预构建的 bundle**（每周的 GitHub Release 资产 — 数秒），仅当其不可达时才直接解析 README。索引完成后，`catalog search` 和 `catalog vendor` 完全在本地离线运行。在 S2 向导采访过程中，`profile_interview` 会自动在响应中附带 `catalog_suggestions`（最多 5 个按 genre 匹配的插件推荐），LLM 无需额外调用工具即可向用户推荐相关插件。
 
   ```bash
   # 一次性建立索引（需要网络；约 24 000 个页面）

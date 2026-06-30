@@ -41,7 +41,7 @@ byoh render <slug> --target claude       # claude | codex | agy | all (git-ready
 byoh install <slug>                      # safe dist/ install (--host for live plugin dir)
 byoh run <slug>
 byoh evolve <slug>                       # 3-gate evolution cycle
-byoh catalog index [--limit N]           # استكشاف awesomeclaudeplugins.com → ~/.byoh/catalog.json
+byoh catalog index [--limit N]           # تحليل README أفضل-100 من quemsah → ~/.byoh/catalog.json
 byoh catalog search "<استعلام>" [--genre <g>] [--tags k1,k2] [--limit N]
 byoh catalog vendor <owner/repo> [--genre <g>] [--keywords k1,k2]
 ```
@@ -59,7 +59,7 @@ byoh serve
 
 - **محرك التوليف** — `synthesize(profile)` يطابق مهارات السجل مع وسوم الملف الشخصي، يرتّبها في خط أنابيب، ويُجبر على إعادة المرور عبر بوابات الأمان الثلاث (بلا تجاوز). تُوفّر خطوط الأنابيب الموجّهة بالأهداف (إطلاق منتج / قرار / تقرير بحثي / شحن آمن / …) سلّمًا من المهارات ومجموعة وكلاء عند تطابق هدف الـ 30 يومًا.
 - **استيراد مهارات المجتمع** (RFC M3) — `byoh vendor add` يجلب ملف `SKILL.md` خارجيًا (مسار محلي أو رابط git)، يُجري التحقق الثابت + sha256، ويُدمجه في **Ring 3** (الأشد تقييدًا) وقت البناء عبر `build.rs`. تنضم المهارات الخارجية إلى التوليف كشيفرة غير موثوقة.
-- **كتالوج المكونات** — `byoh catalog index` يبني ذاكرة تخزين مؤقت في `~/.byoh/catalog.json` من [awesomeclaudeplugins.com](https://awesomeclaudeplugins.com) (أكثر من 24 000 مكوّن عبر `sitemap.xml`؛ تُحلَّل كل صفحة أولاً من JSON-LD، مع التراجع إلى وسوم `<title>` + `<meta>` عند غيابه). افتراضيًا يحمّل أولاً **حزمة جاهزة من المسؤول** (أصل GitHub Release أسبوعي — ثوانٍ، بدون زحف) ولا يستكشف الموقع مباشرة إلا عند عدم توفرها. بعد الفهرسة يعمل `catalog search` و`catalog vendor` بالكامل بدون اتصال. خلال مقابلة المعالج S2، يُضمّن `profile_interview` تلقائيًا `catalog_suggestions` — ما يصل إلى 5 مكونات مطابقة للنوع يمكن للـ LLM التوصية بها دون استدعاءات أدوات إضافية.
+- **كتالوج المكونات** — `byoh catalog index` يبني ذاكرة تخزين مؤقت في `~/.byoh/catalog.json` من README منسّق [quemsah/awesome-claude-plugins](https://github.com/quemsah/awesome-claude-plugins) (أفضل 100 حسب النجوم، يُحدَّث يوميًا). جلب + تحليل واحد (بدون زحف صفحة بصفحة)، وكل مدخل يحمل `stars` حقيقية. افتراضيًا يحمّل أولاً **حزمة جاهزة من المسؤول** (أصل GitHub Release أسبوعي — ثوانٍ) ولا يحلّل README مباشرة إلا عند عدم توفرها. بعد الفهرسة يعمل `catalog search` و`catalog vendor` بالكامل بدون اتصال. خلال مقابلة المعالج S2، يُضمّن `profile_interview` تلقائيًا `catalog_suggestions` — ما يصل إلى 5 مكونات مطابقة للنوع يمكن للـ LLM التوصية بها دون استدعاءات أدوات إضافية.
 
   ```bash
   # فهرسة لمرة واحدة (تتطلب شبكة؛ ~24 000 صفحة)

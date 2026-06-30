@@ -191,7 +191,7 @@ pub fn try_remote_bundle() -> crate::Result<Option<CatalogCache>> {
     }
 }
 
-/// Index the awesomeclaudeplugins.com catalog.
+/// Index the plugin catalog (quemsah top-100 by stars).
 ///
 /// 1. Fetches `sitemap.xml` → extracts plugin URLs (up to `limit`).
 /// 2. For each URL: fetches the page, parses JSON-LD → `CatalogEntry`.

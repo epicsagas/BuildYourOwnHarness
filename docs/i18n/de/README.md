@@ -39,7 +39,7 @@ byoh render <slug> --target claude       # claude | codex | agy | all (git-ready
 byoh install <slug>                      # sicheres dist/-Install (--host für live Plugin-Dir)
 byoh run <slug>
 byoh evolve <slug>                       # 3-Gate-Evolutionszyklus
-byoh catalog index [--limit N]           # awesomeclaudeplugins.com crawlen → ~/.byoh/catalog.json
+byoh catalog index [--limit N]           # quemsah Top-100 README parsen → ~/.byoh/catalog.json
 byoh catalog search "<Suchanfrage>" [--genre <g>] [--tags k1,k2] [--limit N]
 byoh catalog vendor <owner/repo> [--genre <g>] [--keywords k1,k2]
 ```
@@ -57,7 +57,7 @@ byoh serve
 
 - **Synthese-Engine** — `synthesize(profile)` gleicht Registry-Skills mit Profil-Tags ab, ordnet sie in eine Pipeline und erzwingt einen erneuten 3-Gate-Durchlauf (kein Bypass). Zielorientierte Pipelines (Produktlaunch / Entscheidung / Forschungsbericht / Secure-Ship / …) legen eine Skill-Leiter und ein Agenten-Set überlagert, wenn das 30-Tage-Ziel übereinstimmt.
 - **Community-Skill-Vendoring** (RFC M3) — `byoh vendor add` lädt ein externes `SKILL.md` (lokaler Pfad oder Git-URL), führt statische Validierung + sha256 durch und bettet es zur Build-Zeit über `build.rs` in **Ring 3** (am stärksten eingeschränkt) ein. Externe Skills nehmen als nicht vertrauenswürdiger Code an der Synthese teil.
-- **Plugin-Katalog** — `byoh catalog index` baut einen Offline-Cache unter `~/.byoh/catalog.json` aus [awesomeclaudeplugins.com](https://awesomeclaudeplugins.com) (über 24 000 Plugins via `sitemap.xml`; jede Seite wird primär aus JSON-LD geparst und greift andernfalls auf `<title>` + `<meta>`-Tags zurück). Standardmäßig lädt es zuerst ein **vorgefertigtes Bundle des Maintainers** (ein wöchentliches GitHub-Release-Asset — Sekunden, ohne Crawl) und crawlt die Seite nur selbst, wenn jenes unerreichbar ist. Nach der Indizierung funktionieren `catalog search` und `catalog vendor` vollständig offline. Während des S2-Wizard-Interviews fügt `profile_interview` automatisch `catalog_suggestions` hinzu — bis zu 5 genre-passende Plugins, die das LLM ohne zusätzliche Tool-Aufrufe empfehlen kann.
+- **Plugin-Katalog** — `byoh catalog index` baut einen Offline-Cache unter `~/.byoh/catalog.json` aus dem kuratierten [quemsah/awesome-claude-plugins](https://github.com/quemsah/awesome-claude-plugins) README (Top 100 nach Stars, täglich aktualisiert). Ein einzelner Abruf + Parse (kein seitenweises Crawlen), und jeder Eintrag trägt echte `stars`. Standardmäßig lädt es zuerst ein **vorgefertigtes Bundle des Maintainers** (ein wöchentliches GitHub-Release-Asset — Sekunden) und parst das README nur selbst, wenn jenes unerreichbar ist. Nach der Indizierung funktionieren `catalog search` und `catalog vendor` vollständig offline. Während des S2-Wizard-Interviews fügt `profile_interview` automatisch `catalog_suggestions` hinzu — bis zu 5 genre-passende Plugins, die das LLM ohne zusätzliche Tool-Aufrufe empfehlen kann.
 
   ```bash
   # Einmalige Indexierung (Netzwerk; ~24 000 Seiten)

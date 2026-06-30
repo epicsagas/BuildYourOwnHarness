@@ -41,7 +41,7 @@ byoh render <slug> --target claude       # claude | codex | agy | all (git-ready
 byoh install <slug>                      # safe dist/ install (--host for live plugin dir)
 byoh run <slug>
 byoh evolve <slug>                       # ciclo de evolução com 3 gates
-byoh catalog index [--limit N]           # rastrear awesomeclaudeplugins.com → ~/.byoh/catalog.json
+byoh catalog index [--limit N]           # analisar o README top-100 do quemsah → ~/.byoh/catalog.json
 byoh catalog search "<consulta>" [--genre <g>] [--tags k1,k2] [--limit N]
 byoh catalog vendor <owner/repo> [--genre <g>] [--keywords k1,k2]
 ```
@@ -59,7 +59,7 @@ byoh serve
 
 - **Motor de síntese** — `synthesize(profile)` combina habilidades do registry com as tags do perfil, organiza-as em um pipeline e força uma re-execução com 3 gates (sem desvio). Pipelines orientados a objetivos (lançamento de produto / decisão / relatório de pesquisa / entrega segura / …) aplicam uma escada de habilidades + conjunto de agentes quando o objetivo de 30 dias corresponde.
 - **Vendoring de habilidades da comunidade** (RFC M3) — `byoh vendor add` busca um `SKILL.md` externo (caminho local ou URL git), executa validação estática + sha256 e o incorpora no **Ring 3** (mais restrito) em tempo de build via `build.rs`. Habilidades externas entram na síntese como código não confiável.
-- **Catálogo de plugins** — `byoh catalog index` constrói um cache offline em `~/.byoh/catalog.json` a partir de [awesomeclaudeplugins.com](https://awesomeclaudeplugins.com) (mais de 24.000 plugins via `sitemap.xml`; cada página é analisada primeiro a partir do JSON-LD, com fallback para as tags `<title>` + `<meta>` caso ausente). Por padrão baixa primeiro um **bundle pré-construído pelo mantenedor** (um asset de GitHub Release semanal — segundos, sem rastreamento) e só rastreia o site diretamente se aquele estiver indisponível. Após a indexação, `catalog search` e `catalog vendor` funcionam completamente offline. Durante a entrevista S2 do assistente, `profile_interview` inclui automaticamente `catalog_suggestions` — até 5 plugins correspondentes ao gênero que o LLM pode recomendar sem chamadas de ferramenta adicionais.
+- **Catálogo de plugins** — `byoh catalog index` constrói um cache offline em `~/.byoh/catalog.json` a partir do README curado [quemsah/awesome-claude-plugins](https://github.com/quemsah/awesome-claude-plugins) (top 100 por estrelas, atualizado diariamente). Um único download + análise (sem rastreamento página a página), e cada entrada traz `stars` reais. Por padrão baixa primeiro um **bundle pré-construído pelo mantenedor** (um asset de GitHub Release semanal — segundos) e só analisa o README diretamente se aquele estiver indisponível. Após a indexação, `catalog search` e `catalog vendor` funcionam completamente offline. Durante a entrevista S2 do assistente, `profile_interview` inclui automaticamente `catalog_suggestions` — até 5 plugins correspondentes ao gênero que o LLM pode recomendar sem chamadas de ferramenta adicionais.
 
   ```bash
   # Indexação única (rede; ~24.000 páginas)
