@@ -374,7 +374,11 @@ pub fn catalog_index(
         .map_err(|e| crate::domain::ByohError::Other(format!("sitemap read: {e}")))?;
 
     let mut locs = parse_sitemap_locs(&sitemap_body);
-    locs.truncate(limit);
+    // `--limit 0` means "all" (the full sitemap, ~24k pages). Any other value
+    // caps the crawl. `Vec::truncate(0)` would drop everything, so guard it.
+    if limit > 0 {
+        locs.truncate(limit);
+    }
     let total = locs.len();
 
     let fetched_at = SystemTime::now()
@@ -419,6 +423,22 @@ mod tests {
         assert_eq!(locs.len(), 2);
         assert!(locs.contains(&"https://awesomeclaudeplugins.com/obra/superpowers".to_string()));
         assert!(locs.contains(&"https://awesomeclaudeplugins.com/upstash/context7".to_string()));
+    }
+
+    #[test]
+    fn truncate_limit_zero_keeps_all() {
+        // Regression: `--limit 0` must mean "all", not truncate to zero.
+        // The fix guards `truncate` so 0 is a no-op.
+        let mut locs = vec![
+            "https://awesomeclaudeplugins.com/a/b".to_string(),
+            "https://awesomeclaudeplugins.com/c/d".to_string(),
+            "https://awesomeclaudeplugins.com/e/f".to_string(),
+        ];
+        let limit: usize = 0;
+        if limit > 0 {
+            locs.truncate(limit);
+        }
+        assert_eq!(locs.len(), 3, "limit 0 must keep all entries");
     }
 
     #[test]
