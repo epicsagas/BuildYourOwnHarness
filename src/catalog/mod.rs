@@ -34,6 +34,11 @@ pub struct CatalogEntry {
 /// Full catalog cache persisted at `~/.byoh/catalog.json`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CatalogCache {
+    /// Cache-format schema version. `0` means unknown/legacy (a cache written
+    /// before this field existed) — treated as stale so it naturally rebuilds.
+    /// Remote bundles set this to [`crate::catalog::index::CATALOG_SCHEMA_VERSION`].
+    #[serde(default)]
+    pub schema_version: u32,
     /// Unix seconds — when the index was last built.
     pub built_at: u64,
     pub entries: Vec<CatalogEntry>,
@@ -96,6 +101,7 @@ mod tests {
         let dir = tempdir().unwrap();
         let cache = CatalogCache {
             built_at: 9999,
+            schema_version: crate::catalog::index::CATALOG_SCHEMA_VERSION,
             entries: vec![CatalogEntry {
                 id: "obra/superpowers".into(),
                 name: "superpowers".into(),
@@ -131,6 +137,7 @@ mod tests {
         let c = CatalogCache {
             built_at: now,
             entries: vec![],
+            ..Default::default()
         };
         assert!(cache_is_fresh(&c, 24));
         assert!(!cache_is_fresh(&c, 0));

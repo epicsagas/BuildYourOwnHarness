@@ -205,6 +205,11 @@ pub enum CatalogAction {
         /// Cache TTL in hours (existing cache is reused if still fresh).
         #[arg(long, default_value_t = 24)]
         ttl_hours: u64,
+        /// Skip the maintainer-built remote bundle and crawl the site directly.
+        /// By default a stale cache first tries the bundle (seconds); set this
+        /// to force a fresh crawl (e.g. when debugging the parser).
+        #[arg(long, default_value_t = false)]
+        no_bundle: bool,
     },
     /// Keyword search the local `~/.byoh/catalog.json` — no network required.
     Search {

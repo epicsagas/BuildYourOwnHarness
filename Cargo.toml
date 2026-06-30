@@ -60,6 +60,9 @@ llm-kernel = { version = "0.10", optional = true }
 # HTTP client for awesomeclaudeplugins.com sitemap crawl (`byoh catalog index`).
 ureq = { version = "2", features = ["tls"] }
 
+# gzip decode for the prebuilt remote catalog bundle (`catalog.json.gz`).
+flate2 = "1"
+
 # MCP server (PR #3) — expose BYOH capabilities as a stdio MCP server (`byoh serve`).
 # OPTIONAL: only pulled in via the `mcp` feature so default builds stay light
 # (no async runtime). rmcp = official Rust MCP SDK; schemars = its JSON-schema dep.

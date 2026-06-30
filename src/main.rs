@@ -85,7 +85,11 @@ fn main() -> anyhow::Result<()> {
 fn run_catalog(action: CatalogAction) -> anyhow::Result<()> {
     let home = byoh::store::byoh_home();
     match action {
-        CatalogAction::Index { limit, ttl_hours } => {
+        CatalogAction::Index {
+            limit,
+            ttl_hours,
+            no_bundle,
+        } => {
             let cache = byoh::catalog::load_cache(&home)?;
             if byoh::catalog::cache_is_fresh(&cache, ttl_hours) {
                 println!(
@@ -95,9 +99,27 @@ fn run_catalog(action: CatalogAction) -> anyhow::Result<()> {
                 );
                 return Ok(());
             }
-            // `limit == 0` means "all" (bounded by the sitemap size, ~24k pages).
-            // The CLI default is 500 (cli.rs) so a cold crawl never runs unbounded
-            // for hours; `--limit 0` is the explicit opt-in to a full crawl.
+            // 1. Prefer the maintainer-built remote bundle (seconds) unless the
+            //    user opted out. On any failure `try_remote_bundle` returns
+            //    `None` after logging, and we fall through to a full crawl.
+            if !no_bundle {
+                if let Some(bundle) = byoh::catalog::index::try_remote_bundle()? {
+                    let built = chrono::DateTime::from_timestamp(bundle.built_at as i64, 0)
+                        .map(|dt| dt.to_rfc3339())
+                        .unwrap_or_else(|| "?".to_string());
+                    byoh::catalog::save_cache(&home, &bundle)?;
+                    println!(
+                        "[byoh catalog] loaded remote bundle ({} entries, built {built}) → {}",
+                        bundle.entries.len(),
+                        byoh::catalog::catalog_path(&home).display()
+                    );
+                    return Ok(());
+                }
+            }
+            // 2. Fallback: crawl directly. `limit == 0` means "all" (bounded by
+            //    the sitemap size, ~24k pages). The CLI default is 500 (cli.rs)
+            //    so a cold crawl never runs unbounded for hours; `--limit 0` is
+            //    the explicit opt-in to a full crawl.
             let cache =
                 byoh::catalog::index::catalog_index(&home, limit, ttl_hours, |fetched, total| {
                     if fetched % 100 == 0 || fetched == total {

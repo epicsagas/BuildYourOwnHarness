@@ -128,6 +128,7 @@ mod tests {
         CatalogCache {
             built_at: 9999,
             entries,
+            ..Default::default()
         }
     }
 

@@ -3,12 +3,26 @@
 
 use super::{CatalogCache, CatalogEntry, save_cache};
 use crate::deploy::genre_map::infer_genre;
+use crate::domain::ByohError;
 use regex::Regex;
+use std::io::Read;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const SITEMAP_URL: &str = "https://awesomeclaudeplugins.com/sitemap.xml";
 const BASE_URL: &str = "https://awesomeclaudeplugins.com";
+
+/// Catalog cache schema version this build understands. Bumped whenever the
+/// `CatalogCache` shape changes in a backwards-incompatible way.
+pub const CATALOG_SCHEMA_VERSION: u32 = 1;
+
+/// Maintainer-built, gzip-compressed catalog bundle shipped as a GitHub Release
+/// asset under the moving `catalog-latest` tag. `byoh catalog index` fetches
+/// this first (seconds) and only falls back to crawling ~24 000 pages when the
+/// bundle is unreachable. Hardcoded (no external input) so there is no SSRF
+/// surface — the URL never varies.
+const REMOTE_BUNDLE_URL: &str =
+    "https://github.com/epicsagas/BuildYourOwnHarness/releases/download/catalog-latest/catalog.json.gz";
 /// Site-wide suffix appended to every page `<title>`, stripped to recover the
 /// plugin's display name.
 const TITLE_SUFFIX: &str = " | Awesome Claude Plugins";
@@ -261,6 +275,62 @@ pub fn fetch_and_parse_entry(url: &str, fetched_at: u64) -> Option<CatalogEntry>
     meta_to_entry(url, &meta, fetched_at)
 }
 
+/// Decompress + parse a gzip-compressed catalog bundle (bytes of
+/// `catalog.json.gz`) into a `CatalogCache`. Pure function — no network — so it
+/// is unit-testable with embedded fixtures.
+///
+/// Rejects corrupt gzip, malformed JSON, and any `schema_version` other than
+/// [`CATALOG_SCHEMA_VERSION`] (so a future incompatible bundle is not silently
+/// loaded over a good local cache).
+pub fn parse_remote_bundle(bytes: &[u8]) -> crate::Result<CatalogCache> {
+    let decoder = flate2::read::GzDecoder::new(bytes);
+    let cache: CatalogCache = serde_json::from_reader(decoder)
+        .map_err(|e| ByohError::Schema(format!("bundle parse: {e}")))?;
+    if cache.schema_version != CATALOG_SCHEMA_VERSION {
+        return Err(ByohError::Schema(format!(
+            "bundle schema version {} unsupported (expected {})",
+            cache.schema_version, CATALOG_SCHEMA_VERSION
+        )));
+    }
+    Ok(cache)
+}
+
+/// Fetch the raw bytes of the maintainer-built remote bundle. Thin network
+/// wrapper around `ureq` — not unit-tested (matches the `catalog_index` /
+/// `fetch_and_parse_entry` convention of keeping the pure logic separate).
+fn fetch_remote_bundle() -> crate::Result<Vec<u8>> {
+    let resp = ureq::get(REMOTE_BUNDLE_URL)
+        .call()
+        .map_err(|e| ByohError::Other(format!("bundle fetch: {e}")))?;
+    let mut buf = Vec::new();
+    resp.into_reader()
+        .read_to_end(&mut buf)
+        .map_err(|e| ByohError::Other(format!("bundle read: {e}")))?;
+    Ok(buf)
+}
+
+/// Try to load the remote prebuilt catalog bundle.
+///
+/// Returns `Ok(Some(cache))` on success. Any network or parse failure returns
+/// `Ok(None)` after logging a one-line notice — the caller then falls back to a
+/// full crawl. This keeps `catalog index` resilient: a missing/broken bundle
+/// never blocks the user, it just costs them a crawl.
+pub fn try_remote_bundle() -> crate::Result<Option<CatalogCache>> {
+    match fetch_remote_bundle() {
+        Ok(bytes) => match parse_remote_bundle(&bytes) {
+            Ok(cache) => Ok(Some(cache)),
+            Err(e) => {
+                eprintln!("[byoh catalog] bundle parse failed ({e}) — falling back to crawl");
+                Ok(None)
+            }
+        },
+        Err(e) => {
+            eprintln!("[byoh catalog] bundle fetch failed ({e}) — falling back to crawl");
+            Ok(None)
+        }
+    }
+}
+
 /// Index the awesomeclaudeplugins.com catalog.
 ///
 /// 1. Fetches `sitemap.xml` → extracts plugin URLs (up to `limit`).
@@ -302,6 +372,7 @@ pub fn catalog_index(
     }
 
     let cache = CatalogCache {
+        schema_version: CATALOG_SCHEMA_VERSION,
         built_at: fetched_at,
         entries,
     };
@@ -545,5 +616,81 @@ mod tests {
         assert!(entry.keywords.contains(&"https://evil.com/x".to_string()));
         assert!(!entry.github_url.contains("evil.com"));
         assert!(!entry.github_url.contains("169.254"));
+    }
+
+    // --- remote prebuilt bundle tests ---
+
+    /// Gzip-encode a JSON string into bytes (mirrors how the CI workflow
+    /// produces `catalog.json.gz`).
+    fn gz(json: &str) -> Vec<u8> {
+        use flate2::{Compression, write::GzEncoder};
+        use std::io::Write;
+        let mut enc = GzEncoder::new(Vec::new(), Compression::default());
+        enc.write_all(json.as_bytes()).unwrap();
+        enc.finish().unwrap()
+    }
+
+    #[test]
+    fn parse_remote_bundle_parses_valid_gz() {
+        let cache = CatalogCache {
+            schema_version: CATALOG_SCHEMA_VERSION,
+            built_at: 1234,
+            entries: vec![CatalogEntry {
+                id: "owner/repo".into(),
+                name: "owner/repo".into(),
+                description: "d".into(),
+                keywords: vec!["coding".into()],
+                github_url: "https://github.com/owner/repo".into(),
+                stars: None,
+                license: "unknown".into(),
+                byoh_genre: None,
+                fetched_at: 0,
+            }],
+        };
+        let bytes = gz(&serde_json::to_string(&cache).unwrap());
+        let parsed = parse_remote_bundle(&bytes).unwrap();
+        assert_eq!(parsed.schema_version, CATALOG_SCHEMA_VERSION);
+        assert_eq!(parsed.built_at, 1234);
+        assert_eq!(parsed.entries.len(), 1);
+        assert_eq!(parsed.entries[0].id, "owner/repo");
+    }
+
+    #[test]
+    fn parse_remote_bundle_rejects_bad_schema_version() {
+        let json = r#"{"schema_version":99,"built_at":0,"entries":[]}"#;
+        let err = parse_remote_bundle(&gz(json)).unwrap_err();
+        assert!(matches!(err, ByohError::Schema(_)));
+        assert!(format!("{err}").contains("unsupported"));
+    }
+
+    #[test]
+    fn parse_remote_bundle_rejects_corrupt_gzip() {
+        // Not a gzip stream at all.
+        let err = parse_remote_bundle(b"definitely not gzip").unwrap_err();
+        assert!(matches!(err, ByohError::Schema(_)));
+    }
+
+    #[test]
+    fn parse_remote_bundle_rejects_bad_json() {
+        // Valid gzip wrapping of non-JSON.
+        let err = parse_remote_bundle(&gz("not json {")).unwrap_err();
+        assert!(matches!(err, ByohError::Schema(_)));
+    }
+
+    #[test]
+    fn cache_schema_version_default_is_zero() {
+        // Default (legacy/unknown) is 0 — load_cache treats it as stale.
+        assert_eq!(CatalogCache::default().schema_version, 0);
+    }
+
+    #[test]
+    fn catalog_cache_deserializes_legacy_missing_schema_version() {
+        // A cache written before schema_version existed has no such field.
+        // serde default fills 0 → caller rebuilds. Must not error.
+        let legacy = r#"{"built_at":100,"entries":[]}"#;
+        let cache: CatalogCache = serde_json::from_str(legacy).unwrap();
+        assert_eq!(cache.schema_version, 0);
+        assert_eq!(cache.built_at, 100);
+        assert!(cache.entries.is_empty());
     }
 }
