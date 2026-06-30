@@ -8,14 +8,12 @@
 //!
 //! Architecture follows hexagonal layout:
 //! - [`domain`]  — pure types, no I/O
-//! - [`ports`]   — trait boundaries (LlmPort, ProfileSource, EmbedderProvider, …)
-//! - [`adapters`]— concrete implementations (rule-based LLM, filesystem scan, Dummy embedder, …)
+//! - [`ports`]   — trait boundaries (LlmPort, ProfileSource, …)
+//! - [`adapters`]— concrete implementations (rule-based LLM, filesystem scan, …)
 //! - [`application`] — orchestrators wiring ports together
 //! - [`compiler`] — profile → bundle (4-Ring) + validation gates
 //! - [`evolve`]  — Ring 3 evolution + 3 safety gates
 //! - [`templates`] — genre template library (base inheritance + overrides)
-//! - [`rag`]     — self-contained RAG (chunk → embed → index → hybrid search).
-//!   `native-rag` cargo feature switches to llm-kernel's TurbovecIndex.
 //! - [`deploy`]  — registry + bootstrappers + provider matching + i18n
 //! - [`obs`]     — file-based state + 45-min crash recovery
 //! - [`i18n`]    — B17 ko/en message catalog
@@ -38,7 +36,6 @@ pub mod i18n;
 pub mod mcp;
 pub mod obs;
 pub mod ports;
-pub mod rag;
 pub mod security;
 pub mod store;
 pub mod templates;

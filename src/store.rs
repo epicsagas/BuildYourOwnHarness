@@ -1,4 +1,4 @@
-//! Profile persistence + corpus collection + embedder factory.
+//! Profile persistence.
 //!
 //! Lifted out of the binary (`main.rs`) so both the `byoh` CLI and the MCP
 //! server (`byoh serve`, behind the `mcp` feature) share one implementation.
@@ -9,7 +9,6 @@ use std::path::{Path, PathBuf};
 use crate::Result;
 use crate::domain::error::ByohError;
 use crate::domain::profile::UserProfile;
-use crate::ports::EmbedderProvider;
 
 /// Wrap an io::Error with the offending path for clearer diagnostics
 /// (the `#[from]` conversion on `ByohError::Io` loses path context).
@@ -52,7 +51,7 @@ pub fn sanitize_slug(slug: &str) -> Result<&str> {
 }
 
 /// The BYOH home directory (`$BYOH_HOME`, default `.byoh`).
-/// Profiles live under `<home>/profiles/`, genre indexes under `<home>/indexes/`.
+/// Profiles live under `<home>/profiles/`.
 ///
 /// Resolution order: thread-local test override (`set_home_override`) →
 /// `$BYOH_HOME` → `.byoh`. The override exists so tests can isolate the home
@@ -120,66 +119,6 @@ pub fn write_profile(p: &UserProfile) -> Result<()> {
     Ok(())
 }
 
-/// Collect text documents (`.md`/`.txt`/`.rs`/`.py`/...) under `corpus` into
-/// [`crate::rag::InputDoc`]s. A single file is read as one doc; a directory is
-/// walked non-recursively-filtered by text extension. Used by the CLI `index`/
-/// `search` commands and the MCP `rag_index`/`rag_search` tools.
-pub fn collect_corpus(corpus: &Path) -> Result<Vec<crate::rag::InputDoc>> {
-    if !corpus.exists() {
-        return Err(io_at(
-            corpus,
-            std::io::Error::new(std::io::ErrorKind::NotFound, "corpus path does not exist"),
-        ));
-    }
-    let mut docs = Vec::new();
-    if corpus.is_file() {
-        let text = std::fs::read_to_string(corpus).map_err(|e| io_at(corpus, e))?;
-        let id = corpus
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("doc")
-            .to_string();
-        docs.push(crate::rag::InputDoc { id, text });
-        return Ok(docs);
-    }
-    for entry in walkdir::WalkDir::new(corpus)
-        .into_iter()
-        .filter_map(|e| e.ok())
-    {
-        let p = entry.path();
-        if !p.is_file() {
-            continue;
-        }
-        let is_text = p
-            .extension()
-            .and_then(|e| e.to_str())
-            .map(|e| {
-                matches!(
-                    e,
-                    "md" | "txt" | "rs" | "py" | "ts" | "js" | "toml" | "yaml" | "yml" | "json"
-                )
-            })
-            .unwrap_or(false);
-        if !is_text {
-            continue;
-        }
-        if let Ok(text) = std::fs::read_to_string(p) {
-            let id = p
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("doc")
-                .to_string();
-            docs.push(crate::rag::InputDoc { id, text });
-        }
-    }
-    Ok(docs)
-}
-
-/// Default-build embedder: [`DummyEmbedder`] (deterministic, no model download).
-pub fn make_embedder() -> Result<Box<dyn EmbedderProvider>> {
-    Ok(Box::new(crate::adapters::DummyEmbedder::new()))
-}
-
 /// Write `content` to `<dir>/<name>`, creating `dir` (and parents) first.
 /// Used by the target renderer to emit plugin files.
 pub fn write_file(dir: &Path, name: &str, content: &str) -> Result<()> {
@@ -221,20 +160,6 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<()> {
         }
     }
     Ok(())
-}
-
-/// `native-rag` embedder: [`FastembedEmbedder`] with a graceful dummy fallback
-/// if the model cannot be loaded. cfg-gated because `FastembedEmbedder` only
-/// exists under `native-rag`.
-#[cfg(feature = "native-rag")]
-pub fn make_embedder_native() -> Result<Box<dyn EmbedderProvider>> {
-    match crate::adapters::embedder::FastembedEmbedder::new() {
-        Ok(fe) => Ok(Box::new(fe)),
-        Err(e) => {
-            eprintln!("[byoh] fastembed unavailable ({e}); falling back to dummy");
-            Ok(Box::new(crate::adapters::DummyEmbedder::new()))
-        }
-    }
 }
 
 #[cfg(test)]
@@ -284,35 +209,5 @@ mod tests {
         let loaded = load_profile("round-trip").unwrap();
         assert_eq!(loaded.slug, "round-trip");
         set_home_override(None);
-    }
-
-    #[test]
-    fn collect_corpus_filters_text_extensions() {
-        let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join("a.md"), "# hi").unwrap();
-        std::fs::write(dir.path().join("b.rs"), "fn main(){}").unwrap();
-        std::fs::write(dir.path().join("c.png"), b"\x89PNG").unwrap();
-        let docs = collect_corpus(dir.path()).unwrap();
-        let ids: Vec<&str> = docs.iter().map(|d| d.id.as_str()).collect();
-        assert!(ids.contains(&"a"));
-        assert!(ids.contains(&"b"));
-        assert!(!ids.contains(&"c"));
-    }
-
-    #[test]
-    fn collect_corpus_single_file() {
-        let dir = tempfile::tempdir().unwrap();
-        let f = dir.path().join("one.md");
-        std::fs::write(&f, "body").unwrap();
-        let docs = collect_corpus(&f).unwrap();
-        assert_eq!(docs.len(), 1);
-        assert_eq!(docs[0].id, "one");
-    }
-
-    #[test]
-    fn collect_corpus_missing_errors() {
-        let dir = tempfile::tempdir().unwrap();
-        let missing = dir.path().join("nope");
-        assert!(collect_corpus(&missing).is_err());
     }
 }

@@ -147,33 +147,33 @@ fn render_hook(id: &str) -> HookSpec {
 }
 
 fn render_mcp_tool(bp: &str, genre: Genre) -> McpTool {
-    // B4: self-describing description that also tells the agent WHERE results
-    // come from. After RAG integration, every genre tool resolves through BYOH's
-    // native RAG (`byoh search`) — no external alcove dependency required.
+    // B4: self-describing description that also tells the agent WHEN to call the
+    // tool. BYOH ships no embedded search backend — these genre search tools are
+    // wired to the user's own knowledge base (e.g. alcove, a local doc server, or
+    // a project index the host already runs).
     let description = match (bp, genre) {
         ("search_draft_continuity", Genre::Creator) => {
             "Search the novel draft for character/setting/plot continuity. Call this when the \
-             user asks about foreshadowing or a character's arc. Backed by BYOH native RAG \
-             (creator genre index via `byoh search --genre creator`)."
+             user asks about foreshadowing or a character's arc. Backed by the user's knowledge \
+             base (e.g. alcove)."
                 .to_string()
         }
         ("search_code", Genre::Developer) => {
             "Search the codebase for symbols/definitions. Call this when the user asks 'where is \
-             X defined'. Backed by BYOH native RAG (developer genre index via `byoh search \
-             --genre developer`)."
+             X defined'. Backed by the user's knowledge base (e.g. alcove or a project index)."
                 .to_string()
         }
         ("search_citations", Genre::Researcher) => {
             "Search indexed citations for a claim. Call this when verifying a source. Backed by \
-             BYOH native RAG (researcher genre index)."
+             the user's knowledge base (e.g. alcove)."
                 .to_string()
         }
         ("search_decisions", Genre::Business) => {
-            "Search the decision log. Call this when reviewing past ROI decisions. Backed by \
-             BYOH native RAG (business genre index)."
+            "Search the decision log. Call this when reviewing past ROI decisions. Backed by the \
+             user's knowledge base (e.g. alcove)."
                 .to_string()
         }
-        _ => format!("Tool blueprint {bp} for {genre}. Backed by BYOH native RAG."),
+        _ => format!("Tool blueprint {bp} for {genre}. Backed by the user's knowledge base."),
     };
     McpTool {
         name: bp.to_string(),

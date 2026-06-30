@@ -54,28 +54,6 @@ pub struct ProfileConfirmParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
-pub struct RagIndexParams {
-    pub genre: String,
-    /// Path to a corpus file or directory (.md/.txt/.rs/...).
-    pub corpus: String,
-    #[serde(default = "default_max_tokens")]
-    pub max_tokens: usize,
-    #[serde(default = "default_overlap")]
-    pub overlap: usize,
-}
-
-#[derive(Debug, Deserialize, JsonSchema)]
-pub struct RagSearchParams {
-    pub query: String,
-    pub genre: String,
-    /// Optional corpus path; if absent only the grep tier runs.
-    #[serde(default)]
-    pub corpus: Option<String>,
-    #[serde(default = "default_k")]
-    pub k: usize,
-}
-
-#[derive(Debug, Deserialize, JsonSchema)]
 pub struct CompileParams {
     pub slug: String,
     /// If true, also run the static gate and include its report.
@@ -174,12 +152,6 @@ fn default_target() -> String {
     "all".to_string()
 }
 
-fn default_max_tokens() -> usize {
-    512
-}
-fn default_overlap() -> usize {
-    64
-}
 fn default_k() -> usize {
     5
 }

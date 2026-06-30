@@ -3,7 +3,7 @@ name = "byoh"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
-description = "BuildYourOwnHarness — interactive profiling + harness compiler + evolution engine. Generates a personalized AI agent harness from a user's tacit knowledge, data sources, genre, and goals."
+description = "BuildYourOwnHarness — interactive profiling + harness compiler + evolution engine. Generates a personalized AI agent harness from a user's tacit knowledge, genre, and goals."
 license = "Apache-2.0"
 repository = "https://github.com/epicsagas/BuildYourOwnHarness"
 homepage = "https://github.com/epicsagas/BuildYourOwnHarness"
@@ -52,11 +52,6 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # Misc
 indexmap = { version = "2", features = ["serde"] }
 
-# llm-kernel — native RAG (embeddings + quantized vector index + CJK chunking).
-# OPTIONAL: only pulled in via the `native-rag` feature so default builds stay
-# light (no fastembed/ort model download). Maps to spec R1.
-llm-kernel = { version = "0.10", optional = true }
-
 # HTTP client for awesomeclaudeplugins.com sitemap crawl (`byoh catalog index`).
 ureq = { version = "2", features = ["tls"] }
 
@@ -87,21 +82,9 @@ serial_test = "3"
 # `mcp` is on by default: the primary BYOH interface is the stdio MCP server
 # (`byoh serve`, agent-led mode), and the shipped plugin's .mcp.json calls it.
 # This also ensures cargo-dist release binaries support serve out of the box.
-#
-# RAG subsystems (native-rag, rag-openai) are OFF by default so CI / PR builds
-# stay fast — fastembed/ort/gemm are heavy. They are turned on for release
-# binaries (see dist-workspace.toml `[dist] features`) and for local installs
-# via `cargo install --features native-rag` / `--all-features`.
 default = ["mcp"]
-# Enable BYOH's self-contained RAG subsystem (genre indexes, hybrid search).
-# Turns on llm-kernel's fastembed backend (local multilingual-e5-small model).
-# OpenAI embeddings remain behind the `rag-openai` sub-feature (opt-in).
-native-rag = ["dep:llm-kernel", "llm-kernel/embedding", "llm-kernel/embedding-fastembed", "llm-kernel/vector-index", "llm-kernel/tokens"]
-# Opt-in: use OpenAI embeddings instead of/in addition to local fastembed.
-# Requires an API key at runtime; off by default (no external LLM calls in default builds).
-rag-openai = ["native-rag", "llm-kernel/embedding-openai"]
 
-# NEW (PR #3): expose BYOH capabilities as a stdio MCP server (`byoh serve`).
+# Expose BYOH capabilities as a stdio MCP server (`byoh serve`).
 # Pulls in the tokio runtime + rmcp SDK + schemars for tool-param schemas.
 # Default builds stay light (no async runtime) — this is opt-in, inverting
 # control so an LLM agent drives BYOH via MCP tools instead of the CLI.

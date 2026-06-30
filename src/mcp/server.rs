@@ -1,7 +1,7 @@
 //! The BYOH stdio MCP server (`byoh serve`).
 //!
 //! Wraps BYOH's synchronous lib APIs as MCP tools so an LLM agent can drive the
-//! whole profile → rag → compile → evolve flow. The `#[tool_router(server_handler)]`
+//! whole profile → compile → evolve flow. The `#[tool_router(server_handler)]`
 //! macro generates the `ServerHandler` impl; each `#[tool]` method is a plain
 //! sync `fn` that calls BYOH directly (the lib has no async surface). Domain
 //! data is returned as opaque `serde_json::Value`.
@@ -31,14 +31,10 @@ use super::params::*;
 
 /// Fixed-at-startup runtime context shared (immutable) across all tool calls.
 pub struct ByohContext {
-    /// `$BYOH_HOME` root (profiles under `<home>/profiles/`, indexes under
-    /// `<home>/indexes/`).
+    /// `$BYOH_HOME` root (profiles under `<home>/profiles/`).
     pub home: PathBuf,
     /// "ko" or "en".
     pub language: String,
-    /// Whether the build was compiled with `native-rag` (selects the embedder
-    /// backend for rag_index/rag_search).
-    pub native_rag: bool,
 }
 
 /// The MCP server. Holds an immutable `Arc<ByohContext>`; tool methods borrow it.
@@ -143,6 +139,41 @@ fn dry_run_json(r: &crate::compiler::DryRunReport) -> Value {
     })
 }
 
+/// Compact profile snapshot — the focused status an agent needs to drive the
+/// wizard, instead of echoing the full `UserProfile` on every call. Each wizard
+/// step (create/scan/interview/confirm) returns this; the full profile is
+/// available on demand via `profile_read`. This keeps the conversation context
+/// from re-growing by the profile size on every turn (token optimization).
+fn compact_status(profile: &UserProfile) -> Value {
+    let ac = &profile.interview_meta.axis_completion;
+    json!({
+        "slug": profile.slug,
+        "status": format!("{:?}", profile.status),
+        "language": profile.language,
+        "interview_complete": ac.all_above_threshold(),
+        "axis_completion": {
+            "identity": ac.tacit,
+            "goals": ac.goals,
+            "genre": ac.genre,
+            "data": ac.data,
+        },
+        "genre": profile.candidates.identity.genre.as_ref().map(|g| json!({
+            "value": g.value.as_str(),
+            "confidence": g.confidence,
+        })),
+        "domain": profile.truth.identity.domain,
+        "goal_30d": profile.truth.goals.goal_30d,
+        "primary_expertise": profile
+            .candidates
+            .identity
+            .primary_expertise
+            .iter()
+            .map(|f| f.value.clone())
+            .collect::<Vec<_>>(),
+        "data_sources": profile.data_sources.sources.len(),
+    })
+}
+
 // ─── tools ──────────────────────────────────────────────────────────────────
 
 #[tool_router]
@@ -168,7 +199,7 @@ impl ByohServer {
             }
         }
         match crate::store::write_profile(&profile) {
-            Ok(()) => ok_value(serde_json::to_value(&profile).unwrap_or(Value::Null)),
+            Ok(()) => ok_value(compact_status(&profile)),
             Err(e) => err_result(e),
         }
     }
@@ -220,22 +251,16 @@ impl ByohServer {
                 ) {
                     Ok(entries) => entries
                         .into_iter()
-                        .map(|e| {
-                            json!({
-                                "id": e.id,
-                                "name": e.name,
-                                "description": e.description,
-                                "github_url": e.github_url,
-                                "stars": e.stars,
-                                "genre": e.byoh_genre.map(|g| g.as_str()),
-                            })
-                        })
+                        .map(|e| json!({ "id": e.id, "name": e.name }))
                         .collect::<Vec<_>>(),
                     Err(_) => vec![],
                 };
                 ok_value(json!({
-                    "profile": serde_json::to_value(&profile).unwrap_or(Value::Null),
-                    "council_questions": council.len(),
+                    "status": compact_status(&profile),
+                    "council_questions": council
+                        .iter()
+                        .map(|q| json!({ "id": q.id, "text": q.text }))
+                        .collect::<Vec<_>>(),
                     "catalog_suggestions": catalog_suggestions,
                 }))
             }
@@ -262,38 +287,10 @@ impl ByohServer {
         let orch = ProfileOrchestrator::new(&src, &llm, &iv, &wz);
         match orch.stage3_confirm(&mut profile, genre, p.goal_30d.as_deref()) {
             Ok(()) => match crate::store::write_profile(&profile) {
-                Ok(()) => ok_value(serde_json::to_value(&profile).unwrap_or(Value::Null)),
+                Ok(()) => ok_value(compact_status(&profile)),
                 Err(e) => err_result(e),
             },
             Err(e) => err_result(e),
-        }
-    }
-
-    #[tool(
-        description = "Build + persist a genre index over a corpus (S2). Returns a build report (docs/chunks/dim/backend). Embedding-heavy: runs off the async runtime via spawn_blocking."
-    )]
-    pub async fn rag_index(&self, Parameters(p): Parameters<RagIndexParams>) -> CallToolResult {
-        let home = self.ctx.home.clone();
-        let res = tokio::task::spawn_blocking(move || rag_index_blocking(&home, &p)).await;
-        match res {
-            Ok(r) => r,
-            Err(join_err) => err_result(crate::domain::error::ByohError::Other(format!(
-                "rag_index task join failed: {join_err}"
-            ))),
-        }
-    }
-
-    #[tool(
-        description = "Hybrid search a query against a corpus (or grep-only if no corpus). Returns ranked hits with mode/score. Secrets in results are masked. Build/search-heavy: runs off the async runtime via spawn_blocking."
-    )]
-    pub async fn rag_search(&self, Parameters(p): Parameters<RagSearchParams>) -> CallToolResult {
-        let home = self.ctx.home.clone();
-        let res = tokio::task::spawn_blocking(move || rag_search_blocking(&home, &p)).await;
-        match res {
-            Ok(r) => r,
-            Err(join_err) => err_result(crate::domain::error::ByohError::Other(format!(
-                "rag_search task join failed: {join_err}"
-            ))),
         }
     }
 
@@ -530,8 +527,8 @@ impl ServerHandler for ByohServer {
         info.instructions = Some(
             "BYOH: build a personalized AI agent harness. Drive the flow: \
              profile_create → profile_scan → profile_interview → profile_confirm \
-             → rag_index/rag_search → compile → compile_dry_run → \
-             registry_clone_skill. The conversation IS the interview/wizard."
+             → compile → compile_dry_run → registry_clone_skill. The conversation \
+             IS the interview/wizard."
                 .into(),
         );
         info
@@ -629,51 +626,9 @@ fn profile_scan_sync(slug: &str, paths: &[String]) -> CallToolResult {
     let path_refs: Vec<&std::path::Path> = paths.iter().map(|s| s.as_str().as_ref()).collect();
     match orch.stage1_scan(&mut profile, &path_refs) {
         Ok(()) => match crate::store::write_profile(&profile) {
-            Ok(()) => ok_value(serde_json::to_value(&profile).unwrap_or(Value::Null)),
+            Ok(()) => ok_value(compact_status(&profile)),
             Err(e) => err_result(e),
         },
-        Err(e) => err_result(e),
-    }
-}
-
-/// Synchronous body of `rag_index`.
-fn rag_index_blocking(home: &std::path::Path, p: &RagIndexParams) -> CallToolResult {
-    let genre = match parse_genre(&p.genre) {
-        Ok(g) => g,
-        Err(e) => return err_result(e),
-    };
-    match rag_index_impl(home, genre, &p.corpus, p.max_tokens, p.overlap) {
-        Ok(report) => ok_value(json!({
-            "docs": report.docs,
-            "chunks": report.chunks,
-            "dim": report.dim,
-            "backend": report.backend,
-        })),
-        Err(e) => err_result(e),
-    }
-}
-
-/// Synchronous body of `rag_search`.
-fn rag_search_blocking(home: &std::path::Path, p: &RagSearchParams) -> CallToolResult {
-    let genre = match parse_genre(&p.genre) {
-        Ok(g) => g,
-        Err(e) => return err_result(e),
-    };
-    match rag_search_impl(home, genre, &p.query, p.corpus.as_deref(), p.k) {
-        Ok(hits) => {
-            let masked: Vec<Value> = hits
-                .into_iter()
-                .map(|h| {
-                    json!({
-                        "id": h.id,
-                        "score": h.score,
-                        "mode": h.mode,
-                        "text": crate::security::mask(&h.text),
-                    })
-                })
-                .collect();
-            ok_value(json!(masked))
-        }
         Err(e) => err_result(e),
     }
 }
@@ -704,94 +659,6 @@ fn compile_dry_run_sync(home: &std::path::Path, slug: &str) -> CallToolResult {
         })),
         Err(e) => err_result(e),
     }
-}
-
-// ─── rag helpers (feature-aware) ────────────────────────────────────────────
-
-#[cfg(feature = "native-rag")]
-fn rag_index_impl(
-    home: &std::path::Path,
-    genre: Genre,
-    corpus: &str,
-    max_tokens: usize,
-    overlap: usize,
-) -> crate::Result<crate::rag::BuildReport> {
-    let docs = crate::store::collect_corpus(std::path::Path::new(corpus))?;
-    let opts = crate::rag::ChunkOptions::new(max_tokens, overlap);
-    let embedder = crate::store::make_embedder_native()?;
-    let (report, handle) =
-        crate::rag::pipeline::native::build_index_native(&*embedder, genre, &docs, &opts, 4)?;
-    crate::rag::pipeline::native::save_index_native(&handle, home)?;
-    Ok(report)
-}
-
-#[cfg(not(feature = "native-rag"))]
-fn rag_index_impl(
-    home: &std::path::Path,
-    genre: Genre,
-    corpus: &str,
-    max_tokens: usize,
-    overlap: usize,
-) -> crate::Result<crate::rag::BuildReport> {
-    let docs = crate::store::collect_corpus(std::path::Path::new(corpus))?;
-    let opts = crate::rag::ChunkOptions::new(max_tokens, overlap);
-    let embedder = crate::store::make_embedder()?;
-    // Incremental: re-embed only changed/added docs against the persisted index.
-    let (report, _delta) =
-        crate::rag::build_index_incremental(&*embedder, home, genre, &docs, &opts)?;
-    Ok(report)
-}
-
-/// Returns `HybridHit`s. Builds an ephemeral index from a corpus when given,
-/// otherwise runs the grep-only tier against an empty corpus.
-fn rag_search_impl(
-    home: &std::path::Path,
-    genre: Genre,
-    query: &str,
-    corpus: Option<&str>,
-    k: usize,
-) -> crate::Result<Vec<crate::rag::SearchHit>> {
-    let embedder = crate::store::make_embedder()?;
-    if let Some(corpus_path) = corpus {
-        let docs = crate::store::collect_corpus(std::path::Path::new(corpus_path))?;
-        let opts = crate::rag::ChunkOptions::default();
-        let (_report, handle) = crate::rag::build_index(&*embedder, genre, &docs, &opts)?;
-        return handle.search(&*embedder, query, k);
-    }
-    // No corpus supplied: reuse a previously-persisted index if one exists
-    // (the "persistent knowledge base" — no re-embedding needed).
-    // native-rag: index was saved by rag_index_impl as TurbovecStore, so load
-    // it with load_index_native. Non-native path uses InMemoryStore throughout.
-    //
-    // Uses the caller-supplied `home` (captured from ByohContext before entering
-    // spawn_blocking) rather than byoh_home(): spawn_blocking runs on a worker
-    // thread where a thread-local home override would be invisible.
-    #[cfg(feature = "native-rag")]
-    if let Some(handle) = crate::rag::pipeline::native::load_index_native(
-        home,
-        genre,
-        embedder.dim(),
-        crate::rag::pipeline::native::DEFAULT_BIT_WIDTH,
-    )? {
-        return handle.search(&*embedder, query, k);
-    }
-    #[cfg(not(feature = "native-rag"))]
-    if let Some(handle) = crate::rag::load_index(home, genre)? {
-        return handle.search(&*embedder, query, k);
-    }
-    // Otherwise: grep-only tier against an empty corpus via hybrid_search.
-    let empty: Vec<(String, String)> = Vec::new();
-    let qe = embedder.embed(query)?;
-    let hits = crate::rag::hybrid_search(None, Some(&qe), &empty, query, k, genre);
-    Ok(hits
-        .into_iter()
-        .map(|h| crate::rag::SearchHit {
-            id: h.id,
-            text: h.text,
-            score: h.score,
-            mode: h.mode.as_str(),
-        })
-        .collect())
 }
 
 /// Synchronous body of `catalog_vendor`.

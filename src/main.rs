@@ -55,23 +55,6 @@ fn main() -> anyhow::Result<()> {
             score_without,
             samples,
         )?,
-        Command::Index {
-            slug,
-            genre,
-            corpus,
-            home,
-            max_tokens,
-            overlap,
-            force,
-        } => run_index(&slug, &genre, &corpus, &home, max_tokens, overlap, force)?,
-        Command::Search {
-            slug,
-            query,
-            genre,
-            home,
-            k,
-            corpus,
-        } => run_search(&slug, &query, &genre, &home, k, corpus.as_deref())?,
         Command::Hook { name } => run_hook(&name, &lang)?,
         Command::Render { slug, target, out } => run_render(&slug, &target, &out)?,
         Command::Vendor { action } => run_vendor(action, &lang)?,
@@ -364,14 +347,13 @@ fn run_render(slug: &str, target: &str, out: &std::path::Path) -> anyhow::Result
     Ok(())
 }
 
-/// Start the BYOH stdio MCP server. Runtime env (BYOH_HOME, language,
-/// native-rag) is fixed here and shared via `Arc` inside the server.
+/// Start the BYOH stdio MCP server. Runtime env (BYOH_HOME, language) is fixed
+/// here and shared via `Arc` inside the server.
 #[cfg(feature = "mcp")]
 fn run_serve(lang: &str) -> anyhow::Result<()> {
     let ctx = byoh::mcp::server::ByohContext {
         home: byoh::store::byoh_home(),
         language: lang.to_string(),
-        native_rag: cfg!(feature = "native-rag"),
     };
     let rt = tokio::runtime::Runtime::new()?;
     rt.block_on(byoh::mcp::server::ByohServer::new(ctx).serve_stdio())
@@ -695,166 +677,6 @@ fn run_hook(name: &str, _lang: &str) -> anyhow::Result<()> {
     println!(
         "[byoh] hook '{name}' recognized (no BYOH-side action; host runs the plugin's hooks.json)"
     );
-    Ok(())
-}
-
-/// Collect text documents under `corpus` (.md/.txt/.rs/.py/...) into InputDocs.
-fn collect_corpus(corpus: &std::path::Path) -> anyhow::Result<Vec<byoh::rag::InputDoc>> {
-    Ok(byoh::store::collect_corpus(corpus)?)
-}
-
-fn make_embedder() -> anyhow::Result<Box<dyn byoh::ports::EmbedderProvider>> {
-    Ok(byoh::store::make_embedder()?)
-}
-
-#[cfg(feature = "native-rag")]
-fn make_embedder_native() -> anyhow::Result<Box<dyn byoh::ports::EmbedderProvider>> {
-    Ok(byoh::store::make_embedder_native()?)
-}
-
-fn run_index(
-    slug: &str,
-    genre: &str,
-    corpus: &std::path::Path,
-    home: &std::path::Path,
-    max_tokens: usize,
-    overlap: usize,
-    force: bool,
-) -> anyhow::Result<()> {
-    let genre_v: Genre = genre.parse()?;
-    let docs = collect_corpus(corpus)?;
-    let opts = byoh::rag::ChunkOptions::new(max_tokens, overlap);
-    let report = index_build(&genre_v, &docs, &opts, home, force)?;
-
-    println!(
-        "[byoh] indexed slug={slug} genre={genre}: {} docs / {} chunks / dim={} / backend={}",
-        report.docs, report.chunks, report.dim, report.backend
-    );
-    Ok(())
-}
-
-#[cfg(feature = "native-rag")]
-fn index_build(
-    genre_v: &Genre,
-    docs: &[byoh::rag::InputDoc],
-    opts: &byoh::rag::ChunkOptions,
-    home: &std::path::Path,
-    _force: bool,
-) -> anyhow::Result<byoh::rag::BuildReport> {
-    // native (TurbovecStore) does a full build; incremental is the in-memory path.
-    let embedder = make_embedder_native()?;
-    let (report, handle) =
-        byoh::rag::pipeline::native::build_index_native(&*embedder, *genre_v, docs, opts, 4)?;
-    byoh::rag::pipeline::native::save_index_native(&handle, home)?;
-    Ok(report)
-}
-
-#[cfg(not(feature = "native-rag"))]
-fn index_build(
-    genre_v: &Genre,
-    docs: &[byoh::rag::InputDoc],
-    opts: &byoh::rag::ChunkOptions,
-    home: &std::path::Path,
-    force: bool,
-) -> anyhow::Result<byoh::rag::BuildReport> {
-    let embedder = make_embedder()?;
-    if force {
-        let (report, handle) = byoh::rag::build_index(&*embedder, *genre_v, docs, opts)?;
-        byoh::rag::save_index(&handle, home)?;
-        // Refresh the manifest so subsequent incremental runs have a baseline.
-        let mut counts = std::collections::BTreeMap::new();
-        for d in docs {
-            counts.insert(
-                d.id.clone(),
-                byoh::rag::chunk_document(&d.id, &d.text, opts).len(),
-            );
-        }
-        byoh::rag::IndexManifest::from_docs(docs, &counts).save(home, *genre_v)?;
-        return Ok(report);
-    }
-    // Incremental: re-embed only changed/added docs; report the delta.
-    let (report, delta) =
-        byoh::rag::build_index_incremental(&*embedder, home, *genre_v, docs, opts)?;
-    println!("[byoh] reindex delta: {}", delta.summary());
-    Ok(report)
-}
-
-fn run_search(
-    slug: &str,
-    query: &str,
-    genre: &str,
-    home: &std::path::Path,
-    k: usize,
-    corpus: Option<&std::path::Path>,
-) -> anyhow::Result<()> {
-    let genre_v: Genre = genre.parse()?;
-
-    // Mask any secret in the query before logging/output (R10/AC10).
-    let masked_query_log = byoh::security::mask(query);
-    let embedder = make_embedder()?;
-
-    // Build an ephemeral index from the corpus (if provided) for search.
-    if let Some(corpus_dir) = corpus {
-        let docs = collect_corpus(corpus_dir)?;
-        let opts = byoh::rag::ChunkOptions::default();
-        let (_report, handle) = byoh::rag::build_index(&*embedder, genre_v, &docs, &opts)?;
-        let hits = handle.search(&*embedder, query, k)?;
-        println!(
-            "[byoh] search slug={slug} genre={genre} q=\"{masked_query_log}\" → {} hits",
-            hits.len()
-        );
-        for h in hits {
-            let text = byoh::security::mask(&h.text);
-            println!(
-                "[{}] id={} score={:.4} :: {}",
-                h.mode,
-                h.id,
-                h.score,
-                truncate_str(&text, 120)
-            );
-        }
-        return Ok(());
-    }
-
-    // No corpus supplied: reuse a previously-persisted index under
-    // <home>/indexes/ if one exists (the persistent knowledge base).
-    if let Some(handle) = byoh::rag::load_index(home, genre_v)? {
-        let hits = handle.search(&*embedder, query, k)?;
-        println!(
-            "[byoh] search slug={slug} genre={genre} q=\"{masked_query_log}\" → {} hits (persisted index)",
-            hits.len()
-        );
-        for h in hits {
-            let text = byoh::security::mask(&h.text);
-            println!(
-                "[{}] id={} score={:.4} :: {}",
-                h.mode,
-                h.id,
-                h.score,
-                truncate_str(&text, 120)
-            );
-        }
-        return Ok(());
-    }
-
-    // No corpus and no persisted index: grep-only fallback against an empty corpus.
-    let empty: Vec<(String, String)> = Vec::new();
-    let qe = embedder.embed(query)?;
-    let hits = byoh::rag::hybrid_search(None, Some(&qe), &empty, query, k, genre_v);
-    println!(
-        "[byoh] search slug={slug} genre={genre} q=\"{masked_query_log}\" → {} hits (no corpus; grep tier only)",
-        hits.len()
-    );
-    for h in hits {
-        let text = byoh::security::mask(&h.text);
-        println!(
-            "[{}] id={} score={:.4} :: {}",
-            h.mode.as_str(),
-            h.id,
-            h.score,
-            truncate_str(&text, 120)
-        );
-    }
     Ok(())
 }
 

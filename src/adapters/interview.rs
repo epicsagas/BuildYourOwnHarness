@@ -82,20 +82,10 @@ impl<L: LlmPort> InterviewPort for RuleInterview<L> {
             });
         }
 
-        // Data questions → Data axis.
-        if profile.data_sources.sources.is_empty() {
-            qs.push(Question {
-                id: "Q_data".into(),
-                text: if lang == "ko" {
-                    "참고할 기존 자료(폴더/볼트/저장소) 경로가 있습니까?".into()
-                } else {
-                    "Do you have existing resources (folder/vault/repo) to incorporate?".into()
-                },
-                axis: Axis::Data,
-                suggestion: None,
-            });
-        }
-
+        // Note: there is no Data-axis question. Data context is derived from the
+        // S1 autoscan (`data_sources`), not a user question — asking "do you have
+        // existing resources?" was a KB-ingestion prompt with no consumer now that
+        // BYOH ships no embedded knowledge base. One fewer interview round-trip.
         qs
     }
 
@@ -125,20 +115,6 @@ impl<L: LlmPort> InterviewPort for RuleInterview<L> {
                         });
                 }
                 profile.set_axis(Axis::Genre, 0.9_f64.max(confidence));
-            }
-            "Q_data" => {
-                if !accepted_answer.trim().is_empty() {
-                    profile
-                        .data_sources
-                        .sources
-                        .push(crate::domain::profile::DataSource {
-                            path: accepted_answer.to_string(),
-                            kind: "text_dir".into(),
-                            candidate_tags: Vec::new(),
-                            tags_source: crate::domain::profile::ProvenanceSource::Truth,
-                        });
-                }
-                profile.set_axis(Axis::Data, 0.7_f64.max(confidence));
             }
             _ => {}
         }

@@ -3,11 +3,10 @@
 //! Exercises the agent-led flow by constructing a `ByohServer` and calling its
 //! tool methods *directly* (bypassing the JSON-RPC transport, which is hard to
 //! drive in a unit test). This is the closest testable analog of AC3: an agent
-//! driving profile → rag → compile using only MCP tool calls.
+//! driving profile → compile using only MCP tool calls.
 //!
-//! Gated behind the `mcp` feature. Uses the DummyEmbedder (default build) so it
-//! needs no network/model download. The heavy tools (profile_scan/rag_*/dry_run)
-//! are `async fn`s backed by `spawn_blocking`, so tests need a tokio runtime.
+//! Gated behind the `mcp` feature. The heavy tools (profile_scan/dry_run) are
+//! `async fn`s backed by `spawn_blocking`, so tests need a tokio runtime.
 
 #![cfg(feature = "mcp")]
 
@@ -29,7 +28,6 @@ fn server() -> ByohServer {
     ByohServer::new(ByohContext {
         home: byoh::store::byoh_home(),
         language: "en".into(),
-        native_rag: cfg!(feature = "native-rag"),
     })
 }
 
@@ -102,85 +100,6 @@ async fn agent_led_flow_create_confirm_compile_clone() {
     assert!(
         !cloned.is_error.unwrap_or(false),
         "registry_clone_skill should succeed"
-    );
-}
-
-#[serial]
-#[tokio::test]
-async fn rag_search_grep_tier_without_corpus() {
-    let s = server();
-    let res = s
-        .rag_search(Parameters(RagSearchParams {
-            query: "rust async".into(),
-            genre: "developer".into(),
-            corpus: None,
-            k: 3,
-        }))
-        .await;
-    // grep tier against empty corpus returns 0 hits but is not an error.
-    assert!(!res.is_error.unwrap_or(false));
-}
-
-#[serial]
-#[tokio::test]
-async fn rag_index_with_small_corpus() {
-    let s = server();
-    let dir = tempfile::tempdir().unwrap();
-    let note_path = dir.path().join("note.md");
-    std::fs::write(
-        &note_path,
-        "# Rust notes\nasync fn with tokio spawn_blocking",
-    )
-    .unwrap();
-    let corpus = note_path.to_string_lossy().into_owned();
-    std::mem::forget(dir); // survive the test
-    let res = s
-        .rag_index(Parameters(RagIndexParams {
-            genre: "developer".into(),
-            corpus,
-            max_tokens: 512,
-            overlap: 64,
-        }))
-        .await;
-    assert!(!res.is_error.unwrap_or(false), "rag_index should succeed");
-}
-
-#[serial]
-#[tokio::test]
-async fn rag_search_reuses_persisted_index_without_corpus() {
-    let s = server(); // server() isolates BYOH_HOME into a fresh tempdir
-    let dir = tempfile::tempdir().unwrap();
-    let note_path = dir.path().join("note.md");
-    std::fs::write(&note_path, "rust async runtime tokio await futures").unwrap();
-    let corpus = note_path.to_string_lossy().into_owned();
-    std::mem::forget(dir);
-
-    // 1. Index → persists under BYOH_HOME/indexes/.
-    let idx = s
-        .rag_index(Parameters(RagIndexParams {
-            genre: "developer".into(),
-            corpus,
-            max_tokens: 512,
-            overlap: 64,
-        }))
-        .await;
-    assert!(!idx.is_error.unwrap_or(false));
-
-    // 2. Search WITHOUT corpus → must reuse the persisted index (not grep-only).
-    let res = s
-        .rag_search(Parameters(RagSearchParams {
-            query: "tokio async".into(),
-            genre: "developer".into(),
-            corpus: None,
-            k: 5,
-        }))
-        .await;
-    assert!(!res.is_error.unwrap_or(false));
-    // The persisted index has content → at least one hit (grep-only on empty corpus would be 0).
-    let text = format!("{:?}", res.content);
-    assert!(
-        text.contains("tokio") || text.contains("rust"),
-        "persisted index should return content: {text}"
     );
 }
 

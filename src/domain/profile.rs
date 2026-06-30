@@ -357,8 +357,12 @@ pub struct AxisCompletion {
 
 impl AxisCompletion {
     pub const THRESHOLD: f64 = 0.7;
+    /// The three conversational interview axes (identity, genre, goal) are
+    /// filled. The `data` axis is scan-derived (set by S1 autoscan), not a user
+    /// question, so it is not gated — the interview is "complete" once
+    /// identity/goal/genre are set, regardless of whether a scan ran.
     pub fn all_above_threshold(&self) -> bool {
-        [self.tacit, self.data, self.genre, self.goals]
+        [self.tacit, self.genre, self.goals]
             .iter()
             .all(|v| *v >= Self::THRESHOLD)
     }

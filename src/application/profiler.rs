@@ -182,7 +182,6 @@ mod tests {
         answers.insert("Q_domain".into(), ("backend".into(), 0.9));
         answers.insert("Q_goal".into(), ("ship faster".into(), 0.9));
         answers.insert("Q_genre".into(), ("developer".into(), 0.9));
-        answers.insert("Q_data".into(), ("./vault".into(), 0.8));
 
         orch.run_m0(&mut p, &answers, Genre::Developer, Some("ship faster"))
             .unwrap();
