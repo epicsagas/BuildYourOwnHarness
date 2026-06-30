@@ -1,7 +1,9 @@
-//! awesomeclaudeplugins.com catalog — offline-first local cache.
+//! Plugin catalog — offline-first local cache.
 //!
-//! Network is only touched by `catalog index` (`src/catalog/index.rs`, feature-gated
-//! to `catalog`). Everything else — search, vendor — reads `~/.byoh/catalog.json`.
+//! Source: the curated `quemsah/awesome-claude-plugins` README (top 100 by
+//! stars). Network is only touched by `catalog index` (`src/catalog/index.rs`)
+//! and the remote-bundle path. Everything else — search, vendor — reads
+//! `~/.byoh/catalog.json`.
 
 pub mod search;
 pub mod vendor_from_catalog;
@@ -13,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-/// One awesomeclaudeplugins.com plugin entry.
+/// One plugin entry from the curated catalog.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CatalogEntry {
     /// "owner/repo" slug (matches the site URL path).

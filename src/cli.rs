@@ -147,7 +147,7 @@ pub enum Command {
         #[arg(long, default_value = "./harness-plugin")]
         out: PathBuf,
     },
-    /// Search or index the awesomeclaudeplugins.com plugin catalog.
+    /// Search or index the plugin catalog (quemsah top-100 by stars).
     Catalog {
         #[command(subcommand)]
         action: CatalogAction,
@@ -194,20 +194,20 @@ pub enum VendorAction {
 
 #[derive(Debug, Subcommand)]
 pub enum CatalogAction {
-    /// Fetch awesomeclaudeplugins.com sitemap + per-page JSON-LD → rebuild
-    /// `~/.byoh/catalog.json`.
+    /// Parse the `quemsah/awesome-claude-plugins` README (top 100 by stars) →
+    /// rebuild `~/.byoh/catalog.json`.
     Index {
-        /// Max number of plugin pages to fetch. The site has ~24 000 entries; the
-        /// default caps a cold crawl at a safe 500 to avoid an unbounded
-        /// multi-hour fetch. Pass `--limit 0` to fetch everything.
-        #[arg(long, default_value_t = 500)]
+        /// Max entries to keep (the README lists 100, sorted by stars). The
+        /// default keeps all of them; pass a smaller N for just the top N.
+        /// `--limit 0` also means all.
+        #[arg(long, default_value_t = 0)]
         limit: usize,
         /// Cache TTL in hours (existing cache is reused if still fresh).
         #[arg(long, default_value_t = 24)]
         ttl_hours: u64,
-        /// Skip the maintainer-built remote bundle and crawl the site directly.
-        /// By default a stale cache first tries the bundle (seconds); set this
-        /// to force a fresh crawl (e.g. when debugging the parser).
+        /// Skip the maintainer-built remote bundle and parse the README
+        /// directly. By default a stale cache first tries the bundle (seconds);
+        /// set this to force a fresh parse (e.g. when debugging the parser).
         #[arg(long, default_value_t = false)]
         no_bundle: bool,
     },

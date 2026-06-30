@@ -460,7 +460,7 @@ impl ByohServer {
     }
 
     #[tool(
-        description = "Search the local awesomeclaudeplugins.com catalog cache (~/.byoh/catalog.json). \
+        description = "Search the local plugin catalog cache (~/.byoh/catalog.json, top 100 by stars). \
                        Returns ranked plugin entries (id, name, description, github_url, stars, genre). \
                        Offline — no network. Run `byoh catalog index` to populate the cache first. \
                        Use this during the wizard to recommend external plugins the user can vendor."
@@ -499,7 +499,7 @@ impl ByohServer {
     }
 
     #[tool(
-        description = "Vendor a plugin from the awesomeclaudeplugins.com catalog into registry/vendored/. \
+        description = "Vendor a plugin from the catalog into registry/vendored/. \
                        Looks up `plugin_id` (owner/repo) in the local cache, shallow-clones its GitHub repo, \
                        and delegates to vendor_add. Run catalog_search first to find the right plugin_id. \
                        Returns the vendored entry (skill_id, genre, sha256). \

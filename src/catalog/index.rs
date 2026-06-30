@@ -1,5 +1,6 @@
-//! Catalog indexer — sitemap.xml → per-page JSON-LD → CatalogCache.
-//! **This is the only module that makes network calls** (feature-gated to `catalog`).
+//! Catalog indexer — parses the curated `quemsah/awesome-claude-plugins`
+//! README (top 100 by stars) → CatalogCache. Network is touched only by
+//! `catalog index` (this module) and the remote-bundle path.
 
 use super::{CatalogCache, CatalogEntry, save_cache};
 use crate::deploy::genre_map::infer_genre;
@@ -9,8 +10,11 @@ use std::io::Read;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-const SITEMAP_URL: &str = "https://awesomeclaudeplugins.com/sitemap.xml";
-const BASE_URL: &str = "https://awesomeclaudeplugins.com";
+/// Raw README that lists the top 100 Claude plugin repos by stars. Refreshed
+/// daily upstream (`chore(data): refresh dataset`). A single GET + parse beats
+/// crawling ~24 000 per-page HTML and gives us real ranking (stars).
+const QUEMSAH_README_URL: &str =
+    "https://raw.githubusercontent.com/quemsah/awesome-claude-plugins/main/README.md";
 
 /// Catalog cache schema version this build understands. Bumped whenever the
 /// `CatalogCache` shape changes in a backwards-incompatible way.
@@ -18,19 +22,16 @@ pub const CATALOG_SCHEMA_VERSION: u32 = 1;
 
 /// Maintainer-built, gzip-compressed catalog bundle shipped as a GitHub Release
 /// asset under the moving `catalog-latest` tag. `byoh catalog index` fetches
-/// this first (seconds) and only falls back to crawling ~24 000 pages when the
+/// this first (seconds) and only falls back to re-parsing the README when the
 /// bundle is unreachable. Hardcoded (no external input) so there is no SSRF
 /// surface — the URL never varies.
 const REMOTE_BUNDLE_URL: &str =
     "https://github.com/epicsagas/BuildYourOwnHarness/releases/download/catalog-latest/catalog.json.gz";
-/// Site-wide suffix appended to every page `<title>`, stripped to recover the
-/// plugin's display name.
-const TITLE_SUFFIX: &str = " | Awesome Claude Plugins";
 
-/// Accept only `https://github.com/...` URLs (SSRF allowlist for the remote
-/// JSON-LD `codeRepository` field). Rejects `file://`, link-local/loopback
-/// hosts, non-https schemes, and hosts that merely contain "github.com".
-/// Empty input is rejected (callers fall back to an id-derived URL).
+/// Accept only `https://github.com/...` URLs (SSRF allowlist for catalog
+/// `github_url` values, whether from the quemsah README or a remote bundle).
+/// Rejects `file://`, link-local/loopback hosts, non-https schemes, and hosts
+/// that merely contain "github.com". Empty input is rejected.
 pub fn is_safe_github_url(url: &str) -> bool {
     let url = url.trim();
     let Some(rest) = url.strip_prefix("https://") else {
@@ -43,236 +44,74 @@ pub fn is_safe_github_url(url: &str) -> bool {
     host.eq_ignore_ascii_case("github.com")
 }
 
-/// Extract `<loc>` values from sitemap XML that look like `/{owner}/{repo}` paths.
-pub fn parse_sitemap_locs(xml: &str) -> Vec<String> {
-    xml.lines()
-        .filter_map(|line| {
-            let line = line.trim();
-            let start = line.find("<loc>")?;
-            let end = line.find("</loc>")?;
-            let loc = &line[start + 5..end];
-            // Must be an awesomeclaudeplugins.com URL with exactly owner/repo path.
-            let path = loc.strip_prefix(BASE_URL)?;
-            let path = path.strip_prefix('/')?;
-            // Reject root, static assets, and paths with more than one slash segment.
-            let segments: Vec<&str> = path.split('/').collect();
-            if segments.len() == 2 && !segments[0].is_empty() && !segments[1].is_empty() {
-                Some(format!("{BASE_URL}/{path}"))
-            } else {
-                None
-            }
-        })
-        .collect()
-}
+/// Parse the quemsah `awesome-claude-plugins` README into catalog entries.
+///
+/// The README is a Markdown table sorted by stars:
+/// `| # | [name](github_url) | description | Stars | Subs | Plugins |`.
+/// Each data row becomes a `CatalogEntry`. The `#`, separator, and header rows
+/// are ignored. `github_url` is validated with [`is_safe_github_url`]; any row
+/// pointing elsewhere (`file://`, look-alike host) is skipped — untrusted
+/// upstream markdown can never steer a later `git clone` at an internal target.
+/// `Stars` populates `CatalogEntry.stars` (real ranking, finally). `Subs` and
+/// `Plugins` have no target field and are dropped. Genre is inferred from the
+/// `name + description` text via [`infer_genre`].
+///
+/// Pure function — no network — so it is unit-tested with embedded fixtures.
+pub fn parse_quemsah_readme(md: &str) -> crate::Result<Vec<CatalogEntry>> {
+    let fetched_at = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
 
-/// Extract the first `<script type="application/ld+json">` block from HTML.
-pub fn parse_json_ld(html: &str) -> Option<serde_json::Value> {
-    let marker = r#"application/ld+json">"#;
-    let start = html.find(marker)? + marker.len();
-    let rest = &html[start..];
-    let end = rest.find("</script>")?;
-    serde_json::from_str(rest[..end].trim()).ok()
-}
+    // Data row: leading `| <digits> |`, then a `[name](url)` cell. The digits
+    // anchor excludes the header (`| # |`) and separator (`|---|`) rows.
+    // `(?s)` lets `.*?` cross newlines inside the description cell — but
+    // descriptions are single-line in practice, so we bound to the line.
+    let row_re = Regex::new(
+        r#"(?m)^\|\s*\d+\s*\|\s*\[([^\]]*)\]\((https://[^)]+)\)\s*\|([^|]*)\|\s*(\d+)\s*\|"#,
+    )
+    .map_err(|e| ByohError::Other(format!("row regex: {e}")))?;
 
-/// Display fields parsed from `<title>` + `<meta>` tags. Carries no URL or
-/// trust — only human-readable strings used to populate a `CatalogEntry`'s
-/// non-critical fields.
-#[derive(Debug, Default, PartialEq)]
-pub struct MetaTags {
-    pub title: String,
-    pub description: String,
-    /// Raw comma-separated keyword string (normalized downstream).
-    pub keywords: String,
-}
+    let mut entries = Vec::new();
+    for caps in row_re.captures_iter(md) {
+        let name = caps[1].trim().to_string();
+        let github_url = caps[2].trim().to_string();
+        let description = caps[3].trim().to_string();
+        let stars: u64 = match caps[4].parse() {
+            Ok(n) => n,
+            Err(_) => continue, // malformed stars cell — skip row
+        };
 
-/// Extract the inner text of the first `<title>...</title>` element.
-fn title_text(html: &str) -> Option<String> {
-    let open = html.find("<title")?;
-    let after_open = html[open..].find('>')? + open + 1;
-    let end = html[after_open..].find("</title>")? + after_open;
-    Some(html[after_open..end].trim().to_string())
-}
-
-/// Pull the `content="..."` value of a `<meta name="{name}">` tag, robust to
-/// attribute order (`name`/`content` may appear in either sequence) and case.
-/// Uses the project's inline `Regex::new().unwrap()` convention for static
-/// patterns. Returns `None` when the named meta tag is absent.
-fn meta_content(html: &str, name: &str) -> Option<String> {
-    let name_pat = regex::escape(name);
-    // Two orderings, since `regex` lacks backreferences: name-first and
-    // content-first. `(?is)` = case-insensitive + dot-matches-newline.
-    let pats = [
-        format!(r#"(?is)<meta\b[^>]*?\bname\s*=\s*"{name_pat}"[^>]*?\bcontent\s*=\s*"([^"]*)""#),
-        format!(r#"(?is)<meta\b[^>]*?\bcontent\s*=\s*"([^"]*)"[^>]*?\bname\s*=\s*"{name_pat}""#),
-    ];
-    for pat in pats {
-        let re = Regex::new(&pat).unwrap();
-        if let Some(caps) = re.captures(html) {
-            return Some(caps[1].to_string());
+        // SSRF gate: only https://github.com URLs survive.
+        if !is_safe_github_url(&github_url) {
+            continue;
         }
+
+        // id = owner/repo from the GitHub URL path.
+        let id = match github_url
+            .strip_prefix("https://github.com/")
+            .and_then(|p| p.split('?').next())
+            .map(|p| p.trim_end_matches('/'))
+        {
+            Some(p) if !p.is_empty() && p.contains('/') => p.to_string(),
+            _ => continue,
+        };
+
+        let byoh_genre = infer_genre(&format!("{name} {description}"));
+
+        entries.push(CatalogEntry {
+            id,
+            name,
+            description,
+            keywords: Vec::new(),
+            github_url,
+            stars: Some(stars),
+            license: "unknown".to_string(),
+            byoh_genre,
+            fetched_at,
+        });
     }
-    None
-}
-
-/// Parse `<title>` + `<meta name="description">` + `<meta name="keywords">`
-/// from HTML. Returns `None` when there is no `<title>` (a page with no
-/// identity is not worth indexing). Used as the fallback when JSON-LD is
-/// absent — the current awesomeclaudeplugins.com layout exposes only these
-/// tags.
-pub fn parse_meta(html: &str) -> Option<MetaTags> {
-    let title = title_text(html)?;
-    Some(MetaTags {
-        title,
-        description: meta_content(html, "description").unwrap_or_default(),
-        keywords: meta_content(html, "keywords").unwrap_or_default(),
-    })
-}
-
-/// Strip the site-wide title suffix to recover the plugin display name.
-fn display_name(title: &str) -> String {
-    title
-        .strip_suffix(TITLE_SUFFIX)
-        .or_else(|| title.rsplit_once(" | ").map(|(left, _)| left))
-        .unwrap_or(title)
-        .trim()
-        .to_string()
-}
-
-/// Convert a page URL + parsed meta tags into a `CatalogEntry`.
-///
-/// **Security:** `github_url` is derived ONLY from `page_url` via
-/// [`id_and_github_from_url`]. Meta content (attacker-controllable on a
-/// compromised page) populates display/search fields only — it can never
-/// steer a `git clone` target. `stars` / `license` are unavailable from meta
-/// tags and default to `None` / `"unknown"`, matching the JSON-LD branch.
-pub fn meta_to_entry(page_url: &str, meta: &MetaTags, fetched_at: u64) -> Option<CatalogEntry> {
-    let (id, github_url) = id_and_github_from_url(page_url)?;
-    let name = display_name(&meta.title);
-    let keywords = normalize_keywords(&meta.keywords);
-    let byoh_genre = infer_genre(&keywords.join(" "));
-
-    Some(CatalogEntry {
-        id,
-        name,
-        description: meta.description.clone(),
-        keywords,
-        github_url,
-        stars: None,
-        license: "unknown".to_string(),
-        byoh_genre,
-        fetched_at,
-    })
-}
-
-/// Extract `"owner/repo"` from an awesomeclaudeplugins.com page URL and derive
-/// the canonical `https://github.com/{id}` URL. Returns `None` for the root
-/// path or any path without exactly two segments.
-///
-/// Pure function — never touches remote content. Shared by the JSON-LD and
-/// meta-tag paths so both derive `github_url` identically from the trusted URL
-/// (never from attacker-controllable page metadata).
-fn id_and_github_from_url(page_url: &str) -> Option<(String, String)> {
-    let path = page_url.strip_prefix(BASE_URL)?.strip_prefix('/')?;
-    let id = path.trim_end_matches('/');
-    if id.is_empty() || !id.contains('/') {
-        return None;
-    }
-    let id = id.to_string();
-    Some((id.clone(), format!("https://github.com/{id}")))
-}
-
-/// Normalize a raw comma-separated keywords string into the lowercased,
-/// trimmed, de-emptied list the catalog stores. Shared by the JSON-LD and
-/// meta-tag paths.
-fn normalize_keywords(raw: &str) -> Vec<String> {
-    raw.split(',')
-        .map(|s| s.trim().to_lowercase())
-        .filter(|s| !s.is_empty())
-        .collect()
-}
-
-/// Convert a JSON-LD value + page URL into a `CatalogEntry`.
-pub fn json_ld_to_entry(
-    page_url: &str,
-    ld: &serde_json::Value,
-    fetched_at: u64,
-) -> Option<CatalogEntry> {
-    let (id, fallback_github_url) = id_and_github_from_url(page_url)?;
-
-    let name = ld
-        .get("name")
-        .and_then(|v| v.as_str())
-        .unwrap_or(&id)
-        .to_string();
-    let description = ld
-        .get("description")
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string();
-    let raw_url = ld
-        .get("codeRepository")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-    // SSRF defense: only accept an https://github.com codeRepository from the
-    // remote JSON-LD. Anything else (file://, http://169.254.169.254/, an
-    // attacker host) is dropped and we fall back to the id-derived GitHub URL,
-    // which `fetch_git` will then clone. This keeps untrusted catalog metadata
-    // from steering `git clone` at an internal/local target.
-    let github_url = if is_safe_github_url(raw_url) {
-        raw_url.to_string()
-    } else {
-        fallback_github_url
-    };
-
-    // JSON-LD keywords field is a comma-separated string.
-    let keywords: Vec<String> = normalize_keywords(
-        ld.get("keywords")
-            .and_then(|v| v.as_str())
-            .unwrap_or(""),
-    );
-
-    let license = ld
-        .get("license")
-        .and_then(|v| v.as_str())
-        .unwrap_or("unknown")
-        .to_string();
-
-    let stars = ld.get("stargazerCount").and_then(|v| v.as_u64());
-
-    // Infer genre from keywords joined.
-    let byoh_genre = infer_genre(&keywords.join(" "));
-
-    Some(CatalogEntry {
-        id,
-        name,
-        description,
-        keywords,
-        github_url,
-        stars,
-        license,
-        byoh_genre,
-        fetched_at,
-    })
-}
-
-/// Fetch a single page and parse it into a `CatalogEntry`.
-///
-/// Prefers JSON-LD (richest: stars/license/codeRepository); falls back to
-/// `<title>` + `<meta>` tags when JSON-LD is absent or unparseable. Returns
-/// `None` only when neither path yields an entry — the caller then logs a
-/// skip rather than aborting the whole index.
-pub fn fetch_and_parse_entry(url: &str, fetched_at: u64) -> Option<CatalogEntry> {
-    let resp = ureq::get(url).call().ok()?;
-    let html = resp.into_string().ok()?;
-    // 1. JSON-LD first — preserves the existing codeRepository allowlist path.
-    if let Some(ld) = parse_json_ld(&html) {
-        if let Some(entry) = json_ld_to_entry(url, &ld, fetched_at) {
-            return Some(entry);
-        }
-    }
-    // 2. Meta-tag fallback for sites that dropped JSON-LD.
-    let meta = parse_meta(&html)?;
-    meta_to_entry(url, &meta, fetched_at)
+    Ok(entries)
 }
 
 /// Decompress + parse a gzip-compressed catalog bundle (bytes of
@@ -366,35 +205,26 @@ pub fn catalog_index(
     _ttl_hours: u64,
     progress_fn: impl Fn(usize, usize),
 ) -> crate::Result<CatalogCache> {
-    // 1. Download sitemap.
-    let sitemap_body = ureq::get(SITEMAP_URL)
+    // 1. Fetch the curated README (top 100 by stars). One GET — no per-page crawl.
+    let body = ureq::get(QUEMSAH_README_URL)
         .call()
-        .map_err(|e| crate::domain::ByohError::Other(format!("sitemap fetch: {e}")))?
+        .map_err(|e| crate::domain::ByohError::Other(format!("readme fetch: {e}")))?
         .into_string()
-        .map_err(|e| crate::domain::ByohError::Other(format!("sitemap read: {e}")))?;
+        .map_err(|e| crate::domain::ByohError::Other(format!("readme read: {e}")))?;
 
-    let mut locs = parse_sitemap_locs(&sitemap_body);
-    // `--limit 0` means "all" (the full sitemap, ~24k pages). Any other value
-    // caps the crawl. `Vec::truncate(0)` would drop everything, so guard it.
+    // 2. Parse the Markdown table → entries (sorted by stars upstream).
+    let mut entries = parse_quemsah_readme(&body)?;
+    // `--limit 0` means "all" (every row). Any other value caps to the top N.
     if limit > 0 {
-        locs.truncate(limit);
+        entries.truncate(limit);
     }
-    let total = locs.len();
+    let total = entries.len();
+    progress_fn(total, total);
 
     let fetched_at = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0);
-
-    // 2. Fetch + parse each page.
-    let mut entries: Vec<CatalogEntry> = Vec::with_capacity(total);
-    for (i, url) in locs.iter().enumerate() {
-        match fetch_and_parse_entry(url, fetched_at) {
-            Some(e) => entries.push(e),
-            None => eprintln!("[byoh catalog] skip {url} (parse failed)"),
-        }
-        progress_fn(i + 1, total);
-    }
 
     let cache = CatalogCache {
         schema_version: CATALOG_SCHEMA_VERSION,
@@ -409,254 +239,88 @@ pub fn catalog_index(
 mod tests {
     use super::*;
 
+    // --- is_safe_github_url (SSRF gate, now called directly by quemsah parser) ---
+
     #[test]
-    fn parse_sitemap_locs_extracts_owner_repo() {
-        let xml = r#"<?xml version="1.0"?>
-<urlset>
-  <url><loc>https://awesomeclaudeplugins.com/obra/superpowers</loc></url>
-  <url><loc>https://awesomeclaudeplugins.com/upstash/context7</loc></url>
-  <url><loc>https://awesomeclaudeplugins.com/</loc></url>
-  <url><loc>https://awesomeclaudeplugins.com/sitemap.xml</loc></url>
-  <url><loc>https://awesomeclaudeplugins.com/a/b/c</loc></url>
-</urlset>"#;
-        let locs = parse_sitemap_locs(xml);
-        assert_eq!(locs.len(), 2);
-        assert!(locs.contains(&"https://awesomeclaudeplugins.com/obra/superpowers".to_string()));
-        assert!(locs.contains(&"https://awesomeclaudeplugins.com/upstash/context7".to_string()));
+    fn is_safe_github_url_accepts_github() {
+        assert!(is_safe_github_url("https://github.com/owner/repo"));
+        assert!(is_safe_github_url("https://github.com/owner/repo.git"));
     }
 
     #[test]
-    fn truncate_limit_zero_keeps_all() {
-        // Regression: `--limit 0` must mean "all", not truncate to zero.
-        // The fix guards `truncate` so 0 is a no-op.
-        let mut locs = vec![
-            "https://awesomeclaudeplugins.com/a/b".to_string(),
-            "https://awesomeclaudeplugins.com/c/d".to_string(),
-            "https://awesomeclaudeplugins.com/e/f".to_string(),
-        ];
-        let limit: usize = 0;
-        if limit > 0 {
-            locs.truncate(limit);
-        }
-        assert_eq!(locs.len(), 3, "limit 0 must keep all entries");
-    }
-
-    #[test]
-    fn parse_json_ld_extracts_first_block() {
-        let html = r#"<html><head>
-<script type="application/ld+json">{"@type":"SoftwareSourceCode","name":"superpowers"}</script>
-</head></html>"#;
-        let ld = parse_json_ld(html).unwrap();
-        assert_eq!(ld["name"], "superpowers");
-    }
-
-    #[test]
-    fn parse_json_ld_returns_none_when_absent() {
-        let html = "<html><body>no ld+json here</body></html>";
-        assert!(parse_json_ld(html).is_none());
-    }
-
-    #[test]
-    fn json_ld_to_entry_full() {
-        let ld = serde_json::json!({
-            "name": "superpowers",
-            "description": "An agentic skills framework",
-            "codeRepository": "https://github.com/obra/superpowers",
-            "keywords": "ai, coding, skills, obra",
-            "license": "MIT",
-            "stargazerCount": 241000u64,
-        });
-        let entry = json_ld_to_entry(
-            "https://awesomeclaudeplugins.com/obra/superpowers",
-            &ld,
-            9999,
-        )
-        .unwrap();
-        assert_eq!(entry.id, "obra/superpowers");
-        assert_eq!(entry.name, "superpowers");
-        assert_eq!(entry.stars, Some(241_000));
-        assert!(entry.keywords.contains(&"coding".to_string()));
-        // "coding" → Developer
-        assert_eq!(
-            entry.byoh_genre,
-            Some(crate::domain::genre::Genre::Developer)
-        );
-    }
-
-    #[test]
-    fn json_ld_to_entry_derives_github_url_from_id() {
-        let ld = serde_json::json!({ "name": "x", "description": "d" });
-        let entry =
-            json_ld_to_entry("https://awesomeclaudeplugins.com/owner/repo", &ld, 0).unwrap();
-        assert_eq!(entry.github_url, "https://github.com/owner/repo");
-    }
-
-    #[test]
-    fn json_ld_to_entry_rejects_ssrf_coderepository() {
-        // Malicious codeRepository must be dropped → falls back to id-derived URL.
-        let ld = serde_json::json!({
-            "name": "x",
-            "description": "d",
-            "codeRepository": "http://169.254.169.254/latest/meta-data/"
-        });
-        let entry =
-            json_ld_to_entry("https://awesomeclaudeplugins.com/owner/repo", &ld, 0).unwrap();
-        assert_eq!(entry.github_url, "https://github.com/owner/repo");
-
-        // file:// and look-alike hosts are also rejected.
+    fn is_safe_github_url_rejects_ssrf() {
         for bad in [
             "file:///etc/passwd",
+            "http://github.com/a/b",
             "https://evil.com/?x=github.com/y",
             "https://notgithub.com/a/b",
-            "http://github.com/a/b",
+            "https://169.254.169.254/latest/meta-data/",
+            "",
         ] {
-            let ld = serde_json::json!({ "name": "x", "codeRepository": bad });
-            let entry =
-                json_ld_to_entry("https://awesomeclaudeplugins.com/owner/repo", &ld, 0).unwrap();
-            assert_eq!(entry.github_url, "https://github.com/owner/repo", "{bad}");
+            assert!(!is_safe_github_url(bad), "{bad} should be rejected");
         }
     }
 
+    // --- quemsah README parser ---
+
+    /// Minimal table fixture mimicking the real README shape.
+    const QUEMSAH_FIXTURE: &str = "\
+# Awesome Claude Code Plugins: Top 100 Repositories
+
+| # | Repo Name | Description | Stars | Subs | Plugins |
+|---|-----------|-------------|-------|------|---------|
+| 1 | [superpowers](https://github.com/obra/superpowers) | An agentic skills framework. | 240626 | 899 | 1 |
+| 2 | [context7](https://github.com/upstash/context7) | Up-to-date code documentation for LLMs. | 58251 | 151 | 1 |
+| 3 | [malicious](file:///etc/passwd) | should be skipped (SSRF). | 999 | 1 | 1 |
+| 4 | [notgithub](https://notgithub.com/a/b) | should be skipped (look-alike host). | 999 | 1 | 1 |
+";
+
     #[test]
-    fn json_ld_to_entry_keeps_safe_github_coderepository() {
-        let ld = serde_json::json!({
-            "name": "x",
-            "codeRepository": "https://github.com/obra/superpowers"
-        });
-        let entry =
-            json_ld_to_entry("https://awesomeclaudeplugins.com/obra/superpowers", &ld, 0).unwrap();
-        assert_eq!(entry.github_url, "https://github.com/obra/superpowers");
+    fn parse_quemsah_readme_extracts_entries() {
+        let entries = parse_quemsah_readme(QUEMSAH_FIXTURE).unwrap();
+        // SSRF rows (file://, look-alike) are skipped → only 2 survive.
+        assert_eq!(entries.len(), 2);
+        let first = &entries[0];
+        assert_eq!(first.id, "obra/superpowers");
+        assert_eq!(first.name, "superpowers");
+        assert_eq!(first.github_url, "https://github.com/obra/superpowers");
+        assert_eq!(first.stars, Some(240626));
+        assert!(first.description.contains("agentic skills"));
+        assert_eq!(first.license, "unknown");
+        assert!(first.keywords.is_empty());
     }
 
     #[test]
-    fn json_ld_to_entry_rejects_root_path() {
-        let ld = serde_json::json!({ "name": "root" });
-        assert!(json_ld_to_entry("https://awesomeclaudeplugins.com/", &ld, 0).is_none());
+    fn parse_quemsah_readme_skips_non_github_rows() {
+        let entries = parse_quemsah_readme(QUEMSAH_FIXTURE).unwrap();
+        assert!(entries.iter().all(|e| e.github_url.starts_with("https://github.com/")));
+        assert!(!entries.iter().any(|e| e.id.contains("passwd")));
     }
 
-    // --- meta-tag fallback tests (awesomeclaudeplugins.com dropped JSON-LD) ---
-
-    /// Fixture approximating a real page: title with site suffix + meta tags in
-    /// `name`-first order.
-    const META_HTML: &str = r#"<html><head>
-<title>varadhjain/granola-claude-plugin | Awesome Claude Plugins</title>
-<meta name="description" content="[DEPRECATED] Granola encrypted local cache — use official Granola MCP instead"/>
-<meta name="keywords" content="Claude Code plugins,GitHub repository,AI coding tools,coding,MCP servers"/>
-</head></html>"#;
+    #[test]
+    fn parse_quemsah_readme_ignores_header_and_separator() {
+        let entries = parse_quemsah_readme(QUEMSAH_FIXTURE).unwrap();
+        assert!(entries.iter().all(|e| !e.name.is_empty()));
+        assert!(!entries.iter().any(|e| e.name == "Repo Name"));
+    }
 
     #[test]
-    fn parse_meta_extracts_title_description_keywords() {
-        let meta = parse_meta(META_HTML).unwrap();
+    fn parse_quemsah_readme_infers_genre_from_description() {
+        let entries = parse_quemsah_readme(QUEMSAH_FIXTURE).unwrap();
+        let ctx = entries
+            .iter()
+            .find(|e| e.id == "upstash/context7")
+            .expect("context7 entry");
         assert_eq!(
-            meta.title,
-            "varadhjain/granola-claude-plugin | Awesome Claude Plugins"
-        );
-        assert!(meta.description.contains("Granola encrypted local cache"));
-        assert!(meta.keywords.contains("AI coding tools"));
-    }
-
-    #[test]
-    fn parse_meta_handles_reversed_attribute_order() {
-        // `content` before `name` — must still parse.
-        let html = r#"<html><head>
-<title>owner/repo | Awesome Claude Plugins</title>
-<meta content="reversed desc" name="description"/>
-<meta content="a,b,c" name="keywords"/>
-</head></html>"#;
-        let meta = parse_meta(html).unwrap();
-        assert_eq!(meta.description, "reversed desc");
-        assert_eq!(meta.keywords, "a,b,c");
-    }
-
-    #[test]
-    fn parse_meta_returns_none_without_title() {
-        let html = r#"<html><head><meta name="description" content="no title here"/></head></html>"#;
-        assert!(parse_meta(html).is_none());
-    }
-
-    #[test]
-    fn meta_to_entry_strips_title_suffix() {
-        let meta = parse_meta(META_HTML).unwrap();
-        let entry = meta_to_entry(
-            "https://awesomeclaudeplugins.com/varadhjain/granola-claude-plugin",
-            &meta,
-            0,
-        )
-        .unwrap();
-        assert_eq!(entry.id, "varadhjain/granola-claude-plugin");
-        assert_eq!(entry.name, "varadhjain/granola-claude-plugin");
-    }
-
-    #[test]
-    fn meta_to_entry_derives_github_url_from_id() {
-        // SSRF property: github_url is id-derived, never read from meta.
-        let meta = MetaTags {
-            title: "owner/repo | Awesome Claude Plugins".into(),
-            description: "d".into(),
-            keywords: String::new(),
-        };
-        let entry =
-            meta_to_entry("https://awesomeclaudeplugins.com/owner/repo", &meta, 0).unwrap();
-        assert_eq!(entry.github_url, "https://github.com/owner/repo");
-    }
-
-    #[test]
-    fn meta_to_entry_keywords_feed_genre() {
-        // "coding" → Developer, lowercased like the JSON-LD path.
-        let meta = MetaTags {
-            title: "owner/repo | Awesome Claude Plugins".into(),
-            description: "d".into(),
-            keywords: "AI, Coding, TOOLS".into(),
-        };
-        let entry =
-            meta_to_entry("https://awesomeclaudeplugins.com/owner/repo", &meta, 0).unwrap();
-        assert!(entry.keywords.contains(&"coding".to_string()));
-        assert_eq!(
-            entry.byoh_genre,
+            ctx.byoh_genre,
             Some(crate::domain::genre::Genre::Developer)
         );
     }
 
     #[test]
-    fn meta_to_entry_rejects_root_path() {
-        let meta = MetaTags {
-            title: "root | Awesome Claude Plugins".into(),
-            ..Default::default()
-        };
-        assert!(meta_to_entry("https://awesomeclaudeplugins.com/", &meta, 0).is_none());
-    }
-
-    #[test]
-    fn meta_to_entry_defaults_stars_none_license_unknown() {
-        let meta = parse_meta(META_HTML).unwrap();
-        let entry = meta_to_entry(
-            "https://awesomeclaudeplugins.com/varadhjain/granola-claude-plugin",
-            &meta,
-            0,
-        )
-        .unwrap();
-        assert_eq!(entry.stars, None);
-        assert_eq!(entry.license, "unknown");
-    }
-
-    #[test]
-    fn meta_to_entry_ignores_url_in_keywords() {
-        // Security: an attacker-controllable keywords field containing URLs
-        // is stored as-is in display keywords but must NEVER leak into
-        // github_url — that field is derived only from the trusted page URL.
-        let meta = MetaTags {
-            title: "owner/repo | Awesome Claude Plugins".into(),
-            description: "d".into(),
-            keywords: "https://evil.com/x, https://169.254.169.254/".into(),
-        };
-        let entry =
-            meta_to_entry("https://awesomeclaudeplugins.com/owner/repo", &meta, 0).unwrap();
-        // github_url is id-derived regardless of keyword content.
-        assert_eq!(entry.github_url, "https://github.com/owner/repo");
-        // keywords are display data — kept (lowercased), but inert for cloning.
-        assert!(entry.keywords.contains(&"https://evil.com/x".to_string()));
-        assert!(!entry.github_url.contains("evil.com"));
-        assert!(!entry.github_url.contains("169.254"));
+    fn parse_quemsah_readme_returns_empty_for_non_table() {
+        let entries = parse_quemsah_readme("# just a title\n\nno table here").unwrap();
+        assert!(entries.is_empty());
     }
 
     // --- remote prebuilt bundle tests ---
