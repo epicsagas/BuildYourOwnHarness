@@ -186,7 +186,7 @@ fn run_catalog(action: CatalogAction) -> anyhow::Result<()> {
                 })
                 .unwrap_or_default();
             // Look up the plugin in the catalog cache.
-            let cache = byoh::catalog::load_cache(&home)?;
+            let mut cache = byoh::catalog::load_cache(&home)?;
             let entry = cache
                 .entries
                 .iter()
@@ -195,14 +195,30 @@ fn run_catalog(action: CatalogAction) -> anyhow::Result<()> {
                     anyhow::anyhow!(
                         "plugin '{plugin_id}' not found in catalog cache. Run `byoh catalog index` first."
                     )
-                })?;
+                })?
+                .clone();
             let repo_root = std::env::current_dir()?;
-            let vendor_entry = byoh::catalog::vendor_from_catalog::catalog_vendor(
-                entry,
-                genre_parsed,
-                &extra_kw,
-                &repo_root,
-            )?;
+            let (vendor_entry, enrichment) =
+                byoh::catalog::vendor_from_catalog::catalog_vendor(
+                    &entry,
+                    genre_parsed,
+                    &extra_kw,
+                    &repo_root,
+                )?;
+            // Write enriched metadata (license, keywords, genre) back to the
+            // catalog cache so subsequent `catalog search` results are richer.
+            if let Some(cached) = cache.entries.iter_mut().find(|e| e.id == plugin_id) {
+                if cached.license == "unknown" || cached.license.is_empty() {
+                    cached.license = enrichment.license.clone();
+                }
+                if cached.keywords.is_empty() && !enrichment.keywords.is_empty() {
+                    cached.keywords = enrichment.keywords.clone();
+                }
+                if cached.byoh_genre.is_none() {
+                    cached.byoh_genre = Some(enrichment.genre);
+                }
+            }
+            byoh::catalog::save_cache(&home, &cache)?;
             println!(
                 "vendored '{}' ({}) → registry/vendored/{}/{}.md (sha256 {}...)",
                 plugin_id,

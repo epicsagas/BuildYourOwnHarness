@@ -800,7 +800,7 @@ fn catalog_vendor_blocking(home: &std::path::Path, p: &CatalogVendorParams) -> C
         Ok(g) => g,
         Err(e) => return err_result(e),
     };
-    let cache = match crate::catalog::load_cache(home) {
+    let mut cache = match crate::catalog::load_cache(home) {
         Ok(c) => c,
         Err(e) => return err_result(e),
     };
@@ -825,12 +825,26 @@ fn catalog_vendor_blocking(home: &std::path::Path, p: &CatalogVendorParams) -> C
         &p.extra_keywords,
         &repo_root,
     ) {
-        Ok(v) => ok_value(json!({
-            "skill_id": v.skill_id,
-            "genre": v.genre,
-            "sha256": v.sha256,
-            "license": v.license,
-        })),
+        Ok((v, enrichment)) => {
+            if let Some(cached) = cache.entries.iter_mut().find(|e| e.id == p.plugin_id) {
+                if cached.license == "unknown" || cached.license.is_empty() {
+                    cached.license = enrichment.license.clone();
+                }
+                if cached.keywords.is_empty() && !enrichment.keywords.is_empty() {
+                    cached.keywords = enrichment.keywords.clone();
+                }
+                if cached.byoh_genre.is_none() {
+                    cached.byoh_genre = Some(enrichment.genre);
+                }
+            }
+            let _ = crate::catalog::save_cache(home, &cache);
+            ok_value(json!({
+                "skill_id": v.skill_id,
+                "genre": v.genre,
+                "sha256": v.sha256,
+                "license": enrichment.license,
+            }))
+        }
         Err(e) => err_result(e),
     }
 }

@@ -1,25 +1,43 @@
 //! CatalogEntry → vendor_add pipeline.
 
 use super::CatalogEntry;
-use crate::deploy::{VendorEntry, fetch_git, vendor_add};
+use crate::deploy::{VendorEntry, extract_keywords_from_dir, extract_license_from_dir, fetch_git, vendor_add};
 use crate::domain::genre::Genre;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+/// Metadata harvested from a cloned plugin repo at vendor time.
+///
+/// Used by the caller to update the catalog cache so subsequent
+/// `catalog search` results reflect the richer data.
+#[derive(Debug, Clone)]
+pub struct VendorEnrichment {
+    /// License detected from the repo (plugin.json → README fallback).
+    pub license: String,
+    /// Keywords from plugin.json `keywords` array, merged with caller's extras.
+    pub keywords: Vec<String>,
+    /// Genre resolved at vendor time (may differ from the cached entry's inferred genre).
+    pub genre: Genre,
+}
+
 /// Vendor a plugin from the catalog into `registry/vendored/`.
 ///
 /// 1. Shallow-clone `entry.github_url` into a temp directory.
-/// 2. Call [`vendor_add`] with the merged keyword set + resolved license.
-/// 3. Remove the temp clone.
+/// 2. Harvest license + keywords from the cloned repo.
+/// 3. Call [`vendor_add`] with the enriched metadata.
+/// 4. Remove the temp clone.
+///
+/// Returns `(VendorEntry, VendorEnrichment)` — the caller should persist the
+/// enrichment back into the catalog cache via `save_cache`.
 ///
 /// `genre` overrides `entry.byoh_genre`; errors when both are `None`.
-/// `extra_keywords` are appended to `entry.keywords` before matching.
+/// `extra_keywords` are appended to harvested keywords.
 pub fn catalog_vendor(
     entry: &CatalogEntry,
     genre: Option<Genre>,
     extra_keywords: &[String],
     repo_root: &Path,
-) -> crate::Result<VendorEntry> {
+) -> crate::Result<(VendorEntry, VendorEnrichment)> {
     let resolved_genre = genre.or(entry.byoh_genre).ok_or_else(|| {
         crate::domain::ByohError::Schema(format!(
             "catalog vendor: no genre for '{}' — pass --genre or ensure byoh_genre is set",
@@ -39,9 +57,16 @@ pub fn catalog_vendor(
 
     let _sha = fetch_git(&entry.github_url, "HEAD", None, &dest)?;
 
-    let mut keywords: Vec<String> = entry.keywords.clone();
-    keywords.extend_from_slice(extra_keywords);
-    keywords.dedup();
+    // Harvest metadata from the cloned repo before merging with entry defaults.
+    let harvested_license = extract_license_from_dir(&dest)
+        .unwrap_or_else(|| entry.license.clone());
+    let mut harvested_keywords = extract_keywords_from_dir(&dest);
+    // Merge: repo keywords first, then catalog entry keywords, then caller extras.
+    for kw in entry.keywords.iter().chain(extra_keywords.iter()) {
+        if !harvested_keywords.contains(kw) {
+            harvested_keywords.push(kw.clone());
+        }
+    }
 
     // Sanitize the catalog id (`owner/repo`) into a filesystem-safe skill id.
     // `replace('/', "-")` alone still admits `..`; route through sanitize_skill_id
@@ -55,18 +80,25 @@ pub fn catalog_vendor(
             ))
         })?
         .to_string();
-    let result = vendor_add(
+    let vendor_result = vendor_add(
         &dest,
         resolved_genre,
         &skill_id,
-        &keywords,
-        &entry.license,
+        &harvested_keywords,
+        &harvested_license,
         repo_root,
         &fetched_at,
     );
 
     let _ = std::fs::remove_dir_all(&dest);
-    result
+
+    let vendor_entry = vendor_result?;
+    let enrichment = VendorEnrichment {
+        license: harvested_license,
+        keywords: harvested_keywords,
+        genre: resolved_genre,
+    };
+    Ok((vendor_entry, enrichment))
 }
 
 #[cfg(test)]
@@ -97,5 +129,17 @@ mod tests {
             matches!(err, crate::domain::ByohError::Schema(_)),
             "expected Schema error, got {err:?}"
         );
+    }
+
+    #[test]
+    fn genre_override_wins_over_entry_genre() {
+        // This is a unit test of the resolution logic only (no network).
+        // We just verify that the genre param takes priority when both are set.
+        use crate::domain::genre::Genre;
+        let entry = dummy_entry(Some(Genre::Researcher));
+        // We can't call catalog_vendor (it would clone), so test the resolution
+        // logic directly: genre.or(entry.byoh_genre).
+        let resolved = Some(Genre::Developer).or(entry.byoh_genre);
+        assert_eq!(resolved, Some(Genre::Developer));
     }
 }

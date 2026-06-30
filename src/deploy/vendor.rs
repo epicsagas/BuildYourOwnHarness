@@ -480,6 +480,26 @@ pub fn extract_license_from_dir(dir: &Path) -> Option<String> {
     Some(extract_license(&pj, &readme))
 }
 
+/// Best-effort keyword extraction from `.claude-plugin/plugin.json`.
+/// Returns the `keywords` array when present; empty vec otherwise.
+pub fn extract_keywords_from_dir(dir: &Path) -> Vec<String> {
+    let Ok(s) = fs::read_to_string(dir.join(".claude-plugin").join("plugin.json")) else {
+        return vec![];
+    };
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(&s) else {
+        return vec![];
+    };
+    v.get("keywords")
+        .and_then(|k| k.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|x| x.as_str())
+                .map(|s| s.to_string())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -764,6 +784,26 @@ mod tests {
             "Apache-2.0"
         );
         assert_eq!(extract_license("", "no license info here"), "unknown");
+    }
+
+    #[test]
+    fn extract_keywords_from_dir_reads_plugin_json() {
+        let dir = tempdir().unwrap();
+        let plugin_dir = dir.path().join(".claude-plugin");
+        fs::create_dir_all(&plugin_dir).unwrap();
+        fs::write(
+            plugin_dir.join("plugin.json"),
+            r#"{"keywords":["ai","rust","mcp"]}"#,
+        )
+        .unwrap();
+        let kws = extract_keywords_from_dir(dir.path());
+        assert_eq!(kws, vec!["ai", "rust", "mcp"]);
+    }
+
+    #[test]
+    fn extract_keywords_from_dir_missing_file_returns_empty() {
+        let dir = tempdir().unwrap();
+        assert!(extract_keywords_from_dir(dir.path()).is_empty());
     }
 
     #[test]

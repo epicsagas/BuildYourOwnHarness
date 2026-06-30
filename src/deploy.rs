@@ -22,8 +22,8 @@ pub use provider::{CapabilityProfile, match_provider};
 pub use registry::{Registry, RegistryEntry};
 pub use state::{BuildStore, crash_check};
 pub use vendor::{
-    TRUSTED_SOURCES, VendorEntry, VendorManifest, VendorSource, extract_license,
-    extract_license_from_dir, fetch_git, git_available, load_manifest, resolve_source,
-    sanitize_skill_id, save_manifest, source_is_trusted, static_validate, vendor_add, vendor_list,
-    vendor_remove, vendored_body,
+    TRUSTED_SOURCES, VendorEntry, VendorManifest, VendorSource, extract_keywords_from_dir,
+    extract_license, extract_license_from_dir, fetch_git, git_available, load_manifest,
+    resolve_source, sanitize_skill_id, save_manifest, source_is_trusted, static_validate,
+    vendor_add, vendor_list, vendor_remove, vendored_body,
 };
