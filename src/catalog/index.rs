@@ -25,8 +25,7 @@ pub const CATALOG_SCHEMA_VERSION: u32 = 1;
 /// this first (seconds) and only falls back to re-parsing the README when the
 /// bundle is unreachable. Hardcoded (no external input) so there is no SSRF
 /// surface — the URL never varies.
-const REMOTE_BUNDLE_URL: &str =
-    "https://github.com/epicsagas/BuildYourOwnHarness/releases/download/catalog-latest/catalog.json.gz";
+const REMOTE_BUNDLE_URL: &str = "https://github.com/epicsagas/BuildYourOwnHarness/releases/download/catalog-latest/catalog.json.gz";
 
 /// Accept only `https://github.com/...` URLs (SSRF allowlist for catalog
 /// `github_url` values, whether from the quemsah README or a remote bundle).
@@ -293,7 +292,11 @@ mod tests {
     #[test]
     fn parse_quemsah_readme_skips_non_github_rows() {
         let entries = parse_quemsah_readme(QUEMSAH_FIXTURE).unwrap();
-        assert!(entries.iter().all(|e| e.github_url.starts_with("https://github.com/")));
+        assert!(
+            entries
+                .iter()
+                .all(|e| e.github_url.starts_with("https://github.com/"))
+        );
         assert!(!entries.iter().any(|e| e.id.contains("passwd")));
     }
 
@@ -311,10 +314,7 @@ mod tests {
             .iter()
             .find(|e| e.id == "upstash/context7")
             .expect("context7 entry");
-        assert_eq!(
-            ctx.byoh_genre,
-            Some(crate::domain::genre::Genre::Developer)
-        );
+        assert_eq!(ctx.byoh_genre, Some(crate::domain::genre::Genre::Developer));
     }
 
     #[test]

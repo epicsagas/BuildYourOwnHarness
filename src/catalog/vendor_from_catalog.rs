@@ -1,7 +1,9 @@
 //! CatalogEntry → vendor_add pipeline.
 
 use super::CatalogEntry;
-use crate::deploy::{VendorEntry, extract_keywords_from_dir, extract_license_from_dir, fetch_git, vendor_add};
+use crate::deploy::{
+    VendorEntry, extract_keywords_from_dir, extract_license_from_dir, fetch_git, vendor_add,
+};
 use crate::domain::genre::Genre;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -58,8 +60,8 @@ pub fn catalog_vendor(
     let _sha = fetch_git(&entry.github_url, "HEAD", None, &dest)?;
 
     // Harvest metadata from the cloned repo before merging with entry defaults.
-    let harvested_license = extract_license_from_dir(&dest)
-        .unwrap_or_else(|| entry.license.clone());
+    let harvested_license =
+        extract_license_from_dir(&dest).unwrap_or_else(|| entry.license.clone());
     let mut harvested_keywords = extract_keywords_from_dir(&dest);
     // Merge: repo keywords first, then catalog entry keywords, then caller extras.
     for kw in entry.keywords.iter().chain(extra_keywords.iter()) {

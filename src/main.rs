@@ -198,13 +198,12 @@ fn run_catalog(action: CatalogAction) -> anyhow::Result<()> {
                 })?
                 .clone();
             let repo_root = std::env::current_dir()?;
-            let (vendor_entry, enrichment) =
-                byoh::catalog::vendor_from_catalog::catalog_vendor(
-                    &entry,
-                    genre_parsed,
-                    &extra_kw,
-                    &repo_root,
-                )?;
+            let (vendor_entry, enrichment) = byoh::catalog::vendor_from_catalog::catalog_vendor(
+                &entry,
+                genre_parsed,
+                &extra_kw,
+                &repo_root,
+            )?;
             // Write enriched metadata (license, keywords, genre) back to the
             // catalog cache so subsequent `catalog search` results are richer.
             if let Some(cached) = cache.entries.iter_mut().find(|e| e.id == plugin_id) {
