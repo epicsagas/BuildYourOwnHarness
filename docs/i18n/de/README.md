@@ -1,14 +1,20 @@
 > Dieses Dokument ist die deutsche Version von [README.md](../../../README.md). Die englische Version ist die maßgebliche Quelle.
 
+<div align="center">
+
 **[English](../../../README.md)** | [한국어](../ko/README.md) | [日本語](../ja/README.md) | [简体中文](../zh-Hans/README.md) | [Español](../es/README.md) | **Deutsch** | [Français](../fr/README.md) | [Português](../pt/README.md) | [Русский](../ru/README.md) | [العربية](../ar/README.md)
 
 # BuildYourOwnHarness (BYOH)
 
-> **Dein KI-Agent, auf dich zugeschnitten** — kein generisches Template, sondern ein auf deine Rolle, Expertise und Ziele kompilierter Harness.
+### Dein KI-Agent, auf dich zugeschnitten
 
-Die meisten KI-Tools geben dir ein festes Funktionspaket und sagen „Viel Glück". BYOH dreht das um: Ein kurzes Interview lernt, wie du wirklich arbeitest, und generiert einen personalisierten Agenten-Harness — Skills, Memory, Pipelines — der von Anfang an zu deinem Workflow passt.
+*Kein generisches Template — ein Harness, kompiliert nach deiner Rolle, Expertise und deinen Zielen.*
 
 <img src="../../../assets/features.png" width="100%" alt="Build Your Own Harness">
+
+</div>
+
+Die meisten KI-Tools geben dir ein festes Funktionspaket und sagen „Viel Glück". BYOH dreht das um: Ein kurzes Interview lernt, wie du wirklich arbeitest, und generiert einen personalisierten Agenten-Harness — Skills, Memory, Pipelines — der von Anfang an zu deinem Workflow passt.
 
 ## Für wen ist das?
 

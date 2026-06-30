@@ -1,14 +1,20 @@
 > Este documento es la versión en español de [README.md](../../../README.md). La versión en inglés es la fuente autorizada.
 
+<div align="center">
+
 **[English](../../../README.md)** | [한국어](../ko/README.md) | [日本語](../ja/README.md) | [简体中文](../zh-Hans/README.md) | **Español** | [Deutsch](../de/README.md) | [Français](../fr/README.md) | [Português](../pt/README.md) | [Русский](../ru/README.md) | [العربية](../ar/README.md)
 
 # BuildYourOwnHarness (BYOH)
 
-> **Tu agente de IA, hecho a tu medida** — no una plantilla genérica, sino un harness compilado según tu rol, experiencia y objetivos.
+### Tu agente de IA, hecho a tu medida
 
-La mayoría de las herramientas de IA te dan un conjunto fijo de funciones y dicen "arréglate". BYOH hace lo contrario: te hace una breve entrevista, aprende cómo trabajas de verdad y genera un harness de agente personalizado — habilidades, memoria, pipelines — que encaja con tu flujo de trabajo desde el primer momento.
+*No una plantilla genérica — un harness compilado según tu rol, experiencia y objetivos.*
 
 <img src="../../../assets/features.png" width="100%" alt="Build Your Own Harness">
+
+</div>
+
+La mayoría de las herramientas de IA te dan un conjunto fijo de funciones y dicen "arréglate". BYOH hace lo contrario: te hace una breve entrevista, aprende cómo trabajas de verdad y genera un harness de agente personalizado — habilidades, memoria, pipelines — que encaja con tu flujo de trabajo desde el primer momento.
 
 ## ¿Para quién es?
 

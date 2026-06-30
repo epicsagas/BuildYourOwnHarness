@@ -1,12 +1,18 @@
+<div align="center">
+
 **[English](README.md)** | [한국어](./docs/i18n/ko/README.md) | [日本語](./docs/i18n/ja/README.md) | [简体中文](./docs/i18n/zh-Hans/README.md) | [Español](./docs/i18n/es/README.md) | [Deutsch](./docs/i18n/de/README.md) | [Français](./docs/i18n/fr/README.md) | [Português](./docs/i18n/pt/README.md) | [Русский](./docs/i18n/ru/README.md) | [العربية](./docs/i18n/ar/README.md)
 
 # BuildYourOwnHarness (BYOH)
 
-> **Your AI agent, built around you** — not a generic template, but a harness compiled from your role, expertise, and goals.
+### Your AI agent, built around you
 
-Most AI setups hand you a fixed set of tools and say "good luck." BYOH flips that: it interviews you, learns what you actually do, and generates a personalized agent harness — skills, memory, pipelines — that fits your workflow out of the box.
+*Not a generic template — a harness compiled from your role, expertise, and goals.*
 
 <img src="assets/features.png" width="100%" alt="Build Your Own Harness">
+
+</div>
+
+Most AI setups hand you a fixed set of tools and say "good luck." BYOH flips that: it interviews you, learns what you actually do, and generates a personalized agent harness — skills, memory, pipelines — that fits your workflow out of the box.
 
 ## Who is this for?
 

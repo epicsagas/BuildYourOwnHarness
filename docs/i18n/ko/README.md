@@ -1,14 +1,20 @@
 > 이 문서는 [README.md](../../../README.md)의 한국어 번역입니다. 영문 버전이 권위 있는 원본입니다.
 
+<div align="center">
+
 **[English](../../../README.md)** | **한국어** | [日本語](../ja/README.md) | [简体中文](../zh-Hans/README.md) | [Español](../es/README.md) | [Deutsch](../de/README.md) | [Français](../fr/README.md) | [Português](../pt/README.md) | [Русский](../ru/README.md) | [العربية](../ar/README.md)
 
 # BuildYourOwnHarness (BYOH)
 
-> **나만의 AI 에이전트** — 범용 템플릿이 아니라, 내 역할·전문 분야·목표에 맞게 컴파일되는 하네스.
+### 나만의 AI 에이전트
 
-대부분의 AI 도구는 고정된 기능 묶음을 주고 "알아서 써보세요"라고 합니다. BYOH는 반대입니다. 짧은 인터뷰로 실제로 어떤 일을 하는지 파악하고, 그에 맞는 에이전트 하네스(스킬·메모리·파이프라인)를 자동으로 생성합니다.
+*범용 템플릿이 아니라, 내 역할·전문 분야·목표에 맞게 컴파일되는 하네스.*
 
 <img src="../../../assets/features.png" width="100%" alt="Build Your Own Harness">
+
+</div>
+
+대부분의 AI 도구는 고정된 기능 묶음을 주고 "알아서 써보세요"라고 합니다. BYOH는 반대입니다. 짧은 인터뷰로 실제로 어떤 일을 하는지 파악하고, 그에 맞는 에이전트 하네스(스킬·메모리·파이프라인)를 자동으로 생성합니다.
 
 ## 이런 분께 맞습니다
 

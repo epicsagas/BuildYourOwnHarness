@@ -1,10 +1,18 @@
 > 本文档是 [README.md](../../../README.md) 的简体中文版本。英文版本为权威原始来源。
 
+<div align="center">
+
 **[English](../../../README.md)** | [한국어](../ko/README.md) | [日本語](../ja/README.md) | **简体中文** | [Español](../es/README.md) | [Deutsch](../de/README.md) | [Français](../fr/README.md) | [Português](../pt/README.md) | [Русский](../ru/README.md) | [العربية](../ar/README.md)
 
 # BuildYourOwnHarness (BYOH)
 
-> **专属于你的 AI 智能体** —— 不是通用模板，而是根据你的角色、专业和目标编译出的定制化工作台。
+### 专属于你的 AI 智能体
+
+*不是通用模板，而是根据你的角色、专业和目标编译出的定制化工作台。*
+
+<img src="../../../assets/features.png" width="100%" alt="Build Your Own Harness">
+
+</div>
 
 ## 这是什么
 
