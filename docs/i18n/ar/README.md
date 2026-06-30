@@ -1,90 +1,196 @@
-> هذه ترجمة لـ [README.md](../../README.md). النسخة الإنجليزية هي المصدر الموثوق وقد تكون أحدث.
->
-> ⚠️ Auto-translation pending — the English source below awaits translation via the i18n workflow.
+> هذا المستند هو النسخة العربية من [README.md](../../../README.md). النسخة الإنجليزية هي المرجع الأصلي.
 
 # BuildYourOwnHarness (BYOH)
 
-> Interactively collect a user's tacit knowledge, data, business genre, and goals — then **generate, deploy, operate, and evolve a personalized AI agent harness**.
+> **وكيل الذكاء الاصطناعي الخاص بك، مصمم لك** — ليس قالبًا جاهزًا، بل نظام مُجمَّع وفق دورك ومهاراتك وأهدافك.
 
-BYOH adds a **generation layer** on top of the validated building blocks of the [epiccounty](https://github.com/epicsagas) workspace. Instead of shipping a fixed skill/memory/pipeline set, it compiles a *unique* harness per user from an interview.
+معظم أدوات الذكاء الاصطناعي تعطيك مجموعة ثابتة من الميزات وتقول "وفّق نفسك". BYOH يقلب المعادلة: مقابلة قصيرة تتعلم كيف تعمل فعلاً، ثم تولّد نظام وكيل مخصصًا — مهارات وذاكرة وخطوط معالجة — يناسب طريقة عملك من اللحظة الأولى.
 
-## What it does
+## لمن هذا؟
 
-A confirmed user profile (genre + expertise + 30-day goal) drives a synthesis engine that **recombines registry skills by keyword** into an ordered pipeline, producing a `HarnessBundle` that is *not* a fixed genre template. The whole pipeline is closed-loop and gated by three safety gates (Critic / Seesaw / Stagnation) that can never be bypassed.
+- **المطورون** — وكيل يعرف مسبقًا بنيتك التقنية وأسلوب الاختبار ودورة التسليم
+- **الباحثون** — مراجعة الأدبيات وتتبع المصادر والتوليف في خط معالجة واحد متكامل
+- **المبدعون** — شريك كتابة يتناسب مع أسلوبك وهيكل مشروعك
+- **محللو الأعمال** — أطر قرار وخطوط تقارير حقيقية، لا مجرد محادثة
+
+إذا خطر ببالك يومًا "ليتني أملك ذكاءً اصطناعيًا يفهم سياقي فعلاً" — فهذا بالضبط ما يقدمه BYOH.
+
+## ابدأ في 60 ثانية
 
 ```
-profile (interview → genre → confirm) → compile → synthesize → render → install → run → evolve
+1. byoh profile init me        # يفحص مشروعك — قراءة فقط، لا تعديل
+2. byoh profile interview me   # محادثة قصيرة عن دورك وأهدافك
+3. byoh compile me             # يولّد نظامك الشخصي
+4. byoh install me             # ينشره في Claude / Codex / agy
 ```
 
-## Build & verify
+في الجلسة التالية يحمّل الخادم نظامك تلقائيًا — وكلاء ومهارات وذاكرة وخطوط معالجة، كلها مضبوطة لك.
+
+**تعرف ما تحتاجه؟** تصفّح كتالوج المجتمع مباشرةً:
+```bash
+byoh catalog index                              # تنزيل قائمة أفضل 100 إضافة (ثوانٍ)
+byoh catalog search "code review"               # ابحث عما تحتاجه
+byoh catalog vendor anthropics/claude-code-review   # أضفه إلى نظامك
+```
+
+## التثبيت
+
+### البرنامج الثنائي (موصى به — لا يتطلب Rust)
+
+**macOS / Linux:**
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/epicsagas/BuildYourOwnHarness/releases/latest/download/install.sh | sh
+```
+
+**Windows (PowerShell):**
+```powershell
+irm https://github.com/epicsagas/BuildYourOwnHarness/releases/latest/download/install.ps1 | iex
+```
+
+**من المصدر:**
+```bash
+cargo install byoh --git https://github.com/epicsagas/BuildYourOwnHarness
+```
+
+```bash
+byoh --version   # تحقق من التثبيت
+```
+
+### تحميل الإضافة في خادم الذكاء الاصطناعي
+
+BYOH إضافة متعددة اللغات تعمل مع Claude Code و Codex و agy — مستودع واحد للأنظمة الثلاثة.
+
+**Claude Code:**
+```bash
+claude plugin marketplace add epicsagas/BuildYourOwnHarness
+claude plugin install byoh@epicsagas
+```
+
+**agy (Antigravity):**
+```bash
+agy plugin install /path/to/BuildYourOwnHarness
+agy plugin enable byoh
+```
+
+**Codex:**
+```bash
+codex plugin marketplace add /path/to/BuildYourOwnHarness
+codex plugin add byoh@epicsagas
+```
+
+تثبّت الإضافة الملف الثنائي `byoh` تلقائيًا عند أول تشغيل — لا حاجة لـ Rust على جهازك.
+
+> **ملاحظة:** المستودع خاص حاليًا. استخدم المسارات أعلاه. عند الإتاحة للعموم سيظهر في سوق `epicsagas/plugins`.
+
+## أول نظام لك — خطوة بخطوة
+
+### الخطوة 1 — الملف الشخصي
+```bash
+byoh profile init me --paths ./src ./docs   # فحص تلقائي للمشروع
+byoh profile interview me                   # محادثة ~5 دقائق
+byoh profile confirm me --genre developer   # تثبيت التصنيف
+```
+
+يسألك BYOH عن دورك ومستوى خبرتك وأدواتك وهدفك لمدة 30 يومًا. تتكيف المقابلة — الباحث يحصل على أسئلة مختلفة عن المطور.
+
+### الخطوة 2 — التجميع والتثبيت
+```bash
+byoh compile me                  # توليد HarnessBundle (تحقق + بوابات)
+byoh render me --target claude   # أو: codex | agy | all
+byoh install me                  # تثبيت آمن في dist/
+```
+
+### الخطوة 3 — التشغيل والتطور
+```bash
+byoh run me       # التشغيل مع تفعيل النظام
+byoh evolve me    # تحسين النظام بناءً على تغذية راجعة
+```
+
+يُشغّل `evolve` دورة ثلاثية البوابات (Critic / Seesaw / Stagnation) لا يمكن تجاوزها — التطور آمن وقابل للمراجعة.
+
+## كتالوج الإضافات
+
+يمنحك الكتالوج قائمة منتقاة بأفضل 100 إضافة لـ Claude (مرتبة حسب النجوم، تُحدَّث يوميًا) لتكتشف مهارات المجتمع وتضيفها دون مغادرة الطرفية.
+
+```bash
+# فهرسة مرة واحدة — تنزيل حزمة جاهزة في ثوانٍ
+byoh catalog index
+
+# بحث دون اتصال — لا شبكة بعد الفهرسة
+byoh catalog search "memory" --genre developer --limit 5
+
+# إضافة إضافة إلى نظامك
+# الترخيص والكلمات المفتاحية والتصنيف تُكتشف تلقائيًا من المستودع المستنسخ
+byoh catalog vendor obra/superpowers --genre developer
+```
+
+يستطيع وكيل الذكاء الاصطناعي (عبر أدوات MCP: `catalog_search` / `catalog_vendor`) تنفيذ هذا التدفق كاملاً باستقلالية — أو يمكنك توجيهه مباشرةً من CLI.
+
+## وضع الوكيل
+
+يشغّل `byoh serve` خادم MCP عبر stdio. بدلاً من كتابة الأوامر يدويًا، يستدعي خادم الذكاء الاصطناعي 14 أداة من BYOH مباشرةً — المحادثة *هي* المقابلة والمعالج والتنفيذ في آنٍ واحد.
+
+```bash
+byoh serve   # يتصل Claude / Codex / agy ويتولى كل شيء
+```
+
+الأدوات المتاحة: `profile_create`، `profile_scan`، `profile_interview`، `profile_confirm`، `compile`، `evolve_cycle`، `rag_index`، `rag_search`، `genre_list`، `registry_clone_skill`، `catalog_search`، `catalog_vendor` وغيرها.
+
+## مرجع CLI الكامل
+
+```bash
+# الملف الشخصي
+byoh profile init <slug> [--paths ...]      # فحص المشروع (قراءة فقط)
+byoh profile interview <slug>               # مقابلة موجّهة
+byoh profile confirm <slug> --genre <g>     # تأكيد الملف الشخصي وتثبيته
+
+# البناء
+byoh compile <slug> [--dry-run]             # تحقق + توليد HarnessBundle
+byoh render <slug> --target <host>          # claude | codex | agy | all
+byoh install <slug> [--host <dir>]          # نشر في dist/ أو مجلد الإضافة الفعلي
+
+# التشغيل والتطور
+byoh run <slug>
+byoh evolve <slug>
+
+# مهارات المجتمع
+byoh vendor add <src> --genre <g> --id <id> [--keywords k1,k2] [--trust] [--sha <s>]
+byoh vendor list
+byoh vendor remove <id> --genre <g>
+
+# الكتالوج
+byoh catalog index [--no-bundle] [--limit N]
+byoh catalog search "<استعلام>" [--genre <g>] [--tags k1,k2] [--limit N]
+byoh catalog vendor <owner/repo> [--genre <g>] [--keywords k1,k2]
+
+# قاعدة المعرفة (RAG)
+byoh index <slug> [--corpus <dir>] [--force]
+byoh search <slug> "<استعلام>" [--genre <g>] [--k N]
+```
+
+## كيف يعمل من الداخل
+
+يطابق محرك التوليف في BYOH وسوم ملفك الشخصي مع سجل المهارات، ويرتبها في خط معالجة محلول التبعيات، ثم يصدر `HarnessBundle` — مصنوع للـ git ويُصيَّر بالصيغة الأصلية لأي خادم مدعوم.
+
+- **4 حلقات أمان** — من المهارات المدمجة (Ring 1) إلى مهارات المجتمع/غير الموثوقة (Ring 4)، مع تصاعد التحقق في كل حلقة
+- **3 بوابات تطور** — كل دورة `evolve` تمر ببوابات Critic (الجودة) و Seesaw (الانحدار) و Stagnation (الركود)؛ لا تجاوز ممكن
+- **RAG مستمر** — إعادة تضمين تدريجية عند التغييرات (`+مضاف ~متغير -محذوف`)؛ يعيد البحث استخدام الفهرس المحفوظ دون إعادة تضمين
+- **خطوط معالجة موجّهة بالأهداف** — بمجرد تحديد هدف 30 يومًا (إطلاق منتج، تقرير بحثي، شحن آمن…) تُطبَّق سلم المهارات المناسب تلقائيًا
+
+البنية: سداسية — `domain / ports / adapters / application / compiler / evolve / templates / deploy / i18n / obs / security / cli`. الدليل الكامل في `AGENTS.md`.
+
+## البناء والتطوير
 
 ```bash
 cargo build --release
 cargo clippy --all-targets -- -D warnings
-cargo test                       # unit + e2e
-./target/release/byoh --help
+cargo test                        # وحدات + e2e
+cvp                               # متوازي: check → clippy → test → fmt → build
 ```
 
-Hexagonal architecture: `domain / ports / adapters / application / compiler / evolve / templates / deploy / i18n / obs / security / cli`.
+ميزات اختيارية: `--features mcp` (خادم MCP)، `--features native-rag` (تضمين محلي)، `--features rag-openai` (تضمين OpenAI). الثنائيات الإصدارية تتضمن جميع الميزات.
 
-## CLI
-
-```bash
-byoh profile init <slug> [--paths ...]   # S1 autoscan (non-destructive)
-byoh profile interview <slug>            # S2 interview (Suggest + Council)
-byoh profile confirm <slug> --genre <g>  # S3 wizard confirm
-byoh vendor add <src> --genre <g> --id <id> [--keywords k1,k2] [--trust] [--sha <s>]
-byoh vendor list
-byoh vendor remove <id> --genre <g>
-byoh compile <slug> [--dry-run]          # static gate + dry-run gate → HarnessBundle
-byoh render <slug> --target claude       # claude | codex | agy | all (git-ready)
-byoh install <slug>                      # safe dist/ install (--host for live plugin dir)
-byoh run <slug>
-byoh evolve <slug>                       # 3-gate evolution cycle
-byoh catalog index [--limit N]           # تحليل README أفضل-100 من quemsah → ~/.byoh/catalog.json
-byoh catalog search "<استعلام>" [--genre <g>] [--tags k1,k2] [--limit N]
-byoh catalog vendor <owner/repo> [--genre <g>] [--keywords k1,k2]
-```
-
-### وضع الأتمتة عبر MCP (خادم MCP)
-
-`byoh serve` (`--features mcp`) يُشغّل خادم MCP عبر stdio ليتولى وكيل LLM **قيادة BYOH** مباشرةً — يصبح سطر الأوامر ثانويًا (عكس التحكم). 14 أداة (`profile_*`، `rag_*`، `genre_list`، `compile`، `evolve_cycle`، `registry_clone_skill`، `catalog_search`، `catalog_vendor`) قابلة للاكتشاف عبر `tools/list`. المحادثة *هي* المقابلة/المعالج.
-
-```bash
-cargo build --release --features mcp
-byoh serve
-```
-
-## الجوهر: التوليف والاستيراد وكتالوج المكونات
-
-- **محرك التوليف** — `synthesize(profile)` يطابق مهارات السجل مع وسوم الملف الشخصي، يرتّبها في خط أنابيب، ويُجبر على إعادة المرور عبر بوابات الأمان الثلاث (بلا تجاوز). تُوفّر خطوط الأنابيب الموجّهة بالأهداف (إطلاق منتج / قرار / تقرير بحثي / شحن آمن / …) سلّمًا من المهارات ومجموعة وكلاء عند تطابق هدف الـ 30 يومًا.
-- **استيراد مهارات المجتمع** (RFC M3) — `byoh vendor add` يجلب ملف `SKILL.md` خارجيًا (مسار محلي أو رابط git)، يُجري التحقق الثابت + sha256، ويُدمجه في **Ring 3** (الأشد تقييدًا) وقت البناء عبر `build.rs`. تنضم المهارات الخارجية إلى التوليف كشيفرة غير موثوقة.
-- **كتالوج المكونات** — `byoh catalog index` يبني ذاكرة تخزين مؤقت في `~/.byoh/catalog.json` من README منسّق [quemsah/awesome-claude-plugins](https://github.com/quemsah/awesome-claude-plugins) (أفضل 100 حسب النجوم، يُحدَّث يوميًا). جلب + تحليل واحد (بدون زحف صفحة بصفحة)، وكل مدخل يحمل `stars` حقيقية. افتراضيًا يحمّل أولاً **حزمة جاهزة من المسؤول** (أصل GitHub Release أسبوعي — ثوانٍ) ولا يحلّل README مباشرة إلا عند عدم توفرها. بعد الفهرسة يعمل `catalog search` و`catalog vendor` بالكامل بدون اتصال. خلال مقابلة المعالج S2، يُضمّن `profile_interview` تلقائيًا `catalog_suggestions` — ما يصل إلى 5 مكونات مطابقة للنوع يمكن للـ LLM التوصية بها دون استدعاءات أدوات إضافية.
-
-  يقوم `catalog vendor` **بإثراء ذاكرة التخزين المؤقت للكتالوج عند الاستيراد**: بعد استنساخ مستودع المكوِّن، يستخرج `license` و`keywords` من `.claude-plugin/plugin.json` ويسجّل `genre` المحدَّد. تُكتب هذه القيم إلى `catalog.json` فقط عندما تكون القيمة المخزّنة `"unknown"` أو فارغة، مما يجعل نتائج `catalog search` أكثر ثراءً مع كل عملية استيراد. يستطيع وكيل LLM تنفيذ سير العمل بأكمله (بحث → استيراد) بشكل مستقل عبر أدوات MCP `catalog_search` / `catalog_vendor`، أو يمكن للمستخدم تحديد ذلك مباشرةً عبر واجهة سطر الأوامر.
-
-  ```bash
-  # فهرسة لمرة واحدة — تحميل الحزمة أولاً، ثم تحليل README كخيار احتياطي
-  byoh catalog index                       # الحزمة أولاً، README كخيار احتياطي
-  byoh catalog index --no-bundle           # تحليل README مباشرةً
-  byoh catalog index --no-bundle --limit 20   # أول 20 فقط
-
-  # تجاوز للاختبار مع مرآة محلية:
-  #   BYOH_BUNDLE_URL=http://localhost:18099/catalog.json.gz byoh catalog index
-
-  # بحث بدون اتصال
-  byoh catalog search "test driven development" --genre developer --limit 5
-
-  # استيراد المكوِّن إلى registry/vendored/ (يُستخرج license وkeywords وgenre تلقائيًا)
-  byoh catalog vendor obra/superpowers --genre developer
-  ```
-
-## Status
-
-Rust implementation of the generation layer: profiler + interview + genre templates + compiler (4-ring, MCP-tool codegen, static gate) + evolution engine + self-contained RAG (optional `native-rag` feature) + MCP server (optional `mcp` feature). See `AGENTS.md` for the architecture guide.
-
-The RAG layer is a **persistent knowledge base**: `byoh index` saves the genre index + a corpus sidecar under `$BYOH_HOME/indexes/`, and a later `byoh search` (or the `rag_search` MCP tool) with no `--corpus` reuses it via `load_index` — no re-embedding. Re-indexing is **incremental** — a content-hash manifest re-embeds only added/changed docs and drops removed ones (reported as `+a ~c -r`); `--force` does a full rebuild.
-
-## License
+## الرخصة
 
 Apache-2.0.
