@@ -1,7 +1,7 @@
 //! CatalogEntry → vendor_add pipeline.
 
 use super::CatalogEntry;
-use crate::deploy::{VendorEntry, fetch_git, vendor_add};
+use crate::deploy::{fetch_git, vendor_add, VendorEntry};
 use crate::domain::genre::Genre;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -20,20 +20,22 @@ pub fn catalog_vendor(
     extra_keywords: &[String],
     repo_root: &Path,
 ) -> crate::Result<VendorEntry> {
-    let resolved_genre = genre
-        .or(entry.byoh_genre)
-        .ok_or_else(|| crate::domain::ByohError::Schema(format!(
+    let resolved_genre = genre.or(entry.byoh_genre).ok_or_else(|| {
+        crate::domain::ByohError::Schema(format!(
             "catalog vendor: no genre for '{}' — pass --genre or ensure byoh_genre is set",
             entry.id
-        )))?;
+        ))
+    })?;
 
     let fetched_at = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs().to_string())
         .unwrap_or_else(|_| "0".into());
 
-    let dest = std::env::temp_dir()
-        .join(format!("byoh-catalog-{}-{fetched_at}", entry.id.replace('/', "-")));
+    let dest = std::env::temp_dir().join(format!(
+        "byoh-catalog-{}-{fetched_at}",
+        entry.id.replace('/', "-")
+    ));
 
     let _sha = fetch_git(&entry.github_url, "HEAD", None, &dest)?;
 
@@ -41,7 +43,18 @@ pub fn catalog_vendor(
     keywords.extend_from_slice(extra_keywords);
     keywords.dedup();
 
-    let skill_id = entry.id.replace('/', "-");
+    // Sanitize the catalog id (`owner/repo`) into a filesystem-safe skill id.
+    // `replace('/', "-")` alone still admits `..`; route through sanitize_skill_id
+    // for full path-traversal / separator / charset rejection.
+    let raw = entry.id.replace('/', "-");
+    let skill_id = crate::deploy::sanitize_skill_id(&raw)
+        .map_err(|e| {
+            crate::domain::ByohError::Schema(format!(
+                "catalog vendor: unsafe plugin id '{}': {e}",
+                entry.id
+            ))
+        })?
+        .to_string();
     let result = vendor_add(
         &dest,
         resolved_genre,

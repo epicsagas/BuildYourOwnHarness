@@ -116,6 +116,44 @@ pub fn save_manifest(repo_root: &Path, m: &VendorManifest) -> Result<()> {
     Ok(())
 }
 
+/// Validate a `skill_id` before it is used in a filesystem path. Mirrors
+/// [`crate::store::sanitize_slug`] semantics but rejects `/` as well (catalog
+/// ids are `owner/repo`, sanitized to `owner-repo` upstream). Blocks path
+/// traversal (`..`), separators, absolute paths, and shell-hostile characters
+/// before the id is ever joined into `registry/vendored/<genre>/<id>.md`.
+pub fn sanitize_skill_id(id: &str) -> Result<&str> {
+    const MAX: usize = 96; // allow owner-repo style ids
+    if id.is_empty() {
+        return Err(ByohError::Schema("skill_id must not be empty".into()));
+    }
+    if id.len() > MAX {
+        return Err(ByohError::Schema(format!(
+            "skill_id too long (>{MAX} chars): '{id}'"
+        )));
+    }
+    if id == ".." || id.contains('/') || id.contains('\\') || id.contains("..") {
+        return Err(ByohError::Schema(format!(
+            "skill_id must not contain path separators or traversal: '{id}'"
+        )));
+    }
+    let mut chars = id.chars();
+    let first = chars.next().expect("non-empty (checked above)");
+    if !(first.is_ascii_lowercase() || first.is_ascii_digit()) {
+        return Err(ByohError::Schema(format!(
+            "skill_id must start with [a-z0-9]: '{id}'"
+        )));
+    }
+    if !id
+        .chars()
+        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_' || c == '.')
+    {
+        return Err(ByohError::Schema(format!(
+            "skill_id may only contain [a-z0-9-_.]: '{id}'"
+        )));
+    }
+    Ok(id)
+}
+
 /// Vendor a `SKILL.md` from `source` into `registry/vendored/<genre>/<id>.md`
 /// and append/replace its `VendorEntry`. Idempotent per `(genre, skill_id)`.
 /// Refuses if [`static_validate`] flags the body.
@@ -131,6 +169,9 @@ pub fn vendor_add(
     repo_root: &Path,
     fetched_at: &str,
 ) -> Result<VendorEntry> {
+    // Defense-in-depth: validate skill_id before any path join, regardless of
+    // caller (CLI `--id`, catalog `owner/repo` → `owner-repo`, MCP tool).
+    sanitize_skill_id(skill_id)?;
     let body = resolve_skill_body(source, skill_id)?;
     let findings = static_validate(&body);
     if !findings.is_empty() {
@@ -252,16 +293,70 @@ pub enum VendorSource {
     },
 }
 
-/// Default-trusted source prefixes (RFC §5 allowlist). Arbitrary git URLs need
-/// explicit `--trust`.
-pub const TRUSTED_SOURCES: &[&str] = &[
-    "github.com/anthropics/",
-    "github.com/anthropics/claude-plugins-official",
+/// Default-trusted sources (RFC §5 allowlist). Arbitrary git URLs need
+/// explicit `--trust`. Each entry is `(host, path_prefix)` — matched exactly
+/// against the parsed URL's host and path, NOT as a substring, so an attacker
+/// can't smuggle a trusted token into a query string or a different host
+/// (e.g. `https://evil.com/?u=github.com/anthropics/`).
+pub const TRUSTED_SOURCES: &[(&str, &str)] = &[
+    // host           // path prefix (must start at the path root)
+    ("github.com", "/anthropics/"),
 ];
 
 /// Is `src` covered by the default allowlist?
+///
+/// Matches by **exact host + path prefix**, never by substring. Accepts both
+/// `https://github.com/anthropics/...` and `git@github.com:anthropics/...` (SCP)
+/// forms. A trusted token embedded in a query string, fragment, or a different
+/// host is rejected.
 pub fn source_is_trusted(src: &str) -> bool {
-    TRUSTED_SOURCES.iter().any(|t| src.contains(t))
+    let Some((host, path)) = parse_git_host_path(src) else {
+        return false;
+    };
+    TRUSTED_SOURCES
+        .iter()
+        .any(|(t_host, t_prefix)| *t_host == host && path.starts_with(t_prefix))
+}
+
+/// Split a git source URL into `(host, path)`. Handles:
+/// - `https://github.com/owner/repo[.git][?…][#…]`
+/// - `http://host/...`        (parsed, but only https hosts are trusted)
+/// - `git@github.com:owner/repo.git` (SCP form)
+///
+/// Returns `None` for `file://`, `ssh://`, or unparseable input.
+fn parse_git_host_path(src: &str) -> Option<(String, String)> {
+    let src = src.trim();
+    // SCP form: git@host:path
+    if let Some(rest) = src.strip_prefix("git@") {
+        let (host, path) = rest.split_once(':')?;
+        let path = format!("/{}", path.trim_start_matches('/'));
+        return Some((host.to_ascii_lowercase(), path));
+    }
+    // URL form: scheme://host/path?query#frag
+    let (scheme, after_scheme) = src.split_once("://")?;
+    let scheme = scheme.to_ascii_lowercase();
+    // Only http(s) is trustable; reject file://, ssh:// (URL form), etc.
+    if scheme != "http" && scheme != "https" {
+        return None;
+    }
+    // Drop query/fragment, then split authority from path at the first '/'.
+    let after_scheme = after_scheme
+        .split(['?', '#'])
+        .next()
+        .unwrap_or(after_scheme);
+    let (authority, path) = match after_scheme.split_once('/') {
+        Some((auth, p)) => (auth, format!("/{p}")),
+        None => (after_scheme, String::from("/")),
+    };
+    // Strip userinfo (user@host) if present.
+    let authority = authority.rsplit('@').next().unwrap_or(authority);
+    // Authority may include :port — drop it for host matching.
+    let host = authority
+        .split(':')
+        .next()
+        .unwrap_or(authority)
+        .to_ascii_lowercase();
+    Some((host, path))
 }
 
 /// Classify a raw source string into [`VendorSource`]. Anything that looks like
@@ -573,9 +668,68 @@ mod tests {
         ));
         assert!(source_is_trusted("https://github.com/anthropics/any-repo"));
         assert!(!source_is_trusted("https://github.com/random/stranger"));
-        // SCP-style git@ URLs separate host and owner with ':' not '/', so the
-        // slash-based allowlist does not auto-trust them — require --trust.
-        assert!(!source_is_trusted("git@github.com:anthropics/repo.git"));
+        // SCP-style git@ URLs are parsed into (host, path) too — anthropics/* trusts.
+        assert!(source_is_trusted("git@github.com:anthropics/repo.git"));
+    }
+
+    #[test]
+    fn source_is_trusted_rejects_substring_smuggling() {
+        // Trusted token smuggled into a query string on a DIFFERENT host — must NOT trust.
+        assert!(!source_is_trusted(
+            "https://evil.com/?redirect=github.com/anthropics/x"
+        ));
+        // Trusted token embedded as a path on an attacker host — must NOT trust.
+        assert!(!source_is_trusted(
+            "https://evil.com/github.com/anthropics/x"
+        ));
+        // Fragment smuggling.
+        assert!(!source_is_trusted(
+            "https://evil.com/x#github.com/anthropics/y"
+        ));
+        // file:// and ssh:// (URL form) are not trustable transports.
+        assert!(!source_is_trusted("file:///etc/passwd"));
+        assert!(!source_is_trusted("ssh://github.com/anthropics/x"));
+        // A host whose name merely ends with github.com.
+        assert!(!source_is_trusted("https://notgithub.com/anthropics/x"));
+        // Port variant of a legit host still trusts on the path.
+        assert!(source_is_trusted("https://github.com:443/anthropics/x"));
+    }
+
+    #[test]
+    fn sanitize_skill_id_rejects_traversal() {
+        assert!(sanitize_skill_id("ok-id").is_ok());
+        assert!(sanitize_skill_id("owner-repo").is_ok());
+        assert_eq!(
+            sanitize_skill_id("").unwrap_err().to_string(),
+            "profile schema error: skill_id must not be empty"
+        );
+        assert!(sanitize_skill_id("../etc/cron.d/x").is_err());
+        assert!(sanitize_skill_id("..").is_err());
+        assert!(sanitize_skill_id("a/../b").is_err());
+        assert!(sanitize_skill_id("a/b").is_err());
+        assert!(sanitize_skill_id("a\\b").is_err());
+        assert!(sanitize_skill_id("-leading-dash").is_err());
+    }
+
+    #[test]
+    fn vendor_add_rejects_traversal_id() {
+        let dir = tempdir().unwrap();
+        let body = "# ok\nno forbidden patterns here\n";
+        let skill_md = dir.path().join("SKILL.md");
+        fs::write(&skill_md, body).unwrap();
+        let err = vendor_add(
+            &skill_md,
+            Genre::Developer,
+            "../../../etc/cron.d/evil",
+            &[],
+            "unknown",
+            dir.path(),
+            "0",
+        )
+        .unwrap_err();
+        assert!(matches!(err, ByohError::Schema(_)), "got {err:?}");
+        // Confirm nothing was written outside the vendored dir.
+        assert!(!dir.path().join("etc").exists());
     }
 
     #[test]

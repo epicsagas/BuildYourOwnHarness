@@ -1,6 +1,6 @@
 //! Offline keyword search over the local catalog cache — no network.
 
-use super::{CatalogCache, CatalogEntry, load_cache};
+use super::{load_cache, CatalogCache, CatalogEntry};
 use crate::domain::genre::Genre;
 use std::path::Path;
 
@@ -28,10 +28,14 @@ pub fn search_cache(cache: &CatalogCache, opts: &SearchOptions) -> Vec<CatalogEn
         .iter()
         .filter_map(|e| {
             let s = score_entry(e, opts);
-            if s > 0 { Some((s, e)) } else { None }
+            if s > 0 {
+                Some((s, e))
+            } else {
+                None
+            }
         })
         .collect();
-    scored.sort_by(|a, b| b.0.cmp(&a.0));
+    scored.sort_by_key(|b| std::cmp::Reverse(b.0));
     scored
         .into_iter()
         .take(opts.limit)
@@ -125,23 +129,42 @@ mod tests {
     }
 
     fn cache(entries: Vec<CatalogEntry>) -> CatalogCache {
-        CatalogCache { built_at: 9999, entries }
+        CatalogCache {
+            built_at: 9999,
+            entries,
+        }
     }
 
     #[test]
     fn empty_cache_returns_empty() {
         let c = CatalogCache::default();
-        let opts = SearchOptions { query: "tdd", genre: None, tags: &[], limit: 10 };
+        let opts = SearchOptions {
+            query: "tdd",
+            genre: None,
+            tags: &[],
+            limit: 10,
+        };
         assert!(search_cache(&c, &opts).is_empty());
     }
 
     #[test]
     fn name_match_scores_highest() {
         let c = cache(vec![
-            entry("a/tdd-skill", "tdd-skill", "test driven", &["tdd"], Some(Genre::Developer)),
+            entry(
+                "a/tdd-skill",
+                "tdd-skill",
+                "test driven",
+                &["tdd"],
+                Some(Genre::Developer),
+            ),
             entry("b/other", "other", "nothing here", &["random"], None),
         ]);
-        let opts = SearchOptions { query: "tdd", genre: None, tags: &[], limit: 10 };
+        let opts = SearchOptions {
+            query: "tdd",
+            genre: None,
+            tags: &[],
+            limit: 10,
+        };
         let res = search_cache(&c, &opts);
         assert_eq!(res[0].id, "a/tdd-skill");
         assert_eq!(res.len(), 1); // "other" scores 0
@@ -150,8 +173,20 @@ mod tests {
     #[test]
     fn genre_filter_excludes_wrong_genre() {
         let c = cache(vec![
-            entry("a/write", "write", "writing tool", &["writing"], Some(Genre::Creator)),
-            entry("b/code", "code", "coding tool", &["code"], Some(Genre::Developer)),
+            entry(
+                "a/write",
+                "write",
+                "writing tool",
+                &["writing"],
+                Some(Genre::Creator),
+            ),
+            entry(
+                "b/code",
+                "code",
+                "coding tool",
+                &["code"],
+                Some(Genre::Developer),
+            ),
         ]);
         let opts = SearchOptions {
             query: "tool",
@@ -166,7 +201,13 @@ mod tests {
 
     #[test]
     fn genre_filter_passes_unknown_genre() {
-        let c = cache(vec![entry("a/mystery", "mystery tool", "unknown genre", &[], None)]);
+        let c = cache(vec![entry(
+            "a/mystery",
+            "mystery tool",
+            "unknown genre",
+            &[],
+            None,
+        )]);
         let opts = SearchOptions {
             query: "tool",
             genre: Some(Genre::Developer),
@@ -184,7 +225,12 @@ mod tests {
             entry("b/partial", "partial", "d", &["tdd"], None),
         ]);
         let tags = vec!["tdd".to_string(), "rust".to_string()];
-        let opts = SearchOptions { query: "d", genre: None, tags: &tags, limit: 10 };
+        let opts = SearchOptions {
+            query: "d",
+            genre: None,
+            tags: &tags,
+            limit: 10,
+        };
         let res = search_cache(&c, &opts);
         assert_eq!(res.len(), 1);
         assert_eq!(res[0].id, "a/full");
@@ -193,10 +239,23 @@ mod tests {
     #[test]
     fn limit_respected() {
         let entries: Vec<CatalogEntry> = (0..10)
-            .map(|i| entry(&format!("a/{i}"), &format!("tool{i}"), "tool", &["tool"], None))
+            .map(|i| {
+                entry(
+                    &format!("a/{i}"),
+                    &format!("tool{i}"),
+                    "tool",
+                    &["tool"],
+                    None,
+                )
+            })
             .collect();
         let c = cache(entries);
-        let opts = SearchOptions { query: "tool", genre: None, tags: &[], limit: 3 };
+        let opts = SearchOptions {
+            query: "tool",
+            genre: None,
+            tags: &[],
+            limit: 3,
+        };
         assert_eq!(search_cache(&c, &opts).len(), 3);
     }
 
@@ -206,7 +265,12 @@ mod tests {
             entry("a/x", "x", "d", &[], None),
             entry("b/y", "y", "d", &[], None),
         ]);
-        let opts = SearchOptions { query: "", genre: None, tags: &[], limit: 5 };
+        let opts = SearchOptions {
+            query: "",
+            genre: None,
+            tags: &[],
+            limit: 5,
+        };
         assert_eq!(search_cache(&c, &opts).len(), 2);
     }
 }

@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use byoh::adapters::{FilesystemSource, RuleInterview, RuleLlm, StaticWizard, StdCommand};
 use byoh::application::ProfileOrchestrator;
-use byoh::catalog::search::{SearchOptions, catalog_search};
+use byoh::catalog::search::{catalog_search, SearchOptions};
 use byoh::cli::{CatalogAction, Cli, Command, ProfileAction};
 use byoh::compiler::{compile_profile, dry_run, static_gate};
 use byoh::deploy::registry::Registry;
@@ -95,17 +95,15 @@ fn run_catalog(action: CatalogAction) -> anyhow::Result<()> {
                 );
                 return Ok(());
             }
-            let effective_limit = if limit == 0 { usize::MAX } else { limit };
-            let cache = byoh::catalog::index::catalog_index(
-                &home,
-                effective_limit,
-                ttl_hours,
-                |fetched, total| {
+            // `limit == 0` means "all" (bounded by the sitemap size, ~24k pages).
+            // The CLI default is 500 (cli.rs) so a cold crawl never runs unbounded
+            // for hours; `--limit 0` is the explicit opt-in to a full crawl.
+            let cache =
+                byoh::catalog::index::catalog_index(&home, limit, ttl_hours, |fetched, total| {
                     if fetched % 100 == 0 || fetched == total {
                         eprint!("\r[byoh catalog] indexing {fetched}/{total}...");
                     }
-                },
-            )?;
+                })?;
             eprintln!();
             println!(
                 "[byoh catalog] indexed {} entries → {}",
@@ -113,10 +111,20 @@ fn run_catalog(action: CatalogAction) -> anyhow::Result<()> {
                 byoh::catalog::catalog_path(&home).display()
             );
         }
-        CatalogAction::Search { query, genre, tags, limit } => {
+        CatalogAction::Search {
+            query,
+            genre,
+            tags,
+            limit,
+        } => {
             let genre_parsed = genre.as_deref().map(|g| g.parse::<Genre>()).transpose()?;
             let tag_list: Vec<String> = tags
-                .map(|t| t.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect())
+                .map(|t| {
+                    t.split(',')
+                        .map(|s| s.trim().to_string())
+                        .filter(|s| !s.is_empty())
+                        .collect()
+                })
                 .unwrap_or_default();
             let opts = SearchOptions {
                 query: &query,
@@ -128,9 +136,15 @@ fn run_catalog(action: CatalogAction) -> anyhow::Result<()> {
             if results.is_empty() {
                 println!("(no results for \"{query}\")");
             } else {
-                println!("{:<40} {:<12} {:<6} {}", "id", "genre", "stars", "description");
+                println!(
+                    "{:<40} {:<12} {:<6} description",
+                    "id", "genre", "stars"
+                );
                 for e in &results {
-                    let g = e.byoh_genre.map(|g| g.as_str().to_string()).unwrap_or_else(|| "?".into());
+                    let g = e
+                        .byoh_genre
+                        .map(|g| g.as_str().to_string())
+                        .unwrap_or_else(|| "?".into());
                     let s = e.stars.map(|n| n.to_string()).unwrap_or_else(|| "-".into());
                     let desc = truncate_str(&e.description, 60);
                     println!("{:<40} {:<12} {:<6} {}", e.id, g, s, desc);
@@ -138,10 +152,19 @@ fn run_catalog(action: CatalogAction) -> anyhow::Result<()> {
                 println!("({} results)", results.len());
             }
         }
-        CatalogAction::Vendor { plugin_id, genre, keywords } => {
+        CatalogAction::Vendor {
+            plugin_id,
+            genre,
+            keywords,
+        } => {
             let genre_parsed = genre.as_deref().map(|g| g.parse::<Genre>()).transpose()?;
             let extra_kw: Vec<String> = keywords
-                .map(|k| k.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect())
+                .map(|k| {
+                    k.split(',')
+                        .map(|s| s.trim().to_string())
+                        .filter(|s| !s.is_empty())
+                        .collect()
+                })
                 .unwrap_or_default();
             // Look up the plugin in the catalog cache.
             let cache = byoh::catalog::load_cache(&home)?;
@@ -281,6 +304,7 @@ fn run_vendor(action: byoh::cli::VendorAction, _lang: &str) -> anyhow::Result<()
 }
 
 fn run_render(slug: &str, target: &str, out: &std::path::Path) -> anyhow::Result<()> {
+    let slug = byoh::store::sanitize_slug(slug)?;
     let target: byoh::domain::render_target::Target = target.parse()?;
     let profile = byoh::store::load_profile(slug)?;
     if profile.status != ProfileStatus::Confirmed {
@@ -395,6 +419,7 @@ fn run_compile(
     do_dry_run: bool,
     lang: &str,
 ) -> anyhow::Result<()> {
+    let slug = byoh::store::sanitize_slug(slug)?;
     let path = match profiles_dir {
         Some(dir) => dir.join(format!("{slug}.yaml")),
         None => profile_path(slug),
@@ -520,6 +545,7 @@ fn run_install(
     force: bool,
     _lang: &str,
 ) -> anyhow::Result<()> {
+    let slug = byoh::store::sanitize_slug(slug)?;
     let target: byoh::domain::render_target::Target = target.parse()?;
     let profile = byoh::store::load_profile(slug)?;
     if profile.status != ProfileStatus::Confirmed {

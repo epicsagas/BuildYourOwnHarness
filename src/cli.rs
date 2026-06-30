@@ -197,8 +197,10 @@ pub enum CatalogAction {
     /// Fetch awesomeclaudeplugins.com sitemap + per-page JSON-LD → rebuild
     /// `~/.byoh/catalog.json`.
     Index {
-        /// Max number of plugin pages to fetch (0 = all).
-        #[arg(long, default_value_t = 0)]
+        /// Max number of plugin pages to fetch. The site has ~24 000 entries; the
+        /// default caps a cold crawl at a safe 500 to avoid an unbounded
+        /// multi-hour fetch. Pass `--limit 0` to fetch everything.
+        #[arg(long, default_value_t = 500)]
         limit: usize,
         /// Cache TTL in hours (existing cache is reused if still fresh).
         #[arg(long, default_value_t = 24)]

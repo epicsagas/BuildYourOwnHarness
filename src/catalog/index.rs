@@ -1,13 +1,29 @@
 //! Catalog indexer — sitemap.xml → per-page JSON-LD → CatalogCache.
 //! **This is the only module that makes network calls** (feature-gated to `catalog`).
 
-use super::{CatalogCache, CatalogEntry, save_cache};
+use super::{save_cache, CatalogCache, CatalogEntry};
 use crate::deploy::genre_map::infer_genre;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const SITEMAP_URL: &str = "https://awesomeclaudeplugins.com/sitemap.xml";
 const BASE_URL: &str = "https://awesomeclaudeplugins.com";
+
+/// Accept only `https://github.com/...` URLs (SSRF allowlist for the remote
+/// JSON-LD `codeRepository` field). Rejects `file://`, link-local/loopback
+/// hosts, non-https schemes, and hosts that merely contain "github.com".
+/// Empty input is rejected (callers fall back to an id-derived URL).
+pub fn is_safe_github_url(url: &str) -> bool {
+    let url = url.trim();
+    let Some(rest) = url.strip_prefix("https://") else {
+        return false;
+    };
+    // Strip userinfo / port: authority is everything up to the first '/'.
+    let authority = rest.split('/').next().unwrap_or(rest);
+    let host = authority.rsplit('@').next().unwrap_or(authority);
+    let host = host.split(':').next().unwrap_or(host);
+    host.eq_ignore_ascii_case("github.com")
+}
 
 /// Extract `<loc>` values from sitemap XML that look like `/{owner}/{repo}` paths.
 pub fn parse_sitemap_locs(xml: &str) -> Vec<String> {
@@ -41,7 +57,11 @@ pub fn parse_json_ld(html: &str) -> Option<serde_json::Value> {
 }
 
 /// Convert a JSON-LD value + page URL into a `CatalogEntry`.
-pub fn json_ld_to_entry(page_url: &str, ld: &serde_json::Value, fetched_at: u64) -> Option<CatalogEntry> {
+pub fn json_ld_to_entry(
+    page_url: &str,
+    ld: &serde_json::Value,
+    fetched_at: u64,
+) -> Option<CatalogEntry> {
     // Extract owner/repo from URL: https://awesomeclaudeplugins.com/{owner}/{repo}
     let path = page_url.strip_prefix(BASE_URL)?.strip_prefix('/')?;
     let id = path.trim_end_matches('/').to_string();
@@ -49,20 +69,29 @@ pub fn json_ld_to_entry(page_url: &str, ld: &serde_json::Value, fetched_at: u64)
         return None;
     }
 
-    let name = ld.get("name").and_then(|v| v.as_str()).unwrap_or(&id).to_string();
-    let description = ld.get("description").and_then(|v| v.as_str()).unwrap_or("").to_string();
-    let github_url = ld
+    let name = ld
+        .get("name")
+        .and_then(|v| v.as_str())
+        .unwrap_or(&id)
+        .to_string();
+    let description = ld
+        .get("description")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let raw_url = ld
         .get("codeRepository")
         .and_then(|v| v.as_str())
-        .unwrap_or_else(|| {
-            // Derive from id when JSON-LD doesn't have it.
-            ""
-        })
-        .to_string();
-    let github_url = if github_url.is_empty() {
-        format!("https://github.com/{id}")
+        .unwrap_or("");
+    // SSRF defense: only accept an https://github.com codeRepository from the
+    // remote JSON-LD. Anything else (file://, http://169.254.169.254/, an
+    // attacker host) is dropped and we fall back to the id-derived GitHub URL,
+    // which `fetch_git` will then clone. This keeps untrusted catalog metadata
+    // from steering `git clone` at an internal/local target.
+    let github_url = if is_safe_github_url(raw_url) {
+        raw_url.to_string()
     } else {
-        github_url
+        format!("https://github.com/{id}")
     };
 
     // JSON-LD keywords field is a comma-separated string.
@@ -81,9 +110,7 @@ pub fn json_ld_to_entry(page_url: &str, ld: &serde_json::Value, fetched_at: u64)
         .unwrap_or("unknown")
         .to_string();
 
-    let stars = ld
-        .get("stargazerCount")
-        .and_then(|v| v.as_u64());
+    let stars = ld.get("stargazerCount").and_then(|v| v.as_u64());
 
     // Infer genre from keywords joined.
     let byoh_genre = infer_genre(&keywords.join(" "));
@@ -103,9 +130,7 @@ pub fn json_ld_to_entry(page_url: &str, ld: &serde_json::Value, fetched_at: u64)
 
 /// Fetch a single page and parse it into a `CatalogEntry`.
 pub fn fetch_and_parse_entry(url: &str, fetched_at: u64) -> Option<CatalogEntry> {
-    let resp = ureq::get(url)
-        .call()
-        .ok()?;
+    let resp = ureq::get(url).call().ok()?;
     let html = resp.into_string().ok()?;
     let ld = parse_json_ld(&html)?;
     json_ld_to_entry(url, &ld, fetched_at)
@@ -151,7 +176,10 @@ pub fn catalog_index(
         progress_fn(i + 1, total);
     }
 
-    let cache = CatalogCache { built_at: fetched_at, entries };
+    let cache = CatalogCache {
+        built_at: fetched_at,
+        entries,
+    };
     save_cache(home, &cache)?;
     Ok(cache)
 }
@@ -212,19 +240,55 @@ mod tests {
         assert_eq!(entry.stars, Some(241_000));
         assert!(entry.keywords.contains(&"coding".to_string()));
         // "coding" → Developer
-        assert_eq!(entry.byoh_genre, Some(crate::domain::genre::Genre::Developer));
+        assert_eq!(
+            entry.byoh_genre,
+            Some(crate::domain::genre::Genre::Developer)
+        );
     }
 
     #[test]
     fn json_ld_to_entry_derives_github_url_from_id() {
         let ld = serde_json::json!({ "name": "x", "description": "d" });
-        let entry = json_ld_to_entry(
-            "https://awesomeclaudeplugins.com/owner/repo",
-            &ld,
-            0,
-        )
-        .unwrap();
+        let entry =
+            json_ld_to_entry("https://awesomeclaudeplugins.com/owner/repo", &ld, 0).unwrap();
         assert_eq!(entry.github_url, "https://github.com/owner/repo");
+    }
+
+    #[test]
+    fn json_ld_to_entry_rejects_ssrf_coderepository() {
+        // Malicious codeRepository must be dropped → falls back to id-derived URL.
+        let ld = serde_json::json!({
+            "name": "x",
+            "description": "d",
+            "codeRepository": "http://169.254.169.254/latest/meta-data/"
+        });
+        let entry =
+            json_ld_to_entry("https://awesomeclaudeplugins.com/owner/repo", &ld, 0).unwrap();
+        assert_eq!(entry.github_url, "https://github.com/owner/repo");
+
+        // file:// and look-alike hosts are also rejected.
+        for bad in [
+            "file:///etc/passwd",
+            "https://evil.com/?x=github.com/y",
+            "https://notgithub.com/a/b",
+            "http://github.com/a/b",
+        ] {
+            let ld = serde_json::json!({ "name": "x", "codeRepository": bad });
+            let entry =
+                json_ld_to_entry("https://awesomeclaudeplugins.com/owner/repo", &ld, 0).unwrap();
+            assert_eq!(entry.github_url, "https://github.com/owner/repo", "{bad}");
+        }
+    }
+
+    #[test]
+    fn json_ld_to_entry_keeps_safe_github_coderepository() {
+        let ld = serde_json::json!({
+            "name": "x",
+            "codeRepository": "https://github.com/obra/superpowers"
+        });
+        let entry =
+            json_ld_to_entry("https://awesomeclaudeplugins.com/obra/superpowers", &ld, 0).unwrap();
+        assert_eq!(entry.github_url, "https://github.com/obra/superpowers");
     }
 
     #[test]

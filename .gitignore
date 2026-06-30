@@ -340,3 +340,7 @@ stitch-designs/
 
 # BYOH local store (profiles, state) — `byoh` home default
 /.byoh/
+
+# fastembed model cache (downloaded by the `native-rag` feature at build/test time)
+/.fastembed_cache/
+

@@ -22,6 +22,7 @@ pub use registry::{Registry, RegistryEntry};
 pub use state::{crash_check, BuildStore};
 pub use vendor::{
     extract_license, extract_license_from_dir, fetch_git, git_available, load_manifest,
-    resolve_source, save_manifest, source_is_trusted, static_validate, vendor_add, vendor_list,
-    vendor_remove, vendored_body, VendorEntry, VendorManifest, VendorSource, TRUSTED_SOURCES,
+    resolve_source, sanitize_skill_id, save_manifest, source_is_trusted, static_validate,
+    vendor_add, vendor_list, vendor_remove, vendored_body, VendorEntry, VendorManifest,
+    VendorSource, TRUSTED_SOURCES,
 };
