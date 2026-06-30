@@ -1,0 +1,56 @@
+# Weekly build of the prebuilt catalog bundle.
+#
+# Crawls awesomeclaudeplugins.com in full, gzip-compresses the resulting
+# catalog.json, and uploads it as a GitHub Release asset on the moving
+# `catalog-latest` tag. `byoh catalog index` then fetches this bundle first
+# (seconds) instead of making every user crawl ~24 000 pages themselves.
+#
+# Manual trigger: Actions → "catalog-bundle" → Run workflow.
+name: catalog-bundle
+
+on:
+  schedule:
+    # Mondays 03:17 UTC (off-the-hour to spread GitHub Actions load).
+    - cron: "17 3 * * 1"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build byoh (release)
+        run: cargo build --release
+
+      - name: Crawl full catalog
+        env:
+          BYOH_HOME: /tmp/byoh
+        run: |
+          ./target/release/byoh catalog index --limit 0 --ttl-hours 0 --no-bundle
+          test -s /tmp/byoh/catalog.json
+
+      - name: Compress catalog → catalog.json.gz
+        run: gzip -kf /tmp/byoh/catalog.json
+
+      - name: Upload bundle to catalog-latest release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Create the moving-tag release if it doesn't exist, then (re)upload.
+          gh release create catalog-latest \
+            --title "Prebuilt catalog bundle" \
+            --notes "Auto-rebuilt weekly by catalog-bundle.yml. \`byoh catalog index\` fetches this instead of crawling." \
+            --target "$GITHUB_SHA" \
+            || true
+          gh release upload catalog-latest /tmp/byoh/catalog.json.gz --clobber
