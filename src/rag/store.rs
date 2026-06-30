@@ -224,12 +224,8 @@ pub mod turbovec {
     /// (which TurbovecIndex::load reads to restore dim/bit_width).
     fn byoh_sidecar_path(index_path: &Path) -> PathBuf {
         // Strip any existing extension then append `.byoh.json`.
-        let stem = index_path
-            .file_stem()
-            .unwrap_or(index_path.as_os_str());
-        index_path
-            .with_file_name(stem)
-            .with_extension("byoh.json")
+        let stem = index_path.file_stem().unwrap_or(index_path.as_os_str());
+        index_path.with_file_name(stem).with_extension("byoh.json")
     }
 
     use crate::ports::embedder::Embedding;

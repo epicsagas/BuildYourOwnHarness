@@ -220,14 +220,16 @@ impl ByohServer {
                 ) {
                     Ok(entries) => entries
                         .into_iter()
-                        .map(|e| json!({
-                            "id": e.id,
-                            "name": e.name,
-                            "description": e.description,
-                            "github_url": e.github_url,
-                            "stars": e.stars,
-                            "genre": e.byoh_genre.map(|g| g.as_str()),
-                        }))
+                        .map(|e| {
+                            json!({
+                                "id": e.id,
+                                "name": e.name,
+                                "description": e.description,
+                                "github_url": e.github_url,
+                                "stars": e.stars,
+                                "genre": e.byoh_genre.map(|g| g.as_str()),
+                            })
+                        })
                         .collect::<Vec<_>>(),
                     Err(_) => vec![],
                 };
@@ -460,10 +462,7 @@ impl ByohServer {
                        Offline — no network. Run `byoh catalog index` to populate the cache first. \
                        Use this during the wizard to recommend external plugins the user can vendor."
     )]
-    pub fn catalog_search(
-        &self,
-        Parameters(p): Parameters<CatalogSearchParams>,
-    ) -> CallToolResult {
+    pub fn catalog_search(&self, Parameters(p): Parameters<CatalogSearchParams>) -> CallToolResult {
         let genre = match p.genre.as_deref().map(parse_genre).transpose() {
             Ok(g) => g,
             Err(e) => return err_result(e),
@@ -478,15 +477,17 @@ impl ByohServer {
             Ok(entries) => {
                 let out: Vec<Value> = entries
                     .into_iter()
-                    .map(|e| json!({
-                        "id": e.id,
-                        "name": e.name,
-                        "description": e.description,
-                        "github_url": e.github_url,
-                        "stars": e.stars,
-                        "genre": e.byoh_genre.map(|g| g.as_str()),
-                        "keywords": e.keywords,
-                    }))
+                    .map(|e| {
+                        json!({
+                            "id": e.id,
+                            "name": e.name,
+                            "description": e.description,
+                            "github_url": e.github_url,
+                            "stars": e.stars,
+                            "genre": e.byoh_genre.map(|g| g.as_str()),
+                            "keywords": e.keywords,
+                        })
+                    })
                     .collect();
                 ok_value(json!(out))
             }
@@ -806,7 +807,12 @@ fn catalog_vendor_blocking(home: &std::path::Path, p: &CatalogVendorParams) -> C
             return err_result(crate::domain::ByohError::Other(format!("cwd: {e}")));
         }
     };
-    match crate::catalog::vendor_from_catalog::catalog_vendor(&entry, genre, &p.extra_keywords, &repo_root) {
+    match crate::catalog::vendor_from_catalog::catalog_vendor(
+        &entry,
+        genre,
+        &p.extra_keywords,
+        &repo_root,
+    ) {
         Ok(v) => ok_value(json!({
             "skill_id": v.skill_id,
             "genre": v.genre,

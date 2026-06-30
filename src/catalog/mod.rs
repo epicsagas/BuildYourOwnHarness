@@ -49,9 +49,8 @@ pub fn load_cache(home: &Path) -> crate::Result<CatalogCache> {
     let p = catalog_path(home);
     match std::fs::read_to_string(&p) {
         Ok(s) if s.trim().is_empty() => Ok(CatalogCache::default()),
-        Ok(s) => serde_json::from_str(&s).map_err(|e| {
-            crate::domain::ByohError::Schema(format!("catalog.json parse: {e}"))
-        }),
+        Ok(s) => serde_json::from_str(&s)
+            .map_err(|e| crate::domain::ByohError::Schema(format!("catalog.json parse: {e}"))),
         Err(_) => Ok(CatalogCache::default()),
     }
 }
@@ -129,7 +128,10 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_secs();
-        let c = CatalogCache { built_at: now, entries: vec![] };
+        let c = CatalogCache {
+            built_at: now,
+            entries: vec![],
+        };
         assert!(cache_is_fresh(&c, 24));
         assert!(!cache_is_fresh(&c, 0));
     }

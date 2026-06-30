@@ -132,10 +132,13 @@ pub mod native {
     impl OpenAIEmbedder {
         pub fn new(model: &str, api_key: &str) -> crate::domain::Result<Self> {
             // llm-kernel 0.10: new_with_model(api_key, model, dim) — infallible.
-            let dim = if model.contains("3-large") { 3072 } else { 1536 };
-            let inner = llm_kernel::embedding::OpenAIEmbeddingClient::new_with_model(
-                api_key, model, dim,
-            );
+            let dim = if model.contains("3-large") {
+                3072
+            } else {
+                1536
+            };
+            let inner =
+                llm_kernel::embedding::OpenAIEmbeddingClient::new_with_model(api_key, model, dim);
             Ok(Self {
                 inner,
                 dim_cache: dim,
