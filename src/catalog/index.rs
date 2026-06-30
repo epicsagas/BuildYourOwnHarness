@@ -295,11 +295,32 @@ pub fn parse_remote_bundle(bytes: &[u8]) -> crate::Result<CatalogCache> {
     Ok(cache)
 }
 
+/// Resolve the bundle URL. Defaults to [`REMOTE_BUNDLE_URL`] but can be
+/// overridden with the `BYOH_BUNDLE_URL` env var — this lets maintainers test
+/// a locally-served bundle (e.g. `python3 -m http.server`) end-to-end without
+/// waiting for a Release, and lets self-hosters point at their own mirror.
+/// An empty env value falls back to the default.
+fn bundle_url() -> String {
+    bundle_url_from(std::env::var("BYOH_BUNDLE_URL").ok())
+}
+
+/// Pure core of [`bundle_url`]: given an optional env value, return the
+/// override when non-empty (after trim), else the default. Separated so the
+/// resolution logic is unit-testable without mutating process env (Edition
+/// 2024 makes `set_var` `unsafe`, which this crate forbids).
+fn bundle_url_from(env_value: Option<String>) -> String {
+    match env_value {
+        Some(v) if !v.trim().is_empty() => v,
+        _ => REMOTE_BUNDLE_URL.to_string(),
+    }
+}
+
 /// Fetch the raw bytes of the maintainer-built remote bundle. Thin network
 /// wrapper around `ureq` — not unit-tested (matches the `catalog_index` /
 /// `fetch_and_parse_entry` convention of keeping the pure logic separate).
 fn fetch_remote_bundle() -> crate::Result<Vec<u8>> {
-    let resp = ureq::get(REMOTE_BUNDLE_URL)
+    let url = bundle_url();
+    let resp = ureq::get(&url)
         .call()
         .map_err(|e| ByohError::Other(format!("bundle fetch: {e}")))?;
     let mut buf = Vec::new();
@@ -692,5 +713,18 @@ mod tests {
         assert_eq!(cache.schema_version, 0);
         assert_eq!(cache.built_at, 100);
         assert!(cache.entries.is_empty());
+    }
+
+    #[test]
+    fn bundle_url_resolves_override_or_default() {
+        // Non-empty override wins.
+        assert_eq!(
+            bundle_url_from(Some("http://localhost:9999/test.gz".into())),
+            "http://localhost:9999/test.gz"
+        );
+        // Whitespace-only falls back to default.
+        assert_eq!(bundle_url_from(Some("   ".into())), REMOTE_BUNDLE_URL);
+        // Absent env falls back to default.
+        assert_eq!(bundle_url_from(None), REMOTE_BUNDLE_URL);
     }
 }

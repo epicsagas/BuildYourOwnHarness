@@ -119,6 +119,9 @@ byoh serve
   byoh catalog index                       # bundle first, crawl fallback
   byoh catalog index --no-bundle --limit 500   # direct crawl, capped
 
+  # Point at a self-hosted / local mirror of catalog.json.gz (e.g. for testing):
+  #   BYOH_BUNDLE_URL=http://localhost:18099/catalog.json.gz byoh catalog index
+
   # Offline search — no network
   byoh catalog search "test driven development" --genre developer --limit 5
 
