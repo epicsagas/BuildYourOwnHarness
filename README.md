@@ -111,11 +111,13 @@ byoh serve
 
 - **Synthesis engine** — `synthesize(profile)` matches registry skills against profile tags, orders them into a pipeline, and forces a 3-gate re-pass (no bypass). Goal-oriented pipelines (product-launch / decision / research-report / secure-ship / …) overlay a skill ladder + agent set when the 30-day goal matches.
 - **Community skill vendoring** (RFC M3) — `byoh vendor add` fetches an external `SKILL.md` (local path or git URL), runs static validation + sha256, and embeds it into **Ring 3** (most-restricted) at build time via `build.rs`. External skills join synthesis as untrusted code.
-- **Plugin catalog** — `byoh catalog index` crawls [awesomeclaudeplugins.com](https://awesomeclaudeplugins.com) (24 000+ plugins via `sitemap.xml`) and saves an offline cache at `~/.byoh/catalog.json`. Each page is parsed from JSON-LD when present, falling back to `<title>` + `<meta>` tags otherwise. After indexing, `catalog search` and `catalog vendor` work entirely offline. During the S2 wizard interview, `profile_interview` automatically includes `catalog_suggestions` — up to 5 genre-matched plugins the LLM can recommend without extra tool calls.
+- **Plugin catalog** — `byoh catalog index` builds an offline cache at `~/.byoh/catalog.json` from [awesomeclaudeplugins.com](https://awesomeclaudeplugins.com) (24 000+ plugins via `sitemap.xml`; each page parsed from JSON-LD when present, falling back to `<title>` + `<meta>` tags otherwise). By default it first downloads a **maintainer-built bundle** (a weekly GitHub Release asset — seconds, no crawl); only if that is unreachable does it crawl the site itself. After indexing, `catalog search` and `catalog vendor` work entirely offline. During the S2 wizard interview, `profile_interview` automatically includes `catalog_suggestions` — up to 5 genre-matched plugins the LLM can recommend without extra tool calls.
 
   ```bash
-  # One-time index (network; ~24 000 pages)
-  byoh catalog index --limit 500          # start small; 0 = full crawl
+  # One-time index — downloads the prebuilt bundle, or crawls ~24 000 pages
+  # if the bundle is unavailable. --no-bundle forces a direct crawl.
+  byoh catalog index                       # bundle first, crawl fallback
+  byoh catalog index --no-bundle --limit 500   # direct crawl, capped
 
   # Offline search — no network
   byoh catalog search "test driven development" --genre developer --limit 5

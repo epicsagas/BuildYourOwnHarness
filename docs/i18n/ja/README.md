@@ -59,7 +59,7 @@ byoh serve
 
 - **シンセシスエンジン** — `synthesize(profile)` はプロファイルタグに対してレジストリスキルをマッチングし、パイプラインに整序して3ゲートの再パスを強制します（バイパス不可）。30日間の目標がマッチした場合、ゴール指向パイプライン（product-launch / decision / research-report / secure-ship / …）がスキルラダーとエージェントセットを重ねます。
 - **コミュニティスキルベンダリング**（RFC M3） — `byoh vendor add` は外部の `SKILL.md`（ローカルパスまたはgit URL）を取得し、静的検証とsha256を実行して、`build.rs` によりビルド時に**Ring 3**（最も制限された）に組み込みます。外部スキルは非信頼コードとしてシンセシスに参加します。
-- **プラグインカタログ** — `byoh catalog index` は [awesomeclaudeplugins.com](https://awesomeclaudeplugins.com)（`sitemap.xml` 経由で24,000以上のプラグイン）をクロールし、オフラインキャッシュを `~/.byoh/catalog.json` に保存します。各ページは JSON-LD を優先して解析し、無い場合は `<title>` + `<meta>` タグにフォールバックします。インデックス後、`catalog search` と `catalog vendor` は完全オフラインで動作します。S2ウィザードインタビュー中、`profile_interview` は自動的に `catalog_suggestions`（ジャンルにマッチした最大5件のプラグイン推薦）を含めます — 追加のツール呼び出し不要です。
+- **プラグインカタログ** — `byoh catalog index` は [awesomeclaudeplugins.com](https://awesomeclaudeplugins.com)（`sitemap.xml` 経由で24,000以上のプラグイン）から `~/.byoh/catalog.json` にオフラインキャッシュを構築します（各ページは JSON-LD を優先し、無い場合は `<title>` + `<meta>` タグにフォールバック）。デフォルトでは **メンテナー作成のバンドル**（週次の GitHub Release アセット — 数秒、クロール不要）を先にダウンロードし、取得できない場合のみ直接クロールします。インデックス後、`catalog search` と `catalog vendor` は完全オフラインで動作します。S2ウィザードインタビュー中、`profile_interview` は自動的に `catalog_suggestions`（ジャンルにマッチした最大5件のプラグイン推薦）を含めます — 追加のツール呼び出し不要です。
 
   ```bash
   # 初回インデックス（ネットワーク必須；約24,000ページ）

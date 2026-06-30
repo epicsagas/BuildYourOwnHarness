@@ -59,7 +59,7 @@ byoh serve
 
 - **합성 엔진** — `synthesize(profile)`이 레지스트리 스킬을 프로필 태그로 매칭·순서화하고, 3중 게이트 재통과를 강제합니다(우회 불가). 목표 지향 파이프라인(product-launch / decision / research-report / secure-ship / …)이 30일 목표가 매칭되면 스킬 사다리 + 에이전트 세트를 overlay 합니다.
 - **커뮤니티 스킬 벤더링** (RFC M3) — `byoh vendor add`가 외부 `SKILL.md`(로컬 경로 또는 git URL)를 가져와 정적 검증 + sha256을 거치고, `build.rs`가 빌드 타임에 **Ring 3**(최제한 링)으로 임베드합니다. 외부 스킬은 신뢰할 수 없는 코드로 합성에 참여합니다.
-- **플러그인 카탈로그** — `byoh catalog index`가 [awesomeclaudeplugins.com](https://awesomeclaudeplugins.com)의 24,000여 개 플러그인을 `sitemap.xml` 방식으로 크롤하여 `~/.byoh/catalog.json`에 오프라인 캐시로 저장합니다. 각 페이지는 JSON-LD가 있으면 이를 우선 파싱하고, 없으면 `<title>` + `<meta>` 태그로 폴백합니다. 인덱싱 후에는 `catalog search`와 `catalog vendor`가 네트워크 없이 완전히 오프라인으로 동작합니다. S2 위자드 인터뷰 중 `profile_interview`가 자동으로 `catalog_suggestions`를 포함시켜, LLM이 추가 도구 호출 없이 장르에 맞는 플러그인을 최대 5개까지 추천할 수 있습니다.
+- **플러그인 카탈로그** — `byoh catalog index`가 [awesomeclaudeplugins.com](https://awesomeclaudeplugins.com)의 24,000여 개 플러그인에서 `~/.byoh/catalog.json` 오프라인 캐시를 빌드합니다(`sitemap.xml` 경유, 각 페이지는 JSON-LD가 있으면 우선 파싱, 없으면 `<title>` + `<meta>` 태그로 폴백). 기본적으로 **유지보수자가 빌드한 번들**(주간 GitHub Release 자산 — 수 초, 크롤 없음)을 먼저 다운로드하며, 접근 불가 시에만 직접 크롤합니다. 인덱싱 후에는 `catalog search`와 `catalog vendor`가 네트워크 없이 완전히 오프라인으로 동작합니다. S2 위자드 인터뷰 중 `profile_interview`가 자동으로 `catalog_suggestions`를 포함시켜, LLM이 추가 도구 호출 없이 장르에 맞는 플러그인을 최대 5개까지 추천할 수 있습니다.
 
   ```bash
   # 최초 1회 인덱싱 (네트워크 필요; 약 24,000페이지)
