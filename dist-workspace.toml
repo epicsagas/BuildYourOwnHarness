@@ -20,6 +20,11 @@ macos-sign = false
 install-path = "CARGO_HOME"
 # Whether to install an updater program
 install-updater = false
+# Build release binaries with the full feature set so installed `byoh` ships
+# MCP + local RAG + OpenAI embeddings out of the box, while CI / `cargo build`
+# stays light (default = mcp only). Local devs who want RAG use
+# `cargo install --features native-rag` (or --all-features).
+features = ["native-rag", "rag-openai"]
 
 [dist.github-custom-runners]
 aarch64-unknown-linux-gnu = "ubuntu-24.04-arm"
