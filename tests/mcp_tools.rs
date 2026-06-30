@@ -21,7 +21,9 @@ fn server() -> ByohServer {
     // Each test isolates BYOH_HOME into a fresh tempdir via the env var so
     // profile reads/writes don't collide. Set it before constructing the server.
     let dir = tempfile::tempdir().unwrap();
-    std::env::set_var("BYOH_HOME", dir.path());
+    // Thread-local override — no process-global env mutation (Rust 2024 made
+    // set_var unsafe; the byoh crate is #![forbid(unsafe_code)]).
+    byoh::store::set_home_override(Some(dir.path().to_path_buf()));
     // Leak the tempdir so it survives the test (the OS cleans up /tmp).
     std::mem::forget(dir);
     ByohServer::new(ByohContext {
@@ -221,7 +223,7 @@ async fn install_plugin_to_dist() {
     }));
     // install to project-local dist (host=false) — must not touch HOME
     let dist = tempfile::tempdir().unwrap();
-    std::env::set_var("BYOH_DIST_DIR", dist.path());
+    byoh::deploy::set_dist_override(Some(dist.path().to_path_buf()));
     let res = s
         .install_plugin(Parameters(InstallPluginParams {
             slug: "dev".into(),
@@ -230,7 +232,7 @@ async fn install_plugin_to_dist() {
             force: false,
         }))
         .await;
-    std::env::remove_var("BYOH_DIST_DIR");
+    byoh::deploy::set_dist_override(None);
     assert!(!res.is_error.unwrap_or(false), "install should succeed");
     assert!(dist.path().join("byoh-dev/.byoh-manifest").exists());
 }

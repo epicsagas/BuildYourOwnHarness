@@ -16,7 +16,7 @@ use rmcp::tool_handler;
 use rmcp::tool_router;
 use rmcp::transport::stdio;
 use rmcp::{ServerHandler, ServiceExt};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::adapters::{FilesystemSource, RuleInterview, RuleLlm, StaticWizard};
 use crate::application::ProfileOrchestrator;
@@ -287,7 +287,8 @@ impl ByohServer {
         description = "Hybrid search a query against a corpus (or grep-only if no corpus). Returns ranked hits with mode/score. Secrets in results are masked. Build/search-heavy: runs off the async runtime via spawn_blocking."
     )]
     pub async fn rag_search(&self, Parameters(p): Parameters<RagSearchParams>) -> CallToolResult {
-        let res = tokio::task::spawn_blocking(move || rag_search_blocking(&p)).await;
+        let home = self.ctx.home.clone();
+        let res = tokio::task::spawn_blocking(move || rag_search_blocking(&home, &p)).await;
         match res {
             Ok(r) => r,
             Err(join_err) => err_result(crate::domain::error::ByohError::Other(format!(
@@ -347,7 +348,8 @@ impl ByohServer {
         &self,
         Parameters(p): Parameters<CompileDryRunParams>,
     ) -> CallToolResult {
-        let res = tokio::task::spawn_blocking(move || compile_dry_run_sync(&p.slug)).await;
+        let home = self.ctx.home.clone();
+        let res = tokio::task::spawn_blocking(move || compile_dry_run_sync(&home, &p.slug)).await;
         match res {
             Ok(r) => r,
             Err(join_err) => err_result(crate::domain::error::ByohError::Other(format!(
@@ -374,13 +376,7 @@ impl ByohServer {
             samples_with: p.metric.samples_with,
             samples_without: p.metric.samples_without,
         };
-        match crate::application::evolve_one_cycle(
-            &crate::store::byoh_home(),
-            &p.slug,
-            genre,
-            edit,
-            metric,
-        ) {
+        match crate::application::evolve_one_cycle(&self.ctx.home, &p.slug, genre, edit, metric) {
             Ok((decision, state)) => {
                 let label = crate::application::evolve_run::decision_label(&decision);
                 let reason = match &decision {
@@ -431,7 +427,8 @@ impl ByohServer {
         &self,
         Parameters(p): Parameters<RenderPluginParams>,
     ) -> CallToolResult {
-        let res = tokio::task::spawn_blocking(move || render_plugin_blocking(&p)).await;
+        let home = self.ctx.home.clone();
+        let res = tokio::task::spawn_blocking(move || render_plugin_blocking(&home, &p)).await;
         match res {
             Ok(r) => r,
             Err(join_err) => err_result(crate::domain::error::ByohError::Other(format!(
@@ -447,7 +444,13 @@ impl ByohServer {
         &self,
         Parameters(p): Parameters<InstallPluginParams>,
     ) -> CallToolResult {
-        let res = tokio::task::spawn_blocking(move || install_plugin_blocking(&p)).await;
+        // Capture the resolved home + dist override on THIS thread before moving
+        // into spawn_blocking: the worker thread can't see the thread-local
+        // overrides (Rust 2024 + forbid(unsafe_code) means no set_var).
+        let home = self.ctx.home.clone();
+        let dist = crate::deploy::InstallLocations::from_env().dist;
+        let res =
+            tokio::task::spawn_blocking(move || install_plugin_blocking(&home, &dist, &p)).await;
         match res {
             Ok(r) => r,
             Err(join_err) => err_result(crate::domain::error::ByohError::Other(format!(
@@ -539,12 +542,12 @@ impl ServerHandler for ByohServer {
 
 /// Synchronous body of `render_plugin`. Synthesizes the bundle then renders it
 /// to the target host(s), writing a deployable plugin tree at `out`.
-fn render_plugin_blocking(p: &RenderPluginParams) -> CallToolResult {
+fn render_plugin_blocking(home: &std::path::Path, p: &RenderPluginParams) -> CallToolResult {
     let target: crate::domain::render_target::Target = match p.target.parse() {
         Ok(t) => t,
         Err(e) => return err_result(e),
     };
-    let profile = match crate::store::load_profile(&p.slug) {
+    let profile = match crate::store::load_profile_in(home, &p.slug) {
         Ok(pr) => pr,
         Err(e) => return err_result(e),
     };
@@ -566,12 +569,16 @@ fn render_plugin_blocking(p: &RenderPluginParams) -> CallToolResult {
 
 /// Synchronous body of `install_plugin`. Renders the polyglot tree to dist/;
 /// if `host`, activates each selected host against it.
-fn install_plugin_blocking(p: &InstallPluginParams) -> CallToolResult {
+fn install_plugin_blocking(
+    home: &std::path::Path,
+    dist: &std::path::Path,
+    p: &InstallPluginParams,
+) -> CallToolResult {
     let target: crate::domain::render_target::Target = match p.target.parse() {
         Ok(t) => t,
         Err(e) => return err_result(e),
     };
-    let profile = match crate::store::load_profile(&p.slug) {
+    let profile = match crate::store::load_profile_in(home, &p.slug) {
         Ok(pr) => pr,
         Err(e) => return err_result(e),
     };
@@ -579,7 +586,7 @@ fn install_plugin_blocking(p: &InstallPluginParams) -> CallToolResult {
         Ok(b) => b,
         Err(e) => return err_result(e),
     };
-    let loc = crate::deploy::InstallLocations::from_env();
+    let loc = crate::deploy::InstallLocations::from_env_with_dist(dist.to_path_buf());
     let path = match crate::deploy::install_plugin(&bundle, &loc, p.force) {
         Ok(path) => path,
         Err(e) => return err_result(e),
@@ -647,12 +654,12 @@ fn rag_index_blocking(home: &std::path::Path, p: &RagIndexParams) -> CallToolRes
 }
 
 /// Synchronous body of `rag_search`.
-fn rag_search_blocking(p: &RagSearchParams) -> CallToolResult {
+fn rag_search_blocking(home: &std::path::Path, p: &RagSearchParams) -> CallToolResult {
     let genre = match parse_genre(&p.genre) {
         Ok(g) => g,
         Err(e) => return err_result(e),
     };
-    match rag_search_impl(genre, &p.query, p.corpus.as_deref(), p.k) {
+    match rag_search_impl(home, genre, &p.query, p.corpus.as_deref(), p.k) {
         Ok(hits) => {
             let masked: Vec<Value> = hits
                 .into_iter()
@@ -672,8 +679,8 @@ fn rag_search_blocking(p: &RagSearchParams) -> CallToolResult {
 }
 
 /// Synchronous body of `compile_dry_run`.
-fn compile_dry_run_sync(slug: &str) -> CallToolResult {
-    let profile = match crate::store::load_profile(slug) {
+fn compile_dry_run_sync(home: &std::path::Path, slug: &str) -> CallToolResult {
+    let profile = match crate::store::load_profile_in(home, slug) {
         Ok(p) => p,
         Err(e) => return err_result(e),
     };
@@ -738,6 +745,7 @@ fn rag_index_impl(
 /// Returns `HybridHit`s. Builds an ephemeral index from a corpus when given,
 /// otherwise runs the grep-only tier against an empty corpus.
 fn rag_search_impl(
+    home: &std::path::Path,
     genre: Genre,
     query: &str,
     corpus: Option<&str>,
@@ -754,9 +762,13 @@ fn rag_search_impl(
     // (the "persistent knowledge base" — no re-embedding needed).
     // native-rag: index was saved by rag_index_impl as TurbovecStore, so load
     // it with load_index_native. Non-native path uses InMemoryStore throughout.
+    //
+    // Uses the caller-supplied `home` (captured from ByohContext before entering
+    // spawn_blocking) rather than byoh_home(): spawn_blocking runs on a worker
+    // thread where a thread-local home override would be invisible.
     #[cfg(feature = "native-rag")]
     if let Some(handle) = crate::rag::pipeline::native::load_index_native(
-        &crate::store::byoh_home(),
+        home,
         genre,
         embedder.dim(),
         crate::rag::pipeline::native::DEFAULT_BIT_WIDTH,
@@ -764,7 +776,7 @@ fn rag_search_impl(
         return handle.search(&*embedder, query, k);
     }
     #[cfg(not(feature = "native-rag"))]
-    if let Some(handle) = crate::rag::load_index(&crate::store::byoh_home(), genre)? {
+    if let Some(handle) = crate::rag::load_index(home, genre)? {
         return handle.search(&*embedder, query, k);
     }
     // Otherwise: grep-only tier against an empty corpus via hybrid_search.

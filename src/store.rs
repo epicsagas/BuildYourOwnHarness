@@ -6,10 +6,10 @@
 
 use std::path::{Path, PathBuf};
 
+use crate::Result;
 use crate::domain::error::ByohError;
 use crate::domain::profile::UserProfile;
 use crate::ports::EmbedderProvider;
-use crate::Result;
 
 /// Wrap an io::Error with the offending path for clearer diagnostics
 /// (the `#[from]` conversion on `ByohError::Io` loses path context).
@@ -53,13 +53,40 @@ pub fn sanitize_slug(slug: &str) -> Result<&str> {
 
 /// The BYOH home directory (`$BYOH_HOME`, default `.byoh`).
 /// Profiles live under `<home>/profiles/`, genre indexes under `<home>/indexes/`.
+///
+/// Resolution order: thread-local test override (`set_home_override`) →
+/// `$BYOH_HOME` → `.byoh`. The override exists so tests can isolate the home
+/// directory **without mutating process-global env vars**, which became
+/// `unsafe` in the Rust 2024 edition (`std::env::set_var`) and are incompatible
+/// with this crate's `#![forbid(unsafe_code)]`.
 pub fn byoh_home() -> PathBuf {
+    if let Some(p) = HOME_OVERRIDE.with(|c| c.borrow().clone()) {
+        return p;
+    }
     PathBuf::from(std::env::var("BYOH_HOME").unwrap_or_else(|_| ".byoh".to_string()))
+}
+
+thread_local! {
+    static HOME_OVERRIDE: std::cell::RefCell<Option<PathBuf>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Override `byoh_home()` for the current thread (tests). `None` clears it.
+/// Use this instead of `set_var("BYOH_HOME", …)`: it is `unsafe`-free, scoped
+/// to the calling thread, and does not leak across tests.
+pub fn set_home_override(path: Option<PathBuf>) {
+    HOME_OVERRIDE.with(|c| *c.borrow_mut() = path);
 }
 
 /// Profiles root: `<byoh_home>/profiles`.
 pub fn profiles_root() -> PathBuf {
     byoh_home().join("profiles")
+}
+
+/// Profiles root under an explicit `home` (for callers that already resolved
+/// `byoh_home()` on the originating thread — e.g. MCP tools via `spawn_blocking`,
+/// where the thread-local home override is invisible on the worker thread).
+pub fn profiles_root_in(home: &Path) -> PathBuf {
+    home.join("profiles")
 }
 
 /// Path to a profile YAML by slug: `<profiles_root>/<slug>.yaml`.
@@ -70,6 +97,15 @@ pub fn profile_path(slug: &str) -> PathBuf {
 /// Load a profile YAML by slug. Errors surface as `ByohError::Io` / `SerdeYaml`.
 pub fn load_profile(slug: &str) -> Result<UserProfile> {
     let path = profile_path(slug);
+    let body = std::fs::read_to_string(&path).map_err(|e| io_at(&path, e))?;
+    Ok(serde_yaml::from_str(&body)?)
+}
+
+/// Load a profile YAML by slug from an explicit `home` directory. Use this from
+/// `spawn_blocking` worker threads where the thread-local home override is not
+/// visible (see [`profiles_root_in`]).
+pub fn load_profile_in(home: &Path, slug: &str) -> Result<UserProfile> {
+    let path = profiles_root_in(home).join(format!("{slug}.yaml"));
     let body = std::fs::read_to_string(&path).map_err(|e| io_at(&path, e))?;
     Ok(serde_yaml::from_str(&body)?)
 }
@@ -207,7 +243,9 @@ mod tests {
     use crate::domain::profile::UserProfile;
 
     fn isolate_home(dir: &Path) {
-        std::env::set_var("BYOH_HOME", dir);
+        // Thread-local override — no process-global env mutation (Rust 2024 made
+        // set_var unsafe; this crate is #![forbid(unsafe_code)]).
+        set_home_override(Some(dir.to_path_buf()));
     }
 
     #[test]
@@ -245,7 +283,7 @@ mod tests {
         write_profile(&p).unwrap();
         let loaded = load_profile("round-trip").unwrap();
         assert_eq!(loaded.slug, "round-trip");
-        std::env::remove_var("BYOH_HOME");
+        set_home_override(None);
     }
 
     #[test]

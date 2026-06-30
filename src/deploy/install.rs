@@ -20,13 +20,13 @@
 
 use std::path::{Path, PathBuf};
 
+use crate::Result;
 use crate::application::render_target;
 use crate::domain::bundle::HarnessBundle;
 use crate::domain::error::ByohError;
 use crate::domain::render_target::Target;
 use crate::ports::command::{CommandOutcome, CommandPort};
 use crate::store::{create_symlink_or_copy, sanitize_slug, write_file};
-use crate::Result;
 
 /// The on-disk marker proving a plugin directory was created by BYOH and is
 /// therefore safe to overwrite on re-install.
@@ -51,10 +51,18 @@ pub struct InstallLocations {
 impl InstallLocations {
     /// Resolve install roots. Env overrides (for tests / power users):
     /// `BYOH_DIST_DIR`, `AGY_PLUGIN_DIR`, `CLAUDE_CONFIG_DIR`.
+    ///
+    /// `dist` also honors a thread-local override (`set_dist_override`) so tests
+    /// can redirect into a tempdir without `set_var("BYOH_DIST_DIR", …)`, which
+    /// became `unsafe` in the Rust 2024 edition and is incompatible with this
+    /// crate's `#![forbid(unsafe_code)]`.
     pub fn from_env() -> Self {
         let home = home_dir();
+        let dist = DIST_OVERRIDE
+            .with(|c| c.borrow().clone())
+            .unwrap_or_else(|| env_or("BYOH_DIST_DIR", PathBuf::from("dist")));
         Self {
-            dist: env_or("BYOH_DIST_DIR", PathBuf::from("dist")),
+            dist,
             agy: env_or(
                 "AGY_PLUGIN_DIR",
                 home.join(".gemini").join("config").join("plugins"),
@@ -62,6 +70,32 @@ impl InstallLocations {
             claude_config: env_or("CLAUDE_CONFIG_DIR", home.join(".claude")),
         }
     }
+
+    /// Same as [`from_env`](Self::from_env) but with `dist` supplied explicitly.
+    /// Use this from `spawn_blocking` worker threads where the thread-local dist
+    /// override is not visible (capture it on the originating thread first).
+    pub fn from_env_with_dist(dist: PathBuf) -> Self {
+        let home = home_dir();
+        Self {
+            dist,
+            agy: env_or(
+                "AGY_PLUGIN_DIR",
+                home.join(".gemini").join("config").join("plugins"),
+            ),
+            claude_config: env_or("CLAUDE_CONFIG_DIR", home.join(".claude")),
+        }
+    }
+}
+
+thread_local! {
+    static DIST_OVERRIDE: std::cell::RefCell<Option<PathBuf>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// Override the `dist` root for the current thread (tests). `None` clears it.
+/// Use this instead of `set_var("BYOH_DIST_DIR", …)`: `unsafe`-free, thread-scoped.
+pub fn set_dist_override(path: Option<PathBuf>) {
+    DIST_OVERRIDE.with(|c| *c.borrow_mut() = path);
 }
 
 /// Install a compiled/synthesized bundle as a **polyglot** plugin.

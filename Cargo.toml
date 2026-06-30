@@ -1,8 +1,8 @@
 [package]
 name = "byoh"
 version = "0.1.0"
-edition = "2021"
-rust-version = "1.82"
+edition = "2024"
+rust-version = "1.85"
 description = "BuildYourOwnHarness — interactive profiling + harness compiler + evolution engine. Generates a personalized AI agent harness from a user's tacit knowledge, data sources, genre, and goals."
 license = "Apache-2.0"
 repository = "https://github.com/epicsagas/BuildYourOwnHarness"
