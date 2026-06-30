@@ -3,11 +3,15 @@
 
 use super::{CatalogCache, CatalogEntry, save_cache};
 use crate::deploy::genre_map::infer_genre;
+use regex::Regex;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const SITEMAP_URL: &str = "https://awesomeclaudeplugins.com/sitemap.xml";
 const BASE_URL: &str = "https://awesomeclaudeplugins.com";
+/// Site-wide suffix appended to every page `<title>`, stripped to recover the
+/// plugin's display name.
+const TITLE_SUFFIX: &str = " | Awesome Claude Plugins";
 
 /// Accept only `https://github.com/...` URLs (SSRF allowlist for the remote
 /// JSON-LD `codeRepository` field). Rejects `file://`, link-local/loopback
@@ -56,18 +60,130 @@ pub fn parse_json_ld(html: &str) -> Option<serde_json::Value> {
     serde_json::from_str(rest[..end].trim()).ok()
 }
 
+/// Display fields parsed from `<title>` + `<meta>` tags. Carries no URL or
+/// trust — only human-readable strings used to populate a `CatalogEntry`'s
+/// non-critical fields.
+#[derive(Debug, Default, PartialEq)]
+pub struct MetaTags {
+    pub title: String,
+    pub description: String,
+    /// Raw comma-separated keyword string (normalized downstream).
+    pub keywords: String,
+}
+
+/// Extract the inner text of the first `<title>...</title>` element.
+fn title_text(html: &str) -> Option<String> {
+    let open = html.find("<title")?;
+    let after_open = html[open..].find('>')? + open + 1;
+    let end = html[after_open..].find("</title>")? + after_open;
+    Some(html[after_open..end].trim().to_string())
+}
+
+/// Pull the `content="..."` value of a `<meta name="{name}">` tag, robust to
+/// attribute order (`name`/`content` may appear in either sequence) and case.
+/// Uses the project's inline `Regex::new().unwrap()` convention for static
+/// patterns. Returns `None` when the named meta tag is absent.
+fn meta_content(html: &str, name: &str) -> Option<String> {
+    let name_pat = regex::escape(name);
+    // Two orderings, since `regex` lacks backreferences: name-first and
+    // content-first. `(?is)` = case-insensitive + dot-matches-newline.
+    let pats = [
+        format!(r#"(?is)<meta\b[^>]*?\bname\s*=\s*"{name_pat}"[^>]*?\bcontent\s*=\s*"([^"]*)""#),
+        format!(r#"(?is)<meta\b[^>]*?\bcontent\s*=\s*"([^"]*)"[^>]*?\bname\s*=\s*"{name_pat}""#),
+    ];
+    for pat in pats {
+        let re = Regex::new(&pat).unwrap();
+        if let Some(caps) = re.captures(html) {
+            return Some(caps[1].to_string());
+        }
+    }
+    None
+}
+
+/// Parse `<title>` + `<meta name="description">` + `<meta name="keywords">`
+/// from HTML. Returns `None` when there is no `<title>` (a page with no
+/// identity is not worth indexing). Used as the fallback when JSON-LD is
+/// absent — the current awesomeclaudeplugins.com layout exposes only these
+/// tags.
+pub fn parse_meta(html: &str) -> Option<MetaTags> {
+    let title = title_text(html)?;
+    Some(MetaTags {
+        title,
+        description: meta_content(html, "description").unwrap_or_default(),
+        keywords: meta_content(html, "keywords").unwrap_or_default(),
+    })
+}
+
+/// Strip the site-wide title suffix to recover the plugin display name.
+fn display_name(title: &str) -> String {
+    title
+        .strip_suffix(TITLE_SUFFIX)
+        .or_else(|| title.rsplit_once(" | ").map(|(left, _)| left))
+        .unwrap_or(title)
+        .trim()
+        .to_string()
+}
+
+/// Convert a page URL + parsed meta tags into a `CatalogEntry`.
+///
+/// **Security:** `github_url` is derived ONLY from `page_url` via
+/// [`id_and_github_from_url`]. Meta content (attacker-controllable on a
+/// compromised page) populates display/search fields only — it can never
+/// steer a `git clone` target. `stars` / `license` are unavailable from meta
+/// tags and default to `None` / `"unknown"`, matching the JSON-LD branch.
+pub fn meta_to_entry(page_url: &str, meta: &MetaTags, fetched_at: u64) -> Option<CatalogEntry> {
+    let (id, github_url) = id_and_github_from_url(page_url)?;
+    let name = display_name(&meta.title);
+    let keywords = normalize_keywords(&meta.keywords);
+    let byoh_genre = infer_genre(&keywords.join(" "));
+
+    Some(CatalogEntry {
+        id,
+        name,
+        description: meta.description.clone(),
+        keywords,
+        github_url,
+        stars: None,
+        license: "unknown".to_string(),
+        byoh_genre,
+        fetched_at,
+    })
+}
+
+/// Extract `"owner/repo"` from an awesomeclaudeplugins.com page URL and derive
+/// the canonical `https://github.com/{id}` URL. Returns `None` for the root
+/// path or any path without exactly two segments.
+///
+/// Pure function — never touches remote content. Shared by the JSON-LD and
+/// meta-tag paths so both derive `github_url` identically from the trusted URL
+/// (never from attacker-controllable page metadata).
+fn id_and_github_from_url(page_url: &str) -> Option<(String, String)> {
+    let path = page_url.strip_prefix(BASE_URL)?.strip_prefix('/')?;
+    let id = path.trim_end_matches('/');
+    if id.is_empty() || !id.contains('/') {
+        return None;
+    }
+    let id = id.to_string();
+    Some((id.clone(), format!("https://github.com/{id}")))
+}
+
+/// Normalize a raw comma-separated keywords string into the lowercased,
+/// trimmed, de-emptied list the catalog stores. Shared by the JSON-LD and
+/// meta-tag paths.
+fn normalize_keywords(raw: &str) -> Vec<String> {
+    raw.split(',')
+        .map(|s| s.trim().to_lowercase())
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
 /// Convert a JSON-LD value + page URL into a `CatalogEntry`.
 pub fn json_ld_to_entry(
     page_url: &str,
     ld: &serde_json::Value,
     fetched_at: u64,
 ) -> Option<CatalogEntry> {
-    // Extract owner/repo from URL: https://awesomeclaudeplugins.com/{owner}/{repo}
-    let path = page_url.strip_prefix(BASE_URL)?.strip_prefix('/')?;
-    let id = path.trim_end_matches('/').to_string();
-    if id.is_empty() || !id.contains('/') {
-        return None;
-    }
+    let (id, fallback_github_url) = id_and_github_from_url(page_url)?;
 
     let name = ld
         .get("name")
@@ -91,18 +207,15 @@ pub fn json_ld_to_entry(
     let github_url = if is_safe_github_url(raw_url) {
         raw_url.to_string()
     } else {
-        format!("https://github.com/{id}")
+        fallback_github_url
     };
 
     // JSON-LD keywords field is a comma-separated string.
-    let keywords: Vec<String> = ld
-        .get("keywords")
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .split(',')
-        .map(|s| s.trim().to_lowercase())
-        .filter(|s| !s.is_empty())
-        .collect();
+    let keywords: Vec<String> = normalize_keywords(
+        ld.get("keywords")
+            .and_then(|v| v.as_str())
+            .unwrap_or(""),
+    );
 
     let license = ld
         .get("license")
@@ -129,11 +242,23 @@ pub fn json_ld_to_entry(
 }
 
 /// Fetch a single page and parse it into a `CatalogEntry`.
+///
+/// Prefers JSON-LD (richest: stars/license/codeRepository); falls back to
+/// `<title>` + `<meta>` tags when JSON-LD is absent or unparseable. Returns
+/// `None` only when neither path yields an entry — the caller then logs a
+/// skip rather than aborting the whole index.
 pub fn fetch_and_parse_entry(url: &str, fetched_at: u64) -> Option<CatalogEntry> {
     let resp = ureq::get(url).call().ok()?;
     let html = resp.into_string().ok()?;
-    let ld = parse_json_ld(&html)?;
-    json_ld_to_entry(url, &ld, fetched_at)
+    // 1. JSON-LD first — preserves the existing codeRepository allowlist path.
+    if let Some(ld) = parse_json_ld(&html) {
+        if let Some(entry) = json_ld_to_entry(url, &ld, fetched_at) {
+            return Some(entry);
+        }
+    }
+    // 2. Meta-tag fallback for sites that dropped JSON-LD.
+    let meta = parse_meta(&html)?;
+    meta_to_entry(url, &meta, fetched_at)
 }
 
 /// Index the awesomeclaudeplugins.com catalog.
@@ -295,5 +420,130 @@ mod tests {
     fn json_ld_to_entry_rejects_root_path() {
         let ld = serde_json::json!({ "name": "root" });
         assert!(json_ld_to_entry("https://awesomeclaudeplugins.com/", &ld, 0).is_none());
+    }
+
+    // --- meta-tag fallback tests (awesomeclaudeplugins.com dropped JSON-LD) ---
+
+    /// Fixture approximating a real page: title with site suffix + meta tags in
+    /// `name`-first order.
+    const META_HTML: &str = r#"<html><head>
+<title>varadhjain/granola-claude-plugin | Awesome Claude Plugins</title>
+<meta name="description" content="[DEPRECATED] Granola encrypted local cache — use official Granola MCP instead"/>
+<meta name="keywords" content="Claude Code plugins,GitHub repository,AI coding tools,coding,MCP servers"/>
+</head></html>"#;
+
+    #[test]
+    fn parse_meta_extracts_title_description_keywords() {
+        let meta = parse_meta(META_HTML).unwrap();
+        assert_eq!(
+            meta.title,
+            "varadhjain/granola-claude-plugin | Awesome Claude Plugins"
+        );
+        assert!(meta.description.contains("Granola encrypted local cache"));
+        assert!(meta.keywords.contains("AI coding tools"));
+    }
+
+    #[test]
+    fn parse_meta_handles_reversed_attribute_order() {
+        // `content` before `name` — must still parse.
+        let html = r#"<html><head>
+<title>owner/repo | Awesome Claude Plugins</title>
+<meta content="reversed desc" name="description"/>
+<meta content="a,b,c" name="keywords"/>
+</head></html>"#;
+        let meta = parse_meta(html).unwrap();
+        assert_eq!(meta.description, "reversed desc");
+        assert_eq!(meta.keywords, "a,b,c");
+    }
+
+    #[test]
+    fn parse_meta_returns_none_without_title() {
+        let html = r#"<html><head><meta name="description" content="no title here"/></head></html>"#;
+        assert!(parse_meta(html).is_none());
+    }
+
+    #[test]
+    fn meta_to_entry_strips_title_suffix() {
+        let meta = parse_meta(META_HTML).unwrap();
+        let entry = meta_to_entry(
+            "https://awesomeclaudeplugins.com/varadhjain/granola-claude-plugin",
+            &meta,
+            0,
+        )
+        .unwrap();
+        assert_eq!(entry.id, "varadhjain/granola-claude-plugin");
+        assert_eq!(entry.name, "varadhjain/granola-claude-plugin");
+    }
+
+    #[test]
+    fn meta_to_entry_derives_github_url_from_id() {
+        // SSRF property: github_url is id-derived, never read from meta.
+        let meta = MetaTags {
+            title: "owner/repo | Awesome Claude Plugins".into(),
+            description: "d".into(),
+            keywords: String::new(),
+        };
+        let entry =
+            meta_to_entry("https://awesomeclaudeplugins.com/owner/repo", &meta, 0).unwrap();
+        assert_eq!(entry.github_url, "https://github.com/owner/repo");
+    }
+
+    #[test]
+    fn meta_to_entry_keywords_feed_genre() {
+        // "coding" → Developer, lowercased like the JSON-LD path.
+        let meta = MetaTags {
+            title: "owner/repo | Awesome Claude Plugins".into(),
+            description: "d".into(),
+            keywords: "AI, Coding, TOOLS".into(),
+        };
+        let entry =
+            meta_to_entry("https://awesomeclaudeplugins.com/owner/repo", &meta, 0).unwrap();
+        assert!(entry.keywords.contains(&"coding".to_string()));
+        assert_eq!(
+            entry.byoh_genre,
+            Some(crate::domain::genre::Genre::Developer)
+        );
+    }
+
+    #[test]
+    fn meta_to_entry_rejects_root_path() {
+        let meta = MetaTags {
+            title: "root | Awesome Claude Plugins".into(),
+            ..Default::default()
+        };
+        assert!(meta_to_entry("https://awesomeclaudeplugins.com/", &meta, 0).is_none());
+    }
+
+    #[test]
+    fn meta_to_entry_defaults_stars_none_license_unknown() {
+        let meta = parse_meta(META_HTML).unwrap();
+        let entry = meta_to_entry(
+            "https://awesomeclaudeplugins.com/varadhjain/granola-claude-plugin",
+            &meta,
+            0,
+        )
+        .unwrap();
+        assert_eq!(entry.stars, None);
+        assert_eq!(entry.license, "unknown");
+    }
+
+    #[test]
+    fn meta_to_entry_ignores_url_in_keywords() {
+        // Security: an attacker-controllable keywords field containing URLs
+        // is stored as-is in display keywords but must NEVER leak into
+        // github_url — that field is derived only from the trusted page URL.
+        let meta = MetaTags {
+            title: "owner/repo | Awesome Claude Plugins".into(),
+            description: "d".into(),
+            keywords: "https://evil.com/x, https://169.254.169.254/".into(),
+        };
+        let entry =
+            meta_to_entry("https://awesomeclaudeplugins.com/owner/repo", &meta, 0).unwrap();
+        // github_url is id-derived regardless of keyword content.
+        assert_eq!(entry.github_url, "https://github.com/owner/repo");
+        // keywords are display data — kept (lowercased), but inert for cloning.
+        assert!(entry.keywords.contains(&"https://evil.com/x".to_string()));
+        assert!(!entry.github_url.contains("evil.com"));
+        assert!(!entry.github_url.contains("169.254"));
     }
 }
