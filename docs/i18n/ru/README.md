@@ -61,14 +61,22 @@ byoh serve
 - **Вендоринг скиллов сообщества** (RFC M3) — `byoh vendor add` загружает внешний `SKILL.md` (локальный путь или git URL), выполняет статическую валидацию + sha256 и встраивает его в **Ring 3** (наиболее ограниченный) во время сборки через `build.rs`. Внешние скиллы включаются в синтез как недоверенный код.
 - **Каталог плагинов** — `byoh catalog index` строит офлайн-кэш в `~/.byoh/catalog.json` из курируемого README [quemsah/awesome-claude-plugins](https://github.com/quemsah/awesome-claude-plugins) (топ-100 по звёздам, обновляется ежедневно). Один запрос + разбор (без обхода страниц), и каждая запись несёт реальные `stars`. По умолчанию сначала скачивает **готовый bundle от мейнтейнера** (еженедельный asset GitHub Release — секунды) и разбирает README сам лишь если он недоступен. После индексации `catalog search` и `catalog vendor` работают полностью офлайн. Во время S2-интервью мастера `profile_interview` автоматически включает `catalog_suggestions` — до 5 плагинов, подобранных по жанру, которые LLM может рекомендовать без дополнительных вызовов инструментов.
 
+  `catalog vendor` **обогащает кэш каталога в момент подключения**: после клонирования репозитория плагина извлекает `license` и `keywords` из `.claude-plugin/plugin.json` и записывает разрешённый `genre`. Эти значения записываются обратно в `catalog.json` только если кэшированное значение равно `"unknown"` или пусто — так результаты `catalog search` становятся богаче с каждой операцией подключения. LLM-агент может автономно выполнить весь поток поиск → подключение через MCP-инструменты `catalog_search` / `catalog_vendor`, либо пользователь может указать всё напрямую через CLI.
+
   ```bash
-  # Однократная индексация (сеть; ~24 000 страниц)
-  byoh catalog index --limit 500          # начать с малого; 0 = полный обход
+  # Однократная индексация — сначала bundle, README как запасной вариант
+  byoh catalog index                       # сначала bundle, README как запасной
+  byoh catalog index --no-bundle           # напрямую парсить README
+  byoh catalog index --no-bundle --limit 20   # только первые 20
+
+  # Переопределение для тестирования с локальным зеркалом:
+  #   BYOH_BUNDLE_URL=http://localhost:18099/catalog.json.gz byoh catalog index
 
   # Офлайн-поиск — без сети
   byoh catalog search "test driven development" --genre developer --limit 5
 
-  # Вендоринг найденного плагина в registry/vendored/
+  # Подключить найденный плагин в registry/vendored/
+  # license, keywords и genre извлекаются автоматически из клонированного репо
   byoh catalog vendor obra/superpowers --genre developer
   ```
 

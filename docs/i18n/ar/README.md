@@ -61,14 +61,21 @@ byoh serve
 - **استيراد مهارات المجتمع** (RFC M3) — `byoh vendor add` يجلب ملف `SKILL.md` خارجيًا (مسار محلي أو رابط git)، يُجري التحقق الثابت + sha256، ويُدمجه في **Ring 3** (الأشد تقييدًا) وقت البناء عبر `build.rs`. تنضم المهارات الخارجية إلى التوليف كشيفرة غير موثوقة.
 - **كتالوج المكونات** — `byoh catalog index` يبني ذاكرة تخزين مؤقت في `~/.byoh/catalog.json` من README منسّق [quemsah/awesome-claude-plugins](https://github.com/quemsah/awesome-claude-plugins) (أفضل 100 حسب النجوم، يُحدَّث يوميًا). جلب + تحليل واحد (بدون زحف صفحة بصفحة)، وكل مدخل يحمل `stars` حقيقية. افتراضيًا يحمّل أولاً **حزمة جاهزة من المسؤول** (أصل GitHub Release أسبوعي — ثوانٍ) ولا يحلّل README مباشرة إلا عند عدم توفرها. بعد الفهرسة يعمل `catalog search` و`catalog vendor` بالكامل بدون اتصال. خلال مقابلة المعالج S2، يُضمّن `profile_interview` تلقائيًا `catalog_suggestions` — ما يصل إلى 5 مكونات مطابقة للنوع يمكن للـ LLM التوصية بها دون استدعاءات أدوات إضافية.
 
+  يقوم `catalog vendor` **بإثراء ذاكرة التخزين المؤقت للكتالوج عند الاستيراد**: بعد استنساخ مستودع المكوِّن، يستخرج `license` و`keywords` من `.claude-plugin/plugin.json` ويسجّل `genre` المحدَّد. تُكتب هذه القيم إلى `catalog.json` فقط عندما تكون القيمة المخزّنة `"unknown"` أو فارغة، مما يجعل نتائج `catalog search` أكثر ثراءً مع كل عملية استيراد. يستطيع وكيل LLM تنفيذ سير العمل بأكمله (بحث → استيراد) بشكل مستقل عبر أدوات MCP `catalog_search` / `catalog_vendor`، أو يمكن للمستخدم تحديد ذلك مباشرةً عبر واجهة سطر الأوامر.
+
   ```bash
-  # فهرسة لمرة واحدة (تتطلب شبكة؛ ~24 000 صفحة)
-  byoh catalog index --limit 500          # ابدأ بعدد صغير؛ 0 = استكشاف كامل
+  # فهرسة لمرة واحدة — تحميل الحزمة أولاً، ثم تحليل README كخيار احتياطي
+  byoh catalog index                       # الحزمة أولاً، README كخيار احتياطي
+  byoh catalog index --no-bundle           # تحليل README مباشرةً
+  byoh catalog index --no-bundle --limit 20   # أول 20 فقط
+
+  # تجاوز للاختبار مع مرآة محلية:
+  #   BYOH_BUNDLE_URL=http://localhost:18099/catalog.json.gz byoh catalog index
 
   # بحث بدون اتصال
   byoh catalog search "test driven development" --genre developer --limit 5
 
-  # استيراد مكوّن موجود إلى registry/vendored/
+  # استيراد المكوِّن إلى registry/vendored/ (يُستخرج license وkeywords وgenre تلقائيًا)
   byoh catalog vendor obra/superpowers --genre developer
   ```
 

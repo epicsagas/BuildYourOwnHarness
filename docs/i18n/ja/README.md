@@ -61,14 +61,22 @@ byoh serve
 - **コミュニティスキルベンダリング**（RFC M3） — `byoh vendor add` は外部の `SKILL.md`（ローカルパスまたはgit URL）を取得し、静的検証とsha256を実行して、`build.rs` によりビルド時に**Ring 3**（最も制限された）に組み込みます。外部スキルは非信頼コードとしてシンセシスに参加します。
 - **プラグインカタログ** — `byoh catalog index` はキュレーションされた [quemsah/awesome-claude-plugins](https://github.com/quemsah/awesome-claude-plugins) README（Stars順トップ100、上流で毎日更新）から `~/.byoh/catalog.json` にオフラインキャッシュを構築します。1回の取得＋パース（ページ別クロール不要）で、各エントリに実際の `stars` が含まれます。デフォルトでは **メンテナー作成のバンドル**（週次の GitHub Release アセット — 数秒）を先にダウンロードし、取得できない場合のみ README を直接パースします。インデックス後、`catalog search` と `catalog vendor` は完全オフラインで動作します。S2ウィザードインタビュー中、`profile_interview` は自動的に `catalog_suggestions`（ジャンルにマッチした最大5件のプラグイン推薦）を含めます — 追加のツール呼び出し不要です。
 
+  `catalog vendor` は**ベンダー時にカタログキャッシュを自動的に拡充**します: プラグインレポをクローン後、`.claude-plugin/plugin.json` から `license` と `keywords` を抽出し、確定した `genre` を記録します。これらはキャッシュ値が `"unknown"` または空の場合にのみ `catalog.json` に書き戻されます。LLMエージェントは `catalog_search` / `catalog_vendor` MCP ツールで検索 → ベンダーの流れを完全自律実行でき、ユーザーがCLIで直接指定することもできます。
+
   ```bash
-  # 初回インデックス（ネットワーク必須；約24,000ページ）
-  byoh catalog index --limit 500          # 少数から開始；0 = フルクロール
+  # 1回限りのインデックス作成 — バンドル優先、不可時はREADME直接パース
+  byoh catalog index                       # バンドル優先、READMEフォールバック
+  byoh catalog index --no-bundle           # READMEを直接パース
+  byoh catalog index --no-bundle --limit 20   # 上位20件のみ
+
+  # ローカルミラーテスト用オーバーライド:
+  #   BYOH_BUNDLE_URL=http://localhost:18099/catalog.json.gz byoh catalog index
 
   # オフライン検索 — ネットワーク不要
   byoh catalog search "test driven development" --genre developer --limit 5
 
   # 見つかったプラグインを registry/vendored/ にベンダリング
+  # license、keywords、genreをクローンしたレポから自動抽出
   byoh catalog vendor obra/superpowers --genre developer
   ```
 

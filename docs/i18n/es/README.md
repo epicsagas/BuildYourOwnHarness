@@ -61,14 +61,22 @@ byoh serve
 - **Vendoring de habilidades comunitarias** (RFC M3) — `byoh vendor add` obtiene un `SKILL.md` externo (ruta local o URL de git), ejecuta validación estática + sha256 y lo integra en **Ring 3** (más restringido) en tiempo de compilación via `build.rs`. Las habilidades externas se unen a la síntesis como código no confiable.
 - **Catálogo de plugins** — `byoh catalog index` construye un caché offline en `~/.byoh/catalog.json` a partir del README curado [quemsah/awesome-claude-plugins](https://github.com/quemsah/awesome-claude-plugins) (top 100 por estrellas, actualizado a diario). Una sola descarga + análisis (sin rastreo página por página) y cada entrada incluye `stars` reales. Por defecto descarga primero un **bundle preconstruido por el maintainer** (un asset de GitHub Release semanal — segundos) y solo analiza el README directamente si aquel no está disponible. Tras la indexación, `catalog search` y `catalog vendor` funcionan completamente sin conexión. Durante la entrevista del asistente S2, `profile_interview` incluye automáticamente `catalog_suggestions` — hasta 5 plugins coincidentes por género que el LLM puede recomendar sin llamadas adicionales a herramientas.
 
-  ```bash
-  # Indexación única (red; ~24 000 páginas)
-  byoh catalog index --limit 500          # comenzar pequeño; 0 = rastreo completo
+  `catalog vendor` **enriquece el caché del catálogo en el momento de la importación**: tras clonar el repositorio del plugin, extrae `license` y `keywords` de `.claude-plugin/plugin.json` y registra el `genre` resuelto. Solo sobreescribe `catalog.json` cuando el valor en caché es `"unknown"` o está vacío, por lo que los resultados de `catalog search` se enriquecen con cada operación de vendoring. El agente LLM puede ejecutar de forma autónoma el flujo búsqueda → importación mediante las herramientas MCP `catalog_search` / `catalog_vendor`, o el usuario puede especificarlo directamente por CLI.
 
-  # Búsqueda offline — sin red
+  ```bash
+  # Indexación única — bundle primero, parseo de README como respaldo
+  byoh catalog index                       # bundle primero, README como respaldo
+  byoh catalog index --no-bundle           # parsear README directamente
+  byoh catalog index --no-bundle --limit 20   # solo los 20 primeros
+
+  # Anulación para pruebas con espejo local:
+  #   BYOH_BUNDLE_URL=http://localhost:18099/catalog.json.gz byoh catalog index
+
+  # Búsqueda sin conexión — sin red
   byoh catalog search "desarrollo orientado a pruebas" --genre developer --limit 5
 
-  # Agregar un plugin encontrado a registry/vendored/
+  # Importar el plugin encontrado a registry/vendored/
+  # license, keywords y genre se extraen automáticamente del repositorio clonado
   byoh catalog vendor obra/superpowers --genre developer
   ```
 

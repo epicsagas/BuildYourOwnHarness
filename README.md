@@ -113,6 +113,8 @@ byoh serve
 - **Community skill vendoring** (RFC M3) — `byoh vendor add` fetches an external `SKILL.md` (local path or git URL), runs static validation + sha256, and embeds it into **Ring 3** (most-restricted) at build time via `build.rs`. External skills join synthesis as untrusted code.
 - **Plugin catalog** — `byoh catalog index` builds an offline cache at `~/.byoh/catalog.json` from the curated [quemsah/awesome-claude-plugins](https://github.com/quemsah/awesome-claude-plugins) README (top 100 repos by stars, refreshed daily upstream). A single fetch + parse — no per-page crawl — and each entry carries real `stars`. By default it first downloads a **maintainer-built bundle** (a weekly GitHub Release asset — seconds); only if that is unreachable does it parse the README itself. After indexing, `catalog search` and `catalog vendor` work entirely offline. During the S2 wizard interview, `profile_interview` automatically includes `catalog_suggestions` — up to 5 genre-matched plugins the LLM can recommend without extra tool calls.
 
+  `catalog vendor` **enriches the catalog cache at vendor time**: after cloning the plugin repo it reads `.claude-plugin/plugin.json` to extract `license` and `keywords`, and records the resolved `genre`. These are written back to `catalog.json` (only when the cached value is `"unknown"` or empty), so subsequent `catalog search` results become richer with each vendor operation. The LLM agent can drive the full search → vendor flow via the `catalog_search` and `catalog_vendor` MCP tools, or the user can run the CLI commands directly.
+
   ```bash
   # One-time index — downloads the prebuilt bundle, or parses the README
   # directly if the bundle is unavailable. --no-bundle forces a direct parse.
@@ -127,6 +129,7 @@ byoh serve
   byoh catalog search "test driven development" --genre developer --limit 5
 
   # Vendor a found plugin into registry/vendored/
+  # license, keywords, and genre are auto-harvested from the cloned repo
   byoh catalog vendor obra/superpowers --genre developer
   ```
 

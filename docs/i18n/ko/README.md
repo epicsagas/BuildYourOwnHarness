@@ -61,14 +61,22 @@ byoh serve
 - **커뮤니티 스킬 벤더링** (RFC M3) — `byoh vendor add`가 외부 `SKILL.md`(로컬 경로 또는 git URL)를 가져와 정적 검증 + sha256을 거치고, `build.rs`가 빌드 타임에 **Ring 3**(최제한 링)으로 임베드합니다. 외부 스킬은 신뢰할 수 없는 코드로 합성에 참여합니다.
 - **플러그인 카탈로그** — `byoh catalog index`가 큐레이션된 [quemsah/awesome-claude-plugins](https://github.com/quemsah/awesome-claude-plugins) README(Stars 순 상위 100, 업스트림에서 매일 갱신)에서 `~/.byoh/catalog.json` 오프라인 캐시를 빌드합니다. 단일 fetch + 파싱(페이지별 크롤 없음)이며 각 엔트리에 실제 `stars`가 포함됩니다. 기본적으로 **유지보수자가 빌드한 번들**(주간 GitHub Release 자산 — 수 초)을 먼저 다운로드하며, 접근 불가 시에만 README를 직접 파싱합니다. 인덱싱 후에는 `catalog search`와 `catalog vendor`가 네트워크 없이 완전히 오프라인으로 동작합니다. S2 위자드 인터뷰 중 `profile_interview`가 자동으로 `catalog_suggestions`를 포함시켜, LLM이 추가 도구 호출 없이 장르에 맞는 플러그인을 최대 5개까지 추천할 수 있습니다.
 
+  `catalog vendor`는 **벤더 시점에 카탈로그 캐시를 자동 보강**합니다: 플러그인 레포를 클론한 후 `.claude-plugin/plugin.json`에서 `license`와 `keywords`를 추출하고, 확정된 `genre`를 기록합니다. 이 값들은 캐시 값이 `"unknown"` 또는 비어 있는 경우에만 `catalog.json`에 다시 씁니다. 벤더 할수록 `catalog search` 결과가 점점 풍부해집니다. LLM 에이전트는 `catalog_search` / `catalog_vendor` MCP 도구로 검색 → 벤더 전 흐름을 완전 자율 실행할 수 있고, 사용자는 CLI로 직접 지정할 수도 있습니다.
+
   ```bash
-  # 최초 1회 인덱싱 (네트워크 필요; 약 24,000페이지)
-  byoh catalog index --limit 500          # 소규모로 시작; 0 = 전체 크롤
+  # 최초 1회 인덱싱 — 사전 빌드 번들 우선, 불가 시 README 직접 파싱
+  byoh catalog index                       # 번들 우선, README 폴백
+  byoh catalog index --no-bundle           # README 직접 파싱
+  byoh catalog index --no-bundle --limit 20   # 상위 20개만
+
+  # 로컬 미러 테스트용 오버라이드:
+  #   BYOH_BUNDLE_URL=http://localhost:18099/catalog.json.gz byoh catalog index
 
   # 오프라인 검색 — 네트워크 불필요
   byoh catalog search "테스트 주도 개발" --genre developer --limit 5
 
   # 검색한 플러그인을 registry/vendored/에 벤더링
+  # 클론된 레포에서 license, keywords, genre 자동 추출
   byoh catalog vendor obra/superpowers --genre developer
   ```
 

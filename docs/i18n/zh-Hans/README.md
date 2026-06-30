@@ -61,14 +61,22 @@ byoh serve
 - **社区技能外部引入**（RFC M3）— `byoh vendor add` 获取外部 `SKILL.md`（本地路径或 git URL），执行静态校验 + sha256 哈希，并在构建时通过 `build.rs` 嵌入 **Ring 3**（限制最严）。外部技能作为不信任代码加入合成流程。
 - **插件目录** — `byoh catalog index` 从精选的 [quemsah/awesome-claude-plugins](https://github.com/quemsah/awesome-claude-plugins) README（按 Stars 排序的前 100 名，上游每日更新）构建离线缓存至 `~/.byoh/catalog.json`。单次抓取 + 解析（无逐页爬取），每个条目带有真实的 `stars`。默认先下载 **维护者预构建的 bundle**（每周的 GitHub Release 资产 — 数秒），仅当其不可达时才直接解析 README。索引完成后，`catalog search` 和 `catalog vendor` 完全在本地离线运行。在 S2 向导采访过程中，`profile_interview` 会自动在响应中附带 `catalog_suggestions`（最多 5 个按 genre 匹配的插件推荐），LLM 无需额外调用工具即可向用户推荐相关插件。
 
+  `catalog vendor` **在引入时自动丰富目录缓存**：克隆插件仓库后，从 `.claude-plugin/plugin.json` 提取 `license` 和 `keywords`，并记录已解析的 `genre`。仅当缓存值为 `"unknown"` 或为空时才写回 `catalog.json`，每次引入操作都会让 `catalog search` 结果更加丰富。LLM 代理可通过 `catalog_search` / `catalog_vendor` MCP 工具自主完成搜索 → 引入全流程，用户也可直接通过 CLI 手动指定。
+
   ```bash
-  # 一次性建立索引（需要网络；约 24 000 个页面）
-  byoh catalog index --limit 500          # 从小规模开始；0 = 完整抓取
+  # 一次性索引 — 优先下载预构建包，不可达时直接解析 README
+  byoh catalog index                       # 优先包，README 兜底
+  byoh catalog index --no-bundle           # 直接解析 README
+  byoh catalog index --no-bundle --limit 20   # 仅前 20 项
+
+  # 本地镜像测试覆盖:
+  #   BYOH_BUNDLE_URL=http://localhost:18099/catalog.json.gz byoh catalog index
 
   # 离线搜索 — 无需网络
   byoh catalog search "test driven development" --genre developer --limit 5
 
   # 将找到的插件引入 registry/vendored/
+  # 自动从克隆仓库中提取 license、keywords 和 genre
   byoh catalog vendor obra/superpowers --genre developer
   ```
 
