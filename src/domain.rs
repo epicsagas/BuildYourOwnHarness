@@ -23,4 +23,4 @@ pub use profile::{
     DraftProfile, GenreConfidence, InterviewMeta, ProfileStatus, ProviderPreference, TruthBlock,
     UserProfile,
 };
-pub use state::{lifecycle, Transition};
+pub use state::{Transition, lifecycle};

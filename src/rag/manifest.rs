@@ -215,9 +215,11 @@ mod tests {
     #[test]
     fn load_none_when_absent() {
         let dir = tempfile::tempdir().unwrap();
-        assert!(IndexManifest::load(dir.path(), Genre::Developer)
-            .unwrap()
-            .is_none());
+        assert!(
+            IndexManifest::load(dir.path(), Genre::Developer)
+                .unwrap()
+                .is_none()
+        );
     }
 
     #[test]

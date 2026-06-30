@@ -1,7 +1,7 @@
 //! Catalog indexer — sitemap.xml → per-page JSON-LD → CatalogCache.
 //! **This is the only module that makes network calls** (feature-gated to `catalog`).
 
-use super::{save_cache, CatalogCache, CatalogEntry};
+use super::{CatalogCache, CatalogEntry, save_cache};
 use crate::deploy::genre_map::infer_genre;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};

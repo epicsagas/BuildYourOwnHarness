@@ -1,7 +1,7 @@
 //! CatalogEntry → vendor_add pipeline.
 
 use super::CatalogEntry;
-use crate::deploy::{fetch_git, vendor_add, VendorEntry};
+use crate::deploy::{VendorEntry, fetch_git, vendor_add};
 use crate::domain::genre::Genre;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};

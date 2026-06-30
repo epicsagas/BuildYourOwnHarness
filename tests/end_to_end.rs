@@ -4,17 +4,17 @@
 use byoh::adapters::{FilesystemSource, RuleInterview, RuleLlm, StaticWizard};
 use byoh::application::ProfileOrchestrator;
 use byoh::compiler::{compile_profile, dry_run, incremental, static_gate};
-use byoh::deploy::provider::{match_provider, CapabilityProfile};
+use byoh::deploy::provider::{CapabilityProfile, match_provider};
 use byoh::deploy::registry::Registry;
-use byoh::deploy::state::{crash_check, BuildStore};
+use byoh::deploy::state::{BuildStore, crash_check};
 use byoh::domain::bundle::Ring;
 use byoh::domain::evidence::{AbMetric, ObservationRecord, ObservedOutcome};
 use byoh::domain::genre::Genre;
 use byoh::domain::profile::{ProfileStatus, ProviderPreference, ToolUseRequirement, UserProfile};
 use byoh::evolve::gates::{SafetyGateSet, SeesawState, StagnationState};
-use byoh::evolve::{compress, CompressionTier};
-use byoh::evolve::{mine_patterns, run_cycle, EvolutionCycle};
-use byoh::i18n::{t, Msg};
+use byoh::evolve::{CompressionTier, compress};
+use byoh::evolve::{EvolutionCycle, mine_patterns, run_cycle};
+use byoh::i18n::{Msg, t};
 use byoh::ports::command::CommandPort;
 use byoh::security::mask;
 use chrono::TimeZone;
@@ -323,13 +323,17 @@ fn compression_tiered_for_genres() {
         },
     ];
     let dev_max = compress(&tokens, CompressionTier::MaxCompression, Genre::Developer);
-    assert!(dev_max
-        .iter()
-        .all(|t| t.kind == byoh::evolve::TokenKind::Code));
+    assert!(
+        dev_max
+            .iter()
+            .all(|t| t.kind == byoh::evolve::TokenKind::Code)
+    );
     let creator_max = compress(&tokens, CompressionTier::MaxCompression, Genre::Creator);
-    assert!(creator_max
-        .iter()
-        .all(|t| t.kind == byoh::evolve::TokenKind::Dialogue));
+    assert!(
+        creator_max
+            .iter()
+            .all(|t| t.kind == byoh::evolve::TokenKind::Dialogue)
+    );
 }
 
 #[test]
@@ -382,15 +386,16 @@ fn autoscan_is_non_destructive_and_derived() {
     assert_eq!(std::fs::read_to_string(&note).unwrap(), before);
     // candidates are derived
     assert!(!p.candidates.identity.primary_expertise.is_empty());
-    assert!(p
-        .candidates
-        .identity
-        .primary_expertise
-        .iter()
-        .all(
-            |f| f.confidence < byoh::domain::profile::DerivedFact::REQUESTION_THRESHOLD
-                || f.confidence >= 0.0
-        ));
+    assert!(
+        p.candidates
+            .identity
+            .primary_expertise
+            .iter()
+            .all(
+                |f| f.confidence < byoh::domain::profile::DerivedFact::REQUESTION_THRESHOLD
+                    || f.confidence >= 0.0
+            )
+    );
 }
 
 #[test]

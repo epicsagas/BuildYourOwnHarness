@@ -90,7 +90,7 @@ impl std::str::FromStr for ProfileStatus {
             other => {
                 return Err(super::ByohError::Schema(format!(
                     "unknown profile_status '{other}'"
-                )))
+                )));
             }
         })
     }

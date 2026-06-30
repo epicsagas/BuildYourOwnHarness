@@ -10,10 +10,10 @@
 //! template's `tdd`) is *augmented* (body replaced); a missing one is *cloned*
 //! into Ring 2. Generate and clone coexist — they never duplicate.
 
+use crate::Result;
 use crate::domain::bundle::{HarnessBundle, Ring, SkillSpec};
 use crate::domain::error::ByohError;
 use crate::domain::genre::Genre;
-use crate::Result;
 
 /// Raw preset bodies, keyed by `(genre, skill_id)`. Embedded at compile time.
 fn raw_preset(genre: Genre, skill_id: &str) -> Result<&'static str> {
@@ -61,7 +61,7 @@ fn raw_preset(genre: Genre, skill_id: &str) -> Result<&'static str> {
                 "no preset for genre '{}' skill '{}'",
                 genre.as_str(),
                 skill_id
-            )))
+            )));
         }
     })
 }
@@ -481,22 +481,26 @@ mod tests {
         assert_eq!(bbundle.skills.len(), bbefore + 2);
 
         // Bodies carry their distinctive content.
-        assert!(rbundle
-            .skills
-            .iter()
-            .find(|s| s.id == "evidence")
-            .unwrap()
-            .body_markdown
-            .to_lowercase()
-            .contains("tier"));
-        assert!(bbundle
-            .skills
-            .iter()
-            .find(|s| s.id == "decision")
-            .unwrap()
-            .body_markdown
-            .to_lowercase()
-            .contains("opportunity cost"));
+        assert!(
+            rbundle
+                .skills
+                .iter()
+                .find(|s| s.id == "evidence")
+                .unwrap()
+                .body_markdown
+                .to_lowercase()
+                .contains("tier")
+        );
+        assert!(
+            bbundle
+                .skills
+                .iter()
+                .find(|s| s.id == "decision")
+                .unwrap()
+                .body_markdown
+                .to_lowercase()
+                .contains("opportunity cost")
+        );
     }
 
     #[test]

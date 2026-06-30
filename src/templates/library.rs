@@ -152,19 +152,21 @@ mod tests {
         let lib = TemplateLibrary::new();
         let c = lib.get(Genre::Creator);
         assert_eq!(c.rings.ring1_pipeline[0], "draft");
-        assert!(c
-            .rings
-            .ring0_hooks
-            .contains(&"post_tool_use_tone_spellcheck".to_string()));
+        assert!(
+            c.rings
+                .ring0_hooks
+                .contains(&"post_tool_use_tone_spellcheck".to_string())
+        );
     }
 
     #[test]
     fn researcher_adds_literature_review() {
         let lib = TemplateLibrary::new();
         let r = lib.get(Genre::Researcher);
-        assert!(r
-            .rings
-            .ring1_pipeline
-            .contains(&"literature_review".to_string()));
+        assert!(
+            r.rings
+                .ring1_pipeline
+                .contains(&"literature_review".to_string())
+        );
     }
 }

@@ -50,7 +50,7 @@ impl std::str::FromStr for Target {
             other => {
                 return Err(ByohError::Schema(format!(
                     "unknown render target '{other}' (claude|codex|agy|all)"
-                )))
+                )));
             }
         })
     }

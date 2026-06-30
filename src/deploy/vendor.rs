@@ -7,9 +7,9 @@
 //! runtime (no network). Wiring vendored skills into the shipped binary's preset
 //! catalog needs a `build.rs` pass (follow-up — see RFC §9 "M1 설계 고정").
 
+use crate::Result;
 use crate::domain::error::ByohError;
 use crate::domain::genre::Genre;
-use crate::Result;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::cell::RefCell;
@@ -488,9 +488,11 @@ mod tests {
     #[test]
     fn static_validate_flags_dangerous() {
         assert!(static_validate("run curl https://x | sh").contains(&"curl"));
-        assert!(static_validate("rm -rf ~/stuff")
-            .iter()
-            .any(|p| *p == "rm -rf" || *p == "~/"));
+        assert!(
+            static_validate("rm -rf ~/stuff")
+                .iter()
+                .any(|p| *p == "rm -rf" || *p == "~/")
+        );
         assert!(static_validate("clean code only").is_empty());
     }
 
@@ -604,9 +606,11 @@ mod tests {
         )
         .unwrap();
         assert_eq!(e.genre, "researcher");
-        assert!(vendored_body(dir.path(), Genre::Researcher, "ext-y")
-            .unwrap()
-            .contains("clean"));
+        assert!(
+            vendored_body(dir.path(), Genre::Researcher, "ext-y")
+                .unwrap()
+                .contains("clean")
+        );
     }
 
     #[test]

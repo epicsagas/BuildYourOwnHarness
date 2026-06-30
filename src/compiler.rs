@@ -8,7 +8,7 @@ pub mod incremental;
 pub mod render;
 pub mod validate;
 
-pub use dryrun::{dry_run, DryRunReport};
-pub use incremental::{classify_change, recompile, ChangeClass};
+pub use dryrun::{DryRunReport, dry_run};
+pub use incremental::{ChangeClass, classify_change, recompile};
 pub use render::compile_profile;
-pub use validate::{static_gate, StaticGateReport};
+pub use validate::{StaticGateReport, static_gate};

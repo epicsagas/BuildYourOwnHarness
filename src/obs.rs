@@ -3,8 +3,8 @@
 //! re-exports the recovery protocol entry points used by the CLI/orchestrator
 //! and provides the observation accumulator for the evolution engine.
 
-pub use crate::deploy::state::{crash_check, BuildStore, CrashReport};
-pub use crate::domain::state::{lifecycle, BuildPhase, BuildState, PhaseEntry, Transition};
+pub use crate::deploy::state::{BuildStore, CrashReport, crash_check};
+pub use crate::domain::state::{BuildPhase, BuildState, PhaseEntry, Transition, lifecycle};
 
 use crate::domain::evidence::ObservationRecord;
 

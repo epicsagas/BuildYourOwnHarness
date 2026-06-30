@@ -19,14 +19,14 @@ pub mod pipeline;
 pub mod search;
 pub mod store;
 
-pub use chunk::{chunk_document, Chunk, ChunkOptions};
-pub use genre_index::{genre_bm25_weights, GenreIndexCatalog, GenreWeights};
-pub use manifest::{index_status, IndexDelta, IndexManifest};
+pub use chunk::{Chunk, ChunkOptions, chunk_document};
+pub use genre_index::{GenreIndexCatalog, GenreWeights, genre_bm25_weights};
+pub use manifest::{IndexDelta, IndexManifest, index_status};
 pub use pipeline::{
-    build_index, build_index_incremental, load_index, save_index, BuildReport, IndexHandle,
-    InputDoc, SearchHit,
+    BuildReport, IndexHandle, InputDoc, SearchHit, build_index, build_index_incremental,
+    load_index, save_index,
 };
-pub use search::{bm25_search, grep_search, hybrid_search, SearchMode};
+pub use search::{SearchMode, bm25_search, grep_search, hybrid_search};
 #[cfg(feature = "native-rag")]
 pub use store::TurbovecStore;
 pub use store::{InMemoryStore, VectorStore};

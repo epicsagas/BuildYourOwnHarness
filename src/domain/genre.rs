@@ -180,12 +180,14 @@ mod tests {
 
     #[test]
     fn safety_gates_require_all_three() {
-        assert!(SafetyGate::validate_all_present(&[
-            "critic".into(),
-            "seesaw".into(),
-            "stagnation".into()
-        ])
-        .is_ok());
+        assert!(
+            SafetyGate::validate_all_present(&[
+                "critic".into(),
+                "seesaw".into(),
+                "stagnation".into()
+            ])
+            .is_ok()
+        );
 
         let err =
             SafetyGate::validate_all_present(&["critic".into(), "seesaw".into()]).unwrap_err();

@@ -17,9 +17,9 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+use crate::Result;
 use crate::domain::error::ByohError;
 use crate::evolve::gates::{SeesawState, StagnationState};
-use crate::Result;
 
 /// Current on-disk schema version.
 pub const STATE_VERSION: u32 = 1;

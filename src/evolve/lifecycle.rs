@@ -3,8 +3,8 @@
 use crate::domain::evidence::{AbMetric, ObservationRecord};
 use crate::domain::genre::GenreEvolutionParams;
 use crate::evolve::gates::{
-    critic_review, CriticVerdict, EditType, SafetyGateSet, SeesawState, StagnationAction,
-    StagnationState,
+    CriticVerdict, EditType, SafetyGateSet, SeesawState, StagnationAction, StagnationState,
+    critic_review,
 };
 
 /// A single evolution cycle's inputs.

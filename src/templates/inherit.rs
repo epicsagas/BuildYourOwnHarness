@@ -46,14 +46,18 @@ mod tests {
         let base = base_template();
         let child = creator_template();
         let merged = merge_child_into_base(&base, &child);
-        assert!(merged
-            .rings
-            .ring0_hooks
-            .contains(&"session_start_resume".to_string()));
-        assert!(merged
-            .rings
-            .ring0_hooks
-            .contains(&"post_tool_use_tone_spellcheck".to_string()));
+        assert!(
+            merged
+                .rings
+                .ring0_hooks
+                .contains(&"session_start_resume".to_string())
+        );
+        assert!(
+            merged
+                .rings
+                .ring0_hooks
+                .contains(&"post_tool_use_tone_spellcheck".to_string())
+        );
         // safety gates retained
         assert!(merged.rings.ring3_evolution.contains(&"critic".to_string()));
     }

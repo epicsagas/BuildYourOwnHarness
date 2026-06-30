@@ -229,7 +229,7 @@ pub mod turbovec {
     }
 
     use crate::ports::embedder::Embedding;
-    use crate::rag::store::{cosine, VectorHit, VectorStore};
+    use crate::rag::store::{VectorHit, VectorStore, cosine};
 
     /// Production vector store wrapping llm-kernel's `TurbovecIndex`.
     ///

@@ -103,11 +103,7 @@ pub(crate) fn extract_frontmatter_tags(body: &str) -> Option<Vec<String>> {
             }
         }
     }
-    if tags.is_empty() {
-        None
-    } else {
-        Some(tags)
-    }
+    if tags.is_empty() { None } else { Some(tags) }
 }
 
 impl ProfileSource for FilesystemSource {

@@ -7,13 +7,13 @@
 
 use std::path::Path;
 
+use crate::Result;
 use crate::domain::evidence::AbMetric;
 use crate::domain::genre::{Genre, GenreEvolutionParams};
 use crate::evolve::gates::{SafetyGateSet, SeesawState, StagnationState};
 use crate::evolve::state::{EvolveState, EvolveStore};
-use crate::evolve::{run_cycle, EditType, EvolutionCycle, EvolutionDecision};
+use crate::evolve::{EditType, EvolutionCycle, EvolutionDecision, run_cycle};
 use crate::store::sanitize_slug;
-use crate::Result;
 
 /// Parse an `EditType` from its string name (the CLI/MCP wire form).
 pub fn parse_edit_type(s: &str) -> Result<EditType> {
@@ -27,7 +27,7 @@ pub fn parse_edit_type(s: &str) -> Result<EditType> {
         other => {
             return Err(crate::domain::error::ByohError::Schema(format!(
                 "unknown edit_type '{other}' (AddSkill|ModifyInstinct|ModifyConfig|AddGuardRule|ModifyPrompt|RemoveSkill)"
-            )))
+            )));
         }
     })
 }
@@ -148,14 +148,16 @@ mod tests {
     #[test]
     fn rejects_bad_slug() {
         let dir = tempfile::tempdir().unwrap();
-        assert!(evolve_one_cycle(
-            dir.path(),
-            "../evil",
-            Genre::Developer,
-            EditType::AddSkill,
-            strong_metric()
-        )
-        .is_err());
+        assert!(
+            evolve_one_cycle(
+                dir.path(),
+                "../evil",
+                Genre::Developer,
+                EditType::AddSkill,
+                strong_metric()
+            )
+            .is_err()
+        );
     }
 
     #[test]

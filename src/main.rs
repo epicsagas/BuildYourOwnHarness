@@ -4,13 +4,13 @@ use std::path::PathBuf;
 
 use byoh::adapters::{FilesystemSource, RuleInterview, RuleLlm, StaticWizard, StdCommand};
 use byoh::application::ProfileOrchestrator;
-use byoh::catalog::search::{catalog_search, SearchOptions};
+use byoh::catalog::search::{SearchOptions, catalog_search};
 use byoh::cli::{CatalogAction, Cli, Command, ProfileAction};
 use byoh::compiler::{compile_profile, dry_run, static_gate};
 use byoh::deploy::registry::Registry;
 use byoh::domain::genre::Genre;
 use byoh::domain::profile::{ProfileStatus, UserProfile};
-use byoh::i18n::{t, Msg};
+use byoh::i18n::{Msg, t};
 use byoh::ports::{CommandPort, InterviewPort};
 use clap::Parser;
 
@@ -136,10 +136,7 @@ fn run_catalog(action: CatalogAction) -> anyhow::Result<()> {
             if results.is_empty() {
                 println!("(no results for \"{query}\")");
             } else {
-                println!(
-                    "{:<40} {:<12} {:<6} description",
-                    "id", "genre", "stars"
-                );
+                println!("{:<40} {:<12} {:<6} description", "id", "genre", "stars");
                 for e in &results {
                     let g = e
                         .byoh_genre
@@ -596,7 +593,9 @@ fn run_run(slug: &str, _lang: &str) -> anyhow::Result<()> {
         .join(format!("byoh-{slug}"));
     println!("[byoh] run '{slug}': BYOH installs plugins; the host tool executes them.");
     println!("[byoh] installed plugin (dist): {}", manifest.display());
-    println!("[byoh] open your host (Claude Code / agy / Codex) in a project with this plugin to use it.");
+    println!(
+        "[byoh] open your host (Claude Code / agy / Codex) in a project with this plugin to use it."
+    );
     Ok(())
 }
 

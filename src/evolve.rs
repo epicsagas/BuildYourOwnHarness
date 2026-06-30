@@ -8,12 +8,12 @@ pub mod recall;
 pub mod skills;
 pub mod state;
 
-pub use compress::{compress, CompressionTier, ImportanceWeights, Token, TokenKind};
+pub use compress::{CompressionTier, ImportanceWeights, Token, TokenKind, compress};
 pub use gates::{
-    critic_review, CriticVerdict, EditType, SafetyGateSet, SeesawState, StagnationAction,
-    StagnationState,
+    CriticVerdict, EditType, SafetyGateSet, SeesawState, StagnationAction, StagnationState,
+    critic_review,
 };
-pub use lifecycle::{run_cycle, EvolutionCycle, EvolutionDecision};
-pub use recall::{recall_score, recency_value, RecallWeights};
-pub use skills::{mine_patterns, SkillSeed};
+pub use lifecycle::{EvolutionCycle, EvolutionDecision, run_cycle};
+pub use recall::{RecallWeights, recall_score, recency_value};
+pub use skills::{SkillSeed, mine_patterns};
 pub use state::{EvolveState, EvolveStore};

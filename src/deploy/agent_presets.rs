@@ -13,10 +13,10 @@
 //! bundle's agent list. Generate (genre defaults) and clone coexist — they
 //! never duplicate.
 
+use crate::Result;
 use crate::domain::bundle::{AgentSpec, HarnessBundle};
 use crate::domain::error::ByohError;
 use crate::domain::genre::Genre;
-use crate::Result;
 
 /// Raw agent-preset bodies, keyed by `(genre, agent_id)`. Embedded at compile time.
 fn raw_agent_preset(genre: Genre, agent_id: &str) -> Result<&'static str> {
@@ -46,7 +46,7 @@ fn raw_agent_preset(genre: Genre, agent_id: &str) -> Result<&'static str> {
                 "no agent preset for genre '{}' agent '{}'",
                 genre.as_str(),
                 agent_id
-            )))
+            )));
         }
     })
 }

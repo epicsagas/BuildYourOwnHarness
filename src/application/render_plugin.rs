@@ -11,11 +11,11 @@
 
 use std::path::{Path, PathBuf};
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
+use crate::Result;
 use crate::domain::bundle::{AgentSpec, HarnessBundle, SkillSpec};
 use crate::domain::render_target::Target;
-use crate::Result;
 
 /// Render `bundle` for `target` into `out`. For `Target::All`, writes a single
 /// **polyglot** tree carrying all three hosts' manifests (`.claude-plugin/`,
@@ -566,11 +566,13 @@ mod tests {
             manifest["agents"].is_array(),
             "Claude agents must be an array"
         );
-        assert!(manifest["agents"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|v| v == "./agents/code-reviewer.md"));
+        assert!(
+            manifest["agents"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|v| v == "./agents/code-reviewer.md")
+        );
 
         // agents/<id>.md frontmatter present.
         let md = std::fs::read_to_string(dir.path().join("agents/code-reviewer.md")).unwrap();
@@ -765,10 +767,11 @@ mod tests {
         render_target(&bundle, Target::All, dir.path()).unwrap();
 
         // Codex TOML agents + shared .md agents coexist (different dirs).
-        assert!(dir
-            .path()
-            .join(".codex-plugin/agents/code-reviewer.toml")
-            .exists());
+        assert!(
+            dir.path()
+                .join(".codex-plugin/agents/code-reviewer.toml")
+                .exists()
+        );
         assert!(dir.path().join("agents/code-reviewer.md").exists());
     }
 

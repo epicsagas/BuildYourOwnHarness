@@ -11,9 +11,9 @@
 //! gates. Failures are graceful (`ByohError`), never panics.
 
 use crate::compiler::{compile_profile, static_gate};
-use crate::deploy::agent_presets::{agent_catalog, agent_matches, inject_agent, AgentPresetMeta};
+use crate::deploy::agent_presets::{AgentPresetMeta, agent_catalog, agent_matches, inject_agent};
 use crate::deploy::presets::{
-    inject_preset, lookup_genre, preset_catalog, preset_matches, PresetMeta,
+    PresetMeta, inject_preset, lookup_genre, preset_catalog, preset_matches,
 };
 use crate::domain::bundle::HarnessBundle;
 use crate::domain::error::ByohError;
@@ -455,10 +455,12 @@ mod tests {
     fn synthesize_records_base_skill_count() {
         let p = confirmed_profile("d", Genre::Developer, &["backend"], "ship code");
         let (bundle, _) = synthesize(&p).unwrap();
-        assert!(bundle
-            .config
-            .extra
-            .contains_key("synthesis_base_skill_count"));
+        assert!(
+            bundle
+                .config
+                .extra
+                .contains_key("synthesis_base_skill_count")
+        );
     }
 
     #[test]
@@ -649,10 +651,12 @@ mod tests {
         );
         // Plan recorded; base agent count recorded for reproducibility.
         assert!(bundle.config.extra.contains_key("synthesis_plan"));
-        assert!(bundle
-            .config
-            .extra
-            .contains_key("synthesis_base_agent_count"));
+        assert!(
+            bundle
+                .config
+                .extra
+                .contains_key("synthesis_base_agent_count")
+        );
         // The matched agents are a subset of the plan's tag-driven selection.
         let selected: Vec<&str> = select_agents(&plan.tags)
             .iter()

@@ -11,20 +11,27 @@ use crate::domain::genre::Genre;
 /// The default agents for a genre. Empty vec is valid (genre has no agents).
 pub fn genre_agents(genre: Genre) -> Vec<AgentSpec> {
     match genre {
-        Genre::Developer => vec![agent(
-            "code-reviewer",
-            "Code Reviewer",
-            "Reviews code changes for correctness, security, and clarity before merge. Use when a diff is ready or before shipping.",
-            Some(vec!["Read".into(), "Grep".into(), "Glob".into(), "Bash".into()]),
-            "Review the diff for correctness bugs first, then security, then clarity. Cite file:line. Never approve what you did not read.",
-        ),
-        agent(
-            "debugger",
-            "Debugger",
-            "Systematic root-cause isolation for test failures, runtime errors, or unexpected behavior. Reproduce → hypothesize → verify → fix.",
-            Some(vec!["Read".into(), "Bash".into(), "Grep".into()]),
-            "Reproduce deterministically before any fix. Verify one hypothesis before editing. Fix the verified cause, not the symptom.",
-        )],
+        Genre::Developer => vec![
+            agent(
+                "code-reviewer",
+                "Code Reviewer",
+                "Reviews code changes for correctness, security, and clarity before merge. Use when a diff is ready or before shipping.",
+                Some(vec![
+                    "Read".into(),
+                    "Grep".into(),
+                    "Glob".into(),
+                    "Bash".into(),
+                ]),
+                "Review the diff for correctness bugs first, then security, then clarity. Cite file:line. Never approve what you did not read.",
+            ),
+            agent(
+                "debugger",
+                "Debugger",
+                "Systematic root-cause isolation for test failures, runtime errors, or unexpected behavior. Reproduce → hypothesize → verify → fix.",
+                Some(vec!["Read".into(), "Bash".into(), "Grep".into()]),
+                "Reproduce deterministically before any fix. Verify one hypothesis before editing. Fix the verified cause, not the symptom.",
+            ),
+        ],
         Genre::Creator => vec![agent(
             "draft-writer",
             "Draft Writer",

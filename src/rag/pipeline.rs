@@ -7,9 +7,9 @@ use std::path::Path;
 
 use crate::domain::genre::Genre;
 use crate::ports::embedder::EmbedderProvider;
-use crate::rag::chunk::{chunk_document, ChunkOptions};
+use crate::rag::chunk::{ChunkOptions, chunk_document};
 use crate::rag::genre_index::genre_index_path;
-use crate::rag::search::{hybrid_search, HybridHit};
+use crate::rag::search::{HybridHit, hybrid_search};
 use crate::rag::store::{InMemoryStore, VectorStore};
 
 /// A document to index.
@@ -225,7 +225,7 @@ pub fn build_index_incremental(
     docs: &[InputDoc],
     opts: &ChunkOptions,
 ) -> crate::domain::Result<(BuildReport, crate::rag::manifest::IndexDelta)> {
-    use crate::rag::manifest::{diff, IndexManifest};
+    use crate::rag::manifest::{IndexManifest, diff};
     use std::collections::BTreeMap;
 
     let manifest = IndexManifest::load(root, genre)?;

@@ -1,6 +1,6 @@
 //! Offline keyword search over the local catalog cache — no network.
 
-use super::{load_cache, CatalogCache, CatalogEntry};
+use super::{CatalogCache, CatalogEntry, load_cache};
 use crate::domain::genre::Genre;
 use std::path::Path;
 
@@ -28,11 +28,7 @@ pub fn search_cache(cache: &CatalogCache, opts: &SearchOptions) -> Vec<CatalogEn
         .iter()
         .filter_map(|e| {
             let s = score_entry(e, opts);
-            if s > 0 {
-                Some((s, e))
-            } else {
-                None
-            }
+            if s > 0 { Some((s, e)) } else { None }
         })
         .collect();
     scored.sort_by_key(|b| std::cmp::Reverse(b.0));
