@@ -14,7 +14,7 @@
 
 </div>
 
-대부분의 AI 도구는 고정된 기능 묶음을 주고 "알아서 써보세요"라고 합니다. BYOH는 반대입니다. 짧은 인터뷰로 실제로 어떤 일을 하는지 파악하고, 그에 맞는 에이전트 하네스(스킬·메모리·파이프라인)를 자동으로 생성합니다.
+대부분의 AI 도구는 고정된 기능 묶음을 주고 "알아서 써보세요"라고 합니다. BYOH는 반대입니다. 짧은 인터뷰로 실제로 어떤 일을 하는지 파악하고, 그에 맞는 에이전트 하네스(스킬·메모리·파이프라인)를 자동으로 생성합니다. 바로 꺼내 쓸 수 있도록 내 워크플로에 맞춰진 상태로요.
 
 ## 이런 분께 맞습니다
 
@@ -27,25 +27,34 @@
 
 ## 60초 시작
 
+BYOH는 AI 에이전트가 주도하도록 설계됐습니다. 설치하고, MCP로 호스트를 연결한 뒤, 그냥 대화하세요 — 대화가 곧 인터뷰이자 위자드이자 빌드입니다.
+
 ```
-1. byoh profile init me        # 프로젝트 스캔 (읽기 전용, 변경 없음)
-2. byoh profile interview me   # 역할과 목표에 대한 짧은 대화
-3. byoh compile me             # 개인 하네스 생성
-4. byoh install me             # Claude / Codex / agy에 배포
+1. Install byoh              # 원라인 설치 (아래 참고)
+2. Connect your host via MCP # byoh serve — 모든 MCP 호환 에이전트
+3. "Build me a harness"      # 에이전트가 레포를 스캔해서 결과를 컴파일
 ```
 
 다음 세션부터 호스트가 하네스를 자동으로 로드합니다 — 에이전트, 스킬, 메모리, 파이프라인 모두 나에게 맞춰진 상태로.
 
-**이미 원하는 게 있다면** 커뮤니티 카탈로그를 바로 써보세요:
+**터미널을 선호하시나요?** CLI에서 같은 흐름을 실행할 수 있습니다:
+```
+byoh profile init me        # 프로젝트 스캔 (읽기 전용, 변경 없음)
+byoh profile interview me   # 역할과 목표에 대한 짧은 대화
+byoh compile me             # 개인 하네스 생성
+byoh install me             # Claude / Codex / agy에 배포
+```
+
+**이미 원하는 게 정해졌다면** 커뮤니티 카탈로그를 둘러보세요:
 ```bash
-byoh catalog index                              # 상위 100개 플러그인 목록 다운로드 (수 초)
-byoh catalog search "code review"               # 검색
-byoh catalog vendor anthropics/claude-code-review   # 하네스에 추가
+byoh catalog index                                 # 상위 100개 플러그인 목록 다운로드 (수 초)
+byoh catalog search "code review"                  # 관련 플러그인 검색
+byoh catalog vendor anthropics/claude-code-review  # 하네스에 추가
 ```
 
 ## 설치
 
-### 바이너리 (권장 — Rust 불필요)
+### 바이너리 (권장 — Rust 툴체인 불필요)
 
 **macOS / Linux:**
 ```bash
@@ -67,9 +76,20 @@ cargo install byoh --git https://github.com/epicsagas/BuildYourOwnHarness
 byoh --version   # 설치 확인
 ```
 
-### AI 호스트에 플러그인 로드
+### AI 호스트에 연결
 
-BYOH는 Claude Code, Codex, agy를 모두 지원하는 폴리글랏 플러그인입니다 — 하나의 레포로 세 호스트 전부.
+BYOH는 MCP를 사용하므로, 모든 MCP 호환 에이전트가 BYOH를 주도할 수 있습니다. 위 바이너리를 설치하고 서버를 시작하면, 호스트가 모든 BYOH 도구를 직접 호출합니다:
+
+```bash
+byoh serve   # stdio MCP 서버
+```
+
+**다른 에이전트**(Cursor, Zed, Continue, …)는 호스트의 MCP 설정에 `byoh`를 추가하세요:
+```json
+{ "mcpServers": { "byoh": { "command": "byoh", "args": ["serve"] } } }
+```
+
+**Claude Code, Codex, agy**를 쓰시나요? 플러그인으로 설치하세요 — MCP 서버를 함께 묶어서 처음 로드할 때 바이너리까지 자동 설치합니다 (Rust 불필요):
 
 **Claude Code:**
 ```bash
@@ -89,14 +109,19 @@ codex plugin marketplace add /path/to/BuildYourOwnHarness
 codex plugin add byoh@epicsagas
 ```
 
-플러그인이 처음 로드될 때 `byoh` 바이너리를 자동 설치합니다. Rust가 없어도 됩니다.
+> **참고:** 현재 레포는 비공개입니다. 위 경로를 사용하세요. 공개 후에는 `epicsagas/plugins` 마켓플레이스에도 등록됩니다.
 
-> **참고:** 현재 레포는 비공개입니다. 공개 후에는 `epicsagas/plugins` 마켓플레이스에도 등록됩니다.
+## 에이전트 주도 모드
 
-## 첫 하네스 만들기
+호스트가 연결되면 명령어를 치지 않아도 됩니다 — 그냥 대화하세요. 에이전트가 BYOH의 14개 도구를 직접 호출하고, 대화가 곧 인터뷰이자 빌드이자 진화 사이클입니다:
+
+사용 가능한 도구: `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `compile`, `evolve_cycle`, `genre_list`, `registry_clone_skill`, `catalog_search`, `catalog_vendor` 등.
+
+## 첫 하네스 만들기 — CLI에서
+
+터미널에서 같은 단계를 실행합니다:
 
 ### 1단계 — 프로파일
-
 ```bash
 byoh profile init me --paths ./src ./docs   # 프로젝트 자동 분석
 byoh profile interview me                   # 약 5분 대화
@@ -106,25 +131,23 @@ byoh profile confirm me --genre developer   # 장르 확정
 인터뷰는 역할, 전문 분야, 사용 도구, 30일 목표를 물어봅니다. 개발자는 개발자에 맞는 질문을, 연구자는 연구자에 맞는 질문을 받습니다.
 
 ### 2단계 — 컴파일 & 설치
-
 ```bash
-byoh compile me                  # HarnessBundle 생성 (검증 + 게이트 통과)
+byoh compile me          # HarnessBundle 생성 (검증 + 게이트 통과)
 byoh render me --target claude   # 또는 codex | agy | all
-byoh install me                  # dist/에 안전하게 설치
+byoh install me          # dist/에 안전하게 설치
 ```
 
 ### 3단계 — 실행 & 진화
-
 ```bash
-byoh run me       # 하네스가 활성화된 상태로 실행
-byoh evolve me    # 세션 피드백 기반으로 하네스 개선
+byoh run me              # 하네스가 활성화된 상태로 실행
+byoh evolve me           # 세션 피드백 기반으로 하네스 개선
 ```
 
 `evolve`는 Critic(품질) / Seesaw(회귀) / Stagnation(정체) 3중 게이트를 반드시 통과해야 반영됩니다. 우회는 불가능합니다.
 
 ## 플러그인 카탈로그
 
-Stars 순 상위 100개 Claude 플러그인을 오프라인으로 검색하고 하네스에 바로 추가할 수 있습니다.
+카탈로그는 상위 100개 Claude 플러그인을(Stars 순, 매일 갱신) 큐레이션해서, 터미널을 떠나지 않고도 커뮤니티 스킬을 발견하고 추가할 수 있게 해줍니다.
 
 ```bash
 # 최초 1회 인덱싱 (사전 빌드 번들 다운로드 — 수 초)
@@ -133,21 +156,12 @@ byoh catalog index
 # 인덱싱 후에는 네트워크 없이 검색 가능
 byoh catalog search "memory" --genre developer --limit 5
 
-# 하네스에 추가 — license, keywords, genre 자동 추출
+# 하네스에 추가
+# license, keywords, genre는 클론한 레포에서 자동 추출
 byoh catalog vendor obra/superpowers --genre developer
 ```
 
-MCP 도구(`catalog_search` / `catalog_vendor`)를 통해 LLM 에이전트가 검색 → 추가 흐름을 완전 자율로 처리할 수 있고, CLI로 직접 지정하는 것도 물론 가능합니다.
-
-## 에이전트 주도 모드
-
-`byoh serve`를 실행하면 stdio MCP 서버가 시작됩니다. AI 호스트가 14개 도구를 직접 호출해서 인터뷰, 위자드, 실행을 모두 대화로 처리합니다 — CLI는 보조 수단이 됩니다.
-
-```bash
-byoh serve   # Claude / Codex / agy가 연결해서 모든 걸 주도
-```
-
-사용 가능한 도구: `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `compile`, `evolve_cycle`, `rag_index`, `rag_search`, `genre_list`, `registry_clone_skill`, `catalog_search`, `catalog_vendor` 등.
+LLM 에이전트가(`catalog_search` / `catalog_vendor` MCP 도구로) 이 흐름 전체를 자율으로 처리할 수도 있고, CLI에서 직접 실행할 수도 있습니다.
 
 ## 전체 CLI 레퍼런스
 
@@ -175,19 +189,14 @@ byoh vendor remove <id> --genre <g>
 byoh catalog index [--no-bundle] [--limit N]
 byoh catalog search "<쿼리>" [--genre <g>] [--tags k1,k2] [--limit N]
 byoh catalog vendor <owner/repo> [--genre <g>] [--keywords k1,k2]
-
-# 지식베이스 (RAG)
-byoh index <slug> [--corpus <dir>] [--force]
-byoh search <slug> "<쿼리>" [--genre <g>] [--k N]
 ```
 
 ## 내부 동작 원리
 
-합성 엔진이 프로파일 태그를 스킬 레지스트리와 매칭해 의존성 순서가 잡힌 파이프라인을 만들고, 각 호스트의 네이티브 포맷으로 렌더링되는 `HarnessBundle`을 생성합니다.
+합성 엔진이 프로파일 태그를 스킬 레지스트리와 매칭해 의존성 순서가 잡힌 파이프라인을 만들고, 지원되는 모든 호스트의 네이티브 포맷으로 렌더링되는 `HarnessBundle`을 생성합니다.
 
 - **4-ring 보안 모델** — 내장 스킬(Ring 1)부터 커뮤니티/미신뢰 스킬(Ring 4)까지 단계별로 검증 수위가 높아짐
-- **3중 게이트 진화** — Critic(품질), Seesaw(회귀), Stagnation(정체) 세 게이트를 모두 통과해야 반영, 우회 불가
-- **영속 RAG** — 변경된 문서만 재임베딩(`+추가 ~변경 -삭제`); 이후 검색은 저장된 인덱스 그대로 재사용
+- **3중 게이트 진화** — 매 `evolve` 사이클이 Critic(품질), Seesaw(회귀), Stagnation(정체) 게이트를 모두 통과해야 반영, 우회 불가
 - **목표 지향 파이프라인** — 30일 목표(제품 출시, 리서치 리포트, 보안 배포 등) 선언 시 매칭되는 스킬 래더를 자동으로 얹어줌
 
 아키텍처: 헥사고날 — `domain / ports / adapters / application / compiler / evolve / templates / deploy / i18n / obs / security / cli`. 전체 가이드는 `AGENTS.md` 참고.
@@ -201,7 +210,7 @@ cargo test                        # 단위 + e2e
 cvp                               # 병렬 실행: check → clippy → test → fmt → build
 ```
 
-선택 피쳐: `--features mcp`(MCP 서버), `--features native-rag`(로컬 임베딩), `--features rag-openai`(OpenAI 임베딩). 릴리즈 바이너리는 전체 피쳐를 포함합니다.
+`mcp` 피쳐(stdio MCP 서버)는 기본으로 켜져 있습니다. BYOH는 내장 문서 검색 색인을 포함하지 않습니다 — 검색 기능이 필요하면 생성된 하네스를 [alcove](https://github.com/epicsagas/alcove) 같은 문서 서버로 연결하세요.
 
 ## 라이선스
 

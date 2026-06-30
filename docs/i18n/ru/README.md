@@ -1,8 +1,6 @@
-> Этот документ — русская версия [README.md](../../../README.md). Английская версия является авторитетным источником.
-
 <div align="center">
 
-[English](../../../README.md) | [한국어](../ko/README.md) | [日本語](../ja/README.md) | [简体中文](../zh-Hans/README.md) | [Español](../es/README.md) | [Deutsch](../de/README.md) | [Français](../fr/README.md) | [Português](../pt/README.md) | **Русский** | [العربية](../ar/README.md)
+**[English](../../../README.md)** | [한국어](../ko/README.md) | [日本語](../ja/README.md) | [简体中文](../zh-Hans/README.md) | [Español](../es/README.md) | [Deutsch](../de/README.md) | [Français](../fr/README.md) | [Português](../pt/README.md) | **Русский** | [العربية](../ar/README.md)
 
 # BuildYourOwnHarness (BYOH)
 
@@ -25,22 +23,31 @@
 
 Если вы когда-нибудь думали «хотел бы я, чтобы мой ИИ реально знал мой контекст» — именно это делает BYOH.
 
-## Старт за 60 секунд
+## Как это работает за 60 секунд
+
+BYOH рассчитан на управление вашим ИИ-агентом. Установите его, подключите хост по MCP и просто разговаривайте — беседа *и есть* интервью, мастер настройки и сборка.
 
 ```
-1. byoh profile init me        # сканирует ваш проект — не разрушает, только читает
-2. byoh profile interview me   # короткий разговор о вашей роли и целях
-3. byoh compile me             # генерирует ваш персональный харнес
-4. byoh install me             # разворачивает в Claude / Codex / agy
+1. Install byoh              # однострочная установка (см. ниже)
+2. Connect your host via MCP # byoh serve — любой MCP-совместимый агент
+3. "Build me a harness"      # ваш агент сканирует репо и компилирует результат
 ```
 
-На следующей сессии ваш хост автоматически загружает харнес — агенты, навыки, память и пайплайны, настроенные под вас.
+На следующей сессии ваш хост автоматически загружает харнес — агентов, навыки, память и пайплайны, настроенные под вас.
 
-**Знаете, что ищете?** Загляните в каталог сообщества:
+**Предпочитаете терминал?** Тот же поток из CLI:
+```
+byoh profile init me        # сканирует ваш проект — не разрушает, только читает
+byoh profile interview me   # короткий разговор о вашей роли и целях
+byoh compile me             # генерирует ваш персональный харнес
+byoh install me             # разворачивает в Claude / Codex / agy
+```
+
+**Уже знаете, что нужно?** Загляните в каталог сообщества:
 ```bash
-byoh catalog index                        # скачать список топ-100 плагинов (секунды)
-byoh catalog search "code review"         # найти нужный плагин
-byoh catalog vendor anthropics/claude-code-review   # добавить в харнес
+byoh catalog index                                 # скачать список топ-100 плагинов (секунды)
+byoh catalog search "code review"                  # найти нужный плагин
+byoh catalog vendor anthropics/claude-code-review  # добавить в харнес
 ```
 
 ## Установка
@@ -67,9 +74,20 @@ cargo install byoh --git https://github.com/epicsagas/BuildYourOwnHarness
 byoh --version   # проверить установку
 ```
 
-### Подключить plugin к вашему ИИ-хосту
+### Подключите ваш ИИ-хост
 
-BYOH поставляется как полиглот-plugin и работает в Claude Code, Codex и agy — один репозиторий, все три хоста.
+BYOH говорит на MCP, поэтому им может управлять любой MCP-совместимый агент. Установите бинарник выше, запустите сервер — и ваш хост вызывает любой инструмент BYOH напрямую:
+
+```bash
+byoh serve   # stdio MCP-сервер
+```
+
+Для **других агентов** (Cursor, Zed, Continue, …) добавьте `byoh` в MCP-конфиг вашего хоста:
+```json
+{ "mcpServers": { "byoh": { "command": "byoh", "args": ["serve"] } } }
+```
+
+Используете **Claude Code, Codex или agy**? Тогда установите плагин — он объединяет MCP-сервер и автоматически ставит бинарник при первой загрузке (Rust не нужен):
 
 **Claude Code:**
 ```bash
@@ -89,11 +107,17 @@ codex plugin marketplace add /path/to/BuildYourOwnHarness
 codex plugin add byoh@epicsagas
 ```
 
-Plugin автоматически устанавливает бинарник `byoh` при первой загрузке — Rust на вашей машине не нужен.
+> **Замечание:** Репозиторий пока приватный. Используйте пути выше. После публикации он появится в общем маркетплейсе `epicsagas/plugins`.
 
-> **Замечание:** Репозиторий пока приватный. Используйте пути выше. После публикации он появится в маркетплейсе `epicsagas/plugins`.
+## Агентный режим
 
-## Ваш первый харнес — шаг за шагом
+Когда хост подключён, вы не вводите команды — вы просто разговариваете. Ваш агент напрямую вызывает 14 инструментов BYOH, и беседа *и есть* интервью, сборка и цикл эволюции:
+
+Доступные инструменты: `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `compile`, `evolve_cycle`, `genre_list`, `registry_clone_skill`, `catalog_search`, `catalog_vendor` и другие.
+
+## Ваш первый харнес — из CLI
+
+Те же шаги, управляемые из терминала:
 
 ### Шаг 1 — Профиль
 ```bash
@@ -106,15 +130,15 @@ BYOH спрашивает о вашей роли, уровне эксперти�
 
 ### Шаг 2 — Компиляция и установка
 ```bash
-byoh compile me                  # сгенерировать HarnessBundle (валидация + шлюзы)
+byoh compile me          # сгенерировать HarnessBundle (валидация + шлюзы)
 byoh render me --target claude   # или: codex | agy | all
-byoh install me                  # безопасная установка в dist/
+byoh install me          # безопасная установка в dist/
 ```
 
 ### Шаг 3 — Запуск и эволюция
 ```bash
-byoh run me       # запустить с активным харнесом
-byoh evolve me    # улучшить харнес на основе обратной связи
+byoh run me              # запустить с активным харнесом
+byoh evolve me           # улучшить харнес на основе обратной связи
 ```
 
 `evolve` запускает цикл из трёх шлюзов (Critic / Seesaw / Stagnation), который нельзя обойти — эволюция безопасна и аудируема.
@@ -130,22 +154,12 @@ byoh catalog index
 # Офлайн-поиск — сеть после индексации не нужна
 byoh catalog search "memory" --genre developer --limit 5
 
-# Добавить plugin в харнес
+# Добавить плагин в харнес
 # лицензия, ключевые слова и жанр определяются автоматически из клонированного репо
 byoh catalog vendor obra/superpowers --genre developer
 ```
 
 ИИ-агент (через MCP-инструменты `catalog_search` / `catalog_vendor`) может выполнить весь этот поток самостоятельно — или вы управляете им напрямую через CLI.
-
-## Агентный режим
-
-`byoh serve` запускает stdio MCP-сервер. Вместо того чтобы вводить команды вручную, ваш ИИ-хост напрямую вызывает 14 инструментов BYOH — разговор *и есть* интервью, мастер настройки и исполнение.
-
-```bash
-byoh serve   # Claude / Codex / agy подключается и берёт управление на себя
-```
-
-Доступные инструменты: `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `compile`, `evolve_cycle`, `rag_index`, `rag_search`, `genre_list`, `registry_clone_skill`, `catalog_search`, `catalog_vendor` и другие.
 
 ## Полный справочник CLI
 
@@ -158,7 +172,7 @@ byoh profile confirm <slug> --genre <g>     # подтвердить и зафи
 # Сборка
 byoh compile <slug> [--dry-run]             # валидация + генерация HarnessBundle
 byoh render <slug> --target <host>          # claude | codex | agy | all
-byoh install <slug> [--host <dir>]          # развернуть в dist/ или в папку plugin
+byoh install <slug> [--host <dir>]          # развернуть в dist/ или в папку плагина
 
 # Запуск и эволюция
 byoh run <slug>
@@ -173,10 +187,6 @@ byoh vendor remove <id> --genre <g>
 byoh catalog index [--no-bundle] [--limit N]
 byoh catalog search "<запрос>" [--genre <g>] [--tags k1,k2] [--limit N]
 byoh catalog vendor <owner/repo> [--genre <g>] [--keywords k1,k2]
-
-# База знаний (RAG)
-byoh index <slug> [--corpus <dir>] [--force]
-byoh search <slug> "<запрос>" [--genre <g>] [--k N]
 ```
 
 ## Как это работает под капотом
@@ -185,7 +195,6 @@ byoh search <slug> "<запрос>" [--genre <g>] [--k N]
 
 - **4 кольца безопасности** — от встроенных навыков (Ring 1) до навыков сообщества/ненадёжных (Ring 4), каждое с нарастающей валидацией
 - **3 шлюза эволюции** — каждый цикл `evolve` проходит шлюзы Critic (качество), Seesaw (регрессия) и Stagnation (плато); обход невозможен
-- **Персистентный RAG** — инкрементальное переиндексирование при изменениях (`+добавлено ~изменено -удалено`); поиск переиспользует сохранённый индекс без повторного эмбеддинга
 - **Цель-ориентированные пайплайны** — объявив 30-дневную цель (запуск продукта, исследовательский отчёт, безопасная доставка…), вы автоматически получаете соответствующую лестницу навыков
 
 Архитектура: гексагональная — `domain / ports / adapters / application / compiler / evolve / templates / deploy / i18n / obs / security / cli`. Подробное описание — в `AGENTS.md`.
@@ -199,7 +208,7 @@ cargo test                        # юнит + e2e
 cvp                               # параллельно: check → clippy → test → fmt → build
 ```
 
-Опциональные фичи: `--features mcp` (MCP-сервер), `--features native-rag` (локальные эмбеддинги), `--features rag-openai` (эмбеддинги OpenAI). Релизные бинарники включают все фичи.
+Фича `mcp` (stdio MCP-сервер) включена по умолчанию. BYOH не поставляется со встроенной базой знаний — для ретривала укажите сгенерированному харнесу на док-сервер вроде [alcove](https://github.com/epicsagas/alcove).
 
 ## Лицензия
 

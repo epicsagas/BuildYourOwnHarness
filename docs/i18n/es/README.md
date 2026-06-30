@@ -25,16 +25,25 @@ La mayoría de las herramientas de IA te dan un conjunto fijo de funciones y dic
 
 Si alguna vez has pensado "ojalá mi IA supiera realmente mi contexto" — eso es exactamente lo que hace BYOH.
 
-## Empieza en 60 segundos
+## Cómo funciona en 60 segundos
 
-```bash
+BYOH está diseñado para que lo gestione tu agente de IA. Instálalo, conecta tu host por MCP y simplemente habla — la conversación *es* la entrevista, el asistente y la compilación.
+
+```
+1. Instala byoh              # instalación en una línea (ver abajo)
+2. Conecta tu host por MCP   # byoh serve — cualquier agente compatible con MCP
+3. "Build me a harness"      # tu agente escanea tu repo y compila el resultado
+```
+
+En la siguiente sesión tu host carga el harness automáticamente — agentes, habilidades, memoria y pipelines ajustados a ti.
+
+**¿Prefieres el terminal?** El mismo flujo desde la CLI:
+```
 byoh profile init yo        # escanea tu proyecto — no destructivo, solo lectura
 byoh profile interview yo   # una breve conversación sobre tu rol y objetivos
 byoh compile yo             # genera tu harness personal
 byoh install yo             # lo despliega en Claude / Codex / agy
 ```
-
-En la siguiente sesión tu host carga el harness automáticamente — agentes, habilidades, memoria y pipelines ajustados a ti.
 
 **¿Ya sabes lo que necesitas?** Explora el catálogo de la comunidad:
 ```bash
@@ -67,9 +76,20 @@ cargo install byoh --git https://github.com/epicsagas/BuildYourOwnHarness
 byoh --version   # verificar instalación
 ```
 
-### Cargar el plugin en tu host de IA
+### Conecta tu host de IA
 
-BYOH se distribuye como un plugin políglota compatible con Claude Code, Codex y agy — un solo repositorio, los tres hosts.
+BYOH habla MCP, así que cualquier agente compatible con MCP puede gestionarlo. Instala el binario de arriba, arranca el servidor y tu host llama directamente a todas las herramientas de BYOH:
+
+```bash
+byoh serve   # servidor MCP por stdio
+```
+
+Para **otros agentes** (Cursor, Zed, Continue, …), añade `byoh` a la configuración MCP de tu host:
+```json
+{ "mcpServers": { "byoh": { "command": "byoh", "args": ["serve"] } } }
+```
+
+¿Usas **Claude Code, Codex o agy**? Instala el plugin en su lugar — agrupa el servidor MCP e instala el binario automáticamente en la primera carga (sin necesidad de Rust):
 
 **Claude Code:**
 ```bash
@@ -89,11 +109,17 @@ codex plugin marketplace add /ruta/a/BuildYourOwnHarness
 codex plugin add byoh@epicsagas
 ```
 
-El plugin instala el binario `byoh` automáticamente en la primera carga — sin necesidad de Rust.
+> **Nota:** El repositorio es actualmente privado. Usa las rutas indicadas. Una vez público, aparecerá en el marketplace compartido `epicsagas/plugins`.
 
-> **Nota:** El repositorio es actualmente privado. Una vez público, aparecerá en el marketplace compartido `epicsagas/plugins`.
+## Modo gestionado por el agente
 
-## Tu primer harness — paso a paso
+Una vez que tu host está conectado, no escribes comandos — simplemente hablas. Tu agente llama directamente a las 14 herramientas de BYOH, y la conversación *es* la entrevista, la compilación y el ciclo de evolución:
+
+Herramientas disponibles: `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `compile`, `evolve_cycle`, `genre_list`, `registry_clone_skill`, `catalog_search`, `catalog_vendor` y más.
+
+## Tu primer harness — desde la CLI
+
+Los mismos pasos, gestionados desde el terminal:
 
 ### Paso 1 — Perfil
 ```bash
@@ -137,16 +163,6 @@ byoh catalog vendor obra/superpowers --genre developer
 
 El agente LLM (vía herramientas MCP `catalog_search` / `catalog_vendor`) puede ejecutar todo este flujo de forma autónoma, o puedes manejarlo directamente desde la CLI.
 
-## Modo agente
-
-`byoh serve` inicia un servidor MCP por stdio. En lugar de escribir comandos tú mismo, tu host de IA llama directamente a las 14 herramientas de BYOH — la conversación *es* la entrevista, el asistente y la ejecución.
-
-```bash
-byoh serve   # Claude / Codex / agy se conecta y gestiona todo
-```
-
-Herramientas disponibles: `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `compile`, `evolve_cycle`, `rag_index`, `rag_search`, `genre_list`, `registry_clone_skill`, `catalog_search`, `catalog_vendor` y más.
-
 ## Referencia CLI completa
 
 ```bash
@@ -173,10 +189,6 @@ byoh vendor remove <id> --genre <g>
 byoh catalog index [--no-bundle] [--limit N]
 byoh catalog search "<consulta>" [--genre <g>] [--tags k1,k2] [--limit N]
 byoh catalog vendor <owner/repo> [--genre <g>] [--keywords k1,k2]
-
-# Base de conocimiento (RAG)
-byoh index <slug> [--corpus <dir>] [--force]
-byoh search <slug> "<consulta>" [--genre <g>] [--k N]
 ```
 
 ## Cómo funciona por dentro
@@ -185,7 +197,6 @@ El motor de síntesis de BYOH cruza tus etiquetas de perfil con el registro de h
 
 - **Modelo de seguridad de 4 anillos** — desde habilidades integradas (Anillo 1) hasta habilidades de la comunidad/no confiables (Anillo 4), cada una con validación progresiva
 - **Evolución de 3 puertas** — cada ciclo `evolve` pasa por Critic (calidad), Seesaw (regresión) y Stagnation (estancamiento); sin atajos posibles
-- **RAG persistente** — re-embedding incremental ante cambios (`+añadidos ~modificados -eliminados`); la búsqueda reutiliza el índice guardado sin re-embeber
 - **Pipelines orientados a objetivos** — declarar un objetivo a 30 días (lanzamiento de producto, informe de investigación, entrega segura…) superpone automáticamente una escalera de habilidades a medida
 
 Arquitectura hexagonal: `domain / ports / adapters / application / compiler / evolve / templates / deploy / i18n / obs / security / cli`. Consulta `AGENTS.md` para la guía completa.
@@ -199,7 +210,7 @@ cargo test                        # unitarios + e2e
 cvp                               # paralelo: check → clippy → test → fmt → build
 ```
 
-Features opcionales: `--features mcp` (servidor MCP), `--features native-rag` (embeddings locales), `--features rag-openai` (embeddings de OpenAI). Los binarios de release incluyen todas las features.
+La feature `mcp` (servidor MCP por stdio) está activada por defecto. BYOH no incluye ningún repositorio de documentos integrado — para recuperación, apunta tu harness generado a un servidor de documentación como [alcove](https://github.com/epicsagas/alcove).
 
 ## Licencia
 

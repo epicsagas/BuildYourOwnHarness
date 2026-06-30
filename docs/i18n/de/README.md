@@ -14,7 +14,7 @@
 
 </div>
 
-Die meisten KI-Tools geben dir ein festes Funktionspaket und sagen „Viel Glück". BYOH dreht das um: Ein kurzes Interview lernt, wie du wirklich arbeitest, und generiert einen personalisierten Agenten-Harness — Skills, Memory, Pipelines — der von Anfang an zu deinem Workflow passt.
+Die meisten KI-Setups geben dir ein festes Funktionspaket und sagen „Viel Glück". BYOH dreht das um: Es interviewt dich, lernt, wie du wirklich arbeitest, und generiert einen personalisierten Agenten-Harness — Skills, Memory, Pipelines — der von Anfang an zu deinem Workflow passt.
 
 ## Für wen ist das?
 
@@ -27,20 +27,29 @@ Wenn du dir jemals gedacht hast „ich wünschte, meine KI würde meinen Kontext
 
 ## In 60 Sekunden starten
 
-```bash
-byoh profile init ich        # scannt dein Projekt — nicht destruktiv, nur lesend
-byoh profile interview ich   # ein kurzes Gespräch über deine Rolle und Ziele
-byoh compile ich             # generiert deinen persönlichen Harness
-byoh install ich             # deployt ihn in Claude / Codex / agy
+BYOH ist darauf ausgelegt, von deinem KI-Agenten gesteuert zu werden. Installiere es, verbinde deinen Host über MCP und sprich einfach — das Gespräch *ist* Interview, Wizard und Build in einem.
+
+```
+1. Install byoh              # Ein-Zeilen-Installation (siehe unten)
+2. Connect your host via MCP # byoh serve — jeder MCP-kompatible Agent
+3. "Build me a harness"      # dein Agent scannt dein Repo und kompiliert das Ergebnis
 ```
 
 Ab der nächsten Session lädt dein Host den Harness automatisch — Agenten, Skills, Memory und Pipelines, auf dich abgestimmt.
 
-**Weißt du schon, was du brauchst?** Stöbere direkt im Community-Katalog:
+**Lieber im Terminal?** Derselbe Ablauf über die CLI:
+```
+byoh profile init me        # scannt dein Projekt — nicht destruktiv, nur lesend
+byoh profile interview me   # ein kurzes Gespräch über deine Rolle und Ziele
+byoh compile me             # generiert deinen persönlichen Harness
+byoh install me             # deployt ihn in Claude / Codex / agy
+```
+
+**Weißt du schon, was du brauchst?** Stöbere im Community-Katalog:
 ```bash
-byoh catalog index                                  # Top-100-Plugin-Liste laden (Sekunden)
-byoh catalog search "code review"                   # passende Plugins finden
-byoh catalog vendor anthropics/claude-code-review   # zum Harness hinzufügen
+byoh catalog index                                 # Top-100-Plugin-Liste laden (Sekunden)
+byoh catalog search "code review"                  # passende Plugins finden
+byoh catalog vendor anthropics/claude-code-review  # zum Harness hinzufügen
 ```
 
 ## Installation
@@ -67,9 +76,20 @@ cargo install byoh --git https://github.com/epicsagas/BuildYourOwnHarness
 byoh --version   # Installation prüfen
 ```
 
-### Plugin in deinen KI-Host laden
+### Verbinde deinen KI-Host
 
-BYOH ist ein polyglotter Plugin, der mit Claude Code, Codex und agy funktioniert — ein Repository, alle drei Hosts.
+BYOH spricht MCP, sodass jeder MCP-kompatible Agent es steuern kann. Installiere das Binary oben, starte den Server und dein Host ruft jedes BYOH-Tool direkt auf:
+
+```bash
+byoh serve   # stdio-MCP-Server
+```
+
+Für **andere Agenten** (Cursor, Zed, Continue, …) füge `byoh` zur MCP-Konfiguration deines Hosts hinzu:
+```json
+{ "mcpServers": { "byoh": { "command": "byoh", "args": ["serve"] } } }
+```
+
+Nutzt du **Claude Code, Codex oder agy**? Installiere stattdessen das Plugin — es bündelt den MCP-Server und installiert das Binary beim ersten Laden automatisch (kein Rust erforderlich):
 
 **Claude Code:**
 ```bash
@@ -89,32 +109,38 @@ codex plugin marketplace add /pfad/zu/BuildYourOwnHarness
 codex plugin add byoh@epicsagas
 ```
 
-Das Plugin installiert das `byoh`-Binary beim ersten Laden automatisch — Rust ist nicht erforderlich.
+> **Hinweis:** Das Repository ist aktuell privat. Verwende die Pfade oben. Nach der Veröffentlichung erscheint es auch im gemeinsamen `epicsagas/plugins`-Marketplace.
 
-> **Hinweis:** Das Repository ist aktuell privat. Nach der Veröffentlichung erscheint es auch im gemeinsamen `epicsagas/plugins`-Marketplace.
+## Agentengesteuerter Modus
 
-## Dein erster Harness — Schritt für Schritt
+Sobald dein Host verbunden ist, tippst du keine Befehle mehr ein — du sprichst einfach. Dein Agent ruft BYOHs 14 Tools direkt auf, und das Gespräch *ist* Interview, Build und Evolve-Zyklus in einem:
+
+Verfügbare Tools: `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `compile`, `evolve_cycle`, `genre_list`, `registry_clone_skill`, `catalog_search`, `catalog_vendor` und weitere.
+
+## Dein erster Harness — über die CLI
+
+Dieselben Schritte, gesteuert vom Terminal:
 
 ### Schritt 1 — Profil
 ```bash
-byoh profile init ich --paths ./src ./docs   # Projekt automatisch analysieren
-byoh profile interview ich                   # ~5-minütiges Gespräch
-byoh profile confirm ich --genre developer   # Genre festlegen
+byoh profile init me --paths ./src ./docs   # Projekt automatisch analysieren
+byoh profile interview me                   # ~5-minütiges Gespräch
+byoh profile confirm me --genre developer   # Genre festlegen
 ```
 
 BYOH fragt nach deiner Rolle, deinem Erfahrungsstand, deinen Tools und deinem 30-Tage-Ziel. Das Interview passt sich an — ein Forscher bekommt andere Fragen als ein Entwickler.
 
 ### Schritt 2 — Kompilieren & Installieren
 ```bash
-byoh compile ich                    # HarnessBundle generieren (validiert und geprüft)
-byoh render ich --target claude     # oder: codex | agy | all
-byoh install ich                    # sicheres Installieren nach dist/
+byoh compile me          # HarnessBundle generieren (validiert und geprüft)
+byoh render me --target claude   # oder: codex | agy | all
+byoh install me          # sicheres Installieren nach dist/
 ```
 
 ### Schritt 3 — Ausführen & Weiterentwickeln
 ```bash
-byoh run ich       # Session mit aktivem Harness starten
-byoh evolve ich    # Harness anhand von Session-Feedback verbessern
+byoh run me              # Session mit aktivem Harness starten
+byoh evolve me           # Harness anhand von Session-Feedback verbessern
 ```
 
 `evolve` durchläuft einen 3-Gate-Zyklus (Critic / Seesaw / Stagnation), der nicht umgangen werden kann — Weiterentwicklung ist sicher und nachvollziehbar.
@@ -136,16 +162,6 @@ byoh catalog vendor obra/superpowers --genre developer
 ```
 
 Der LLM-Agent (über MCP-Tools `catalog_search` / `catalog_vendor`) kann diesen gesamten Ablauf autonom ausführen — oder du steuerst ihn direkt per CLI.
-
-## Agenten-Modus
-
-`byoh serve` startet einen stdio-MCP-Server. Statt selbst Befehle einzutippen, ruft dein KI-Host BYOHs 14 Tools direkt auf — das Gespräch *ist* Interview, Wizard und Ausführung in einem.
-
-```bash
-byoh serve   # Claude / Codex / agy verbindet sich und übernimmt alles
-```
-
-Verfügbare Tools: `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `compile`, `evolve_cycle`, `rag_index`, `rag_search`, `genre_list`, `registry_clone_skill`, `catalog_search`, `catalog_vendor` und weitere.
 
 ## Vollständige CLI-Referenz
 
@@ -173,24 +189,19 @@ byoh vendor remove <id> --genre <g>
 byoh catalog index [--no-bundle] [--limit N]
 byoh catalog search "<Suchanfrage>" [--genre <g>] [--tags k1,k2] [--limit N]
 byoh catalog vendor <owner/repo> [--genre <g>] [--keywords k1,k2]
-
-# Wissensbasis (RAG)
-byoh index <slug> [--corpus <dir>] [--force]
-byoh search <slug> "<Suchanfrage>" [--genre <g>] [--k N]
 ```
 
-## Wie es funktioniert
+## Wie es unter der Haube funktioniert
 
 BYOHs Synthese-Engine gleicht deine Profil-Tags mit dem Skill-Registry ab, ordnet sie in einer abhängigkeitsaufgelösten Pipeline und erzeugt ein `HarnessBundle` — ein git-fertiges Artefakt, das im nativen Format jedes unterstützten Hosts gerendert wird.
 
 - **4-Ring-Sicherheitsmodell** — von integrierten Skills (Ring 1) bis zu Community-/nicht vertrauenswürdigen Skills (Ring 4), jeweils mit eskalierender Validierung
 - **3-Gate-Evolution** — jeder `evolve`-Zyklus durchläuft Critic (Qualität), Seesaw (Regression) und Stagnation (Plateau); kein Bypass möglich
-- **Persistentes RAG** — inkrementelles Re-Embedding bei Änderungen (`+hinzugefügt ~geändert -entfernt`); Suche nutzt den gespeicherten Index ohne Re-Embedding
 - **Zielorientierte Pipelines** — ein 30-Tage-Ziel (Produktlaunch, Forschungsbericht, sicheres Deployment…) fügt automatisch eine passende Skill-Leiter hinzu
 
 Architektur: hexagonal — `domain / ports / adapters / application / compiler / evolve / templates / deploy / i18n / obs / security / cli`. Vollständige Anleitung in `AGENTS.md`.
 
-## Entwicklung
+## Entwickeln & Bauen
 
 ```bash
 cargo build --release
@@ -199,7 +210,7 @@ cargo test                        # Unit- + E2E-Tests
 cvp                               # parallel: check → clippy → test → fmt → build
 ```
 
-Optionale Features: `--features mcp` (MCP-Server), `--features native-rag` (lokale Embeddings), `--features rag-openai` (OpenAI-Embeddings). Release-Binaries enthalten alle Features.
+Das `mcp`-Feature (stdio-MCP-Server) ist standardmäßig aktiviert. BYOH wird ohne eingebettete Dokumentbasis ausgeliefert — für den Abruf kannst du deinen generierten Harness auf einen Doc-Server wie [alcove](https://github.com/epicsagas/alcove) zeigen lassen.
 
 ## Lizenz
 
