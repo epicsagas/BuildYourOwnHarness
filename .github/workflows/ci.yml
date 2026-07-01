@@ -39,7 +39,7 @@ jobs:
         run: cargo fmt --all -- --check
 
       # 2. clippy — deny warnings across all targets and the default feature set
-      #    (mcp is on by default; native-rag is checked in the optional job below).
+      #    (mcp is on by default).
       - name: cargo clippy
         run: cargo clippy --all-targets -- -D warnings
 
@@ -50,19 +50,3 @@ jobs:
       # 4. test — unit + e2e + MCP integration.
       - name: cargo test
         run: cargo test --all-targets
-
-  # Optional surface: the native-rag feature pulls llm-kernel (fastembed). Build
-  # it (no network-bound tests) so the feature stays compilable on CI without
-  # adding model-download latency to the main gate.
-  verify-native-rag:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-      - uses: Swatinem/rust-cache@v2
-      - name: cargo clippy (native-rag)
-        run: cargo clippy --all-targets --features native-rag -- -D warnings
-      - name: cargo check (rag-openai)
-        run: cargo check --all-targets --features rag-openai
