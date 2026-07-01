@@ -12,7 +12,7 @@
 
 </div>
 
-大多数 AI 工具给你一套固定功能，然后说"自己摸索吧"。BYOH 反其道而行：通过一次访谈了解你真正的工作方式，然后生成专属的智能体工作台——技能、记忆、流水线——开箱即用，无需手动调教。
+大多数 AI 配置给你一套固定功能，然后说"自己摸索吧"。BYOH 反其道而行：BYOH 会先访谈你，**搞清楚你实际在做什么**，然后生成专属的智能体工作台——技能、记忆、流水线——开箱即用，无需手动调教。
 
 ## 适合哪些人
 
@@ -25,7 +25,7 @@
 
 ## 60 秒上手
 
-BYOH 从一开始就是为 AI 智能体驱动而设计的——不是让你敲命令。安装插件，然后直接对话即可。对话本身就是访谈、向导和构建过程。
+BYOH 的设计初衷就是由**你的 AI 智能体**来驱动——不是让你敲命令。安装插件，然后直接对话即可。对话本身就是访谈、向导和构建过程。
 
 ```
 1. Install the plugin      # Claude Code / Codex / agy —— 自动安装二进制
@@ -58,7 +58,7 @@ codex plugin add byoh@epicsagas
 
 ### 使用其他兼容 MCP 的主机？
 
-BYOH 说 MCP 协议，因此 Cursor、Zed、Continue 等也能用。安装一次[二进制](#installation)，然后把主机指向服务器即可：
+BYOH 说 MCP 协议，因此 Cursor、Zed、Continue 等也能用。安装一次[二进制](#安装)，然后把主机指向服务器即可：
 
 ```bash
 byoh serve   # stdio MCP 服务器
@@ -76,7 +76,7 @@ byoh serve   # stdio MCP 服务器
 
 > **你：** *我是一名后端 Go 开发者，这个月要交付一个支付 API。给我搭一套工作台。*
 >
-> **智能体：** *(通过 `profile_scan` 扫描你的仓库，通过 `profile_interview` 提几个有针对性的问题，把角色锁定为 `developer`)* → 编译出一个 `HarnessBundle` → 把智能体、技能、记忆以及一套安全交付流水线安装到 Claude Code 中。完成——下次会话时，你的智能体就已经懂你的技术栈了。
+> **智能体：** *(通过 `profile_scan` 扫描你的仓库，通过 `profile_interview` 提几个有针对性的问题，把角色锁定为 `developer`)* → 编译出一个 `HarnessBundle` → 把智能体、技能、记忆以及一套安全交付流水线安装到 Claude Code 中。完成——下次会话时，你的智能体就已经**能熟练驾驭你的技术栈了**。
 
 同样的流程，按建议的工具调用顺序排列：
 
@@ -88,11 +88,11 @@ profile_create → profile_scan → profile_interview → profile_confirm
 
 可用工具：`profile_create`、`profile_scan`、`profile_interview`、`profile_confirm`、`compile`、`compile_dry_run`、`evolve_cycle`、`genre_list`、`rag_index`、`rag_search`、`registry_clone_skill`、`catalog_search`、`catalog_vendor` 等。
 
-想让智能体引导你走完整个流程？只需说一句 *"build my harness"*——内置的 `byoh-guide` 智能体会编排整个流程。
+想让智能体**手把手带你**走完整个流程吗？只需说一句 *"build my harness"*——内置的 `byoh-guide` 智能体会编排整个流程。
 
 ## 插件目录
 
-目录提供按 Stars 排序的 Top 100 Claude 插件（每日自动更新），让你在对话中就能发现并添加社区技能。
+目录提供一份**精选的** Top 100 Claude 插件列表（按 Stars 排序，每日刷新），让你在对话中就能发现并添加社区技能。
 
 ```bash
 # 一次性索引——几秒钟下载预构建包
@@ -110,7 +110,7 @@ LLM 智能体（通过 `catalog_search` / `catalog_vendor` MCP 工具）可以�
 
 ## 进阶用户：CLI（可选）
 
-上述每一个流程都可以从终端完成。CLI 是**辅助性的**——适合脚本化、CI 场景，或者当你不想聊天时使用——但智能体主导的路径才是设计意图所在。
+上述每一个流程都可以从终端完成。CLI 是**辅助性的**——适合脚本化、CI 场景，或者当你不想聊天时使用——但智能体主导的路径才是**推荐的正道**。
 
 ### 用 CLI 构建你的第一个工作台
 
@@ -202,7 +202,7 @@ cargo test                        # 单元测试 + 端到端测试
 cvp                               # 并行执行：check → clippy → test → fmt → build
 ```
 
-`mcp` feature（stdio MCP 服务器）默认开启。BYOH 本身不自带检索后端——如需检索能力，请把生成的工作台指向一个文档服务器，例如 [alcove](https://github.com/epicsagas/alcove)。
+`mcp` feature（stdio MCP 服务器）默认开启。BYOH 不内置任何知识库——如需检索能力，请把生成的工作台指向一个文档服务器，例如 [alcove](https://github.com/epicsagas/alcove)。
 
 ## 许可证
 

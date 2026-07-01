@@ -14,7 +14,7 @@
 
 </div>
 
-La plupart des setups IA vous remettent un ensemble d'outils figé et vous disent « débrouillez-vous ». BYOH inverse le principe : il vous interroge, apprend ce que vous faites réellement, puis génère un harness d'agent personnalisé — compétences, mémoire, pipelines — qui s'intègre à votre flux de travail dès le départ.
+La plupart des setups IA vous remettent un ensemble d'outils figé et vous disent « bonne chance ». BYOH **renverse la tendance** : il vous interroge, apprend ce que vous faites réellement, puis génère un harness d'agent personnalisé — compétences, mémoire, pipelines — qui s'intègre à votre flux de travail dès le départ.
 
 ## Pour qui ?
 
@@ -27,10 +27,10 @@ Si vous vous êtes déjà dit « j'aimerais que mon IA connaisse vraiment mon co
 
 ## Comment ça marche en 60 secondes
 
-BYOH est conçu pour être piloté par votre agent IA — pas par vous en tapant des commandes. Installez le plugin, puis discutez simplement. La conversation *est* l'entretien, le wizard et la compilation.
+BYOH est conçu pour être piloté par votre agent IA — pas par vous en tapant des commandes. Installez le plugin, puis discutez simplement. La conversation *est* l'entretien, **l'assistant** et la compilation.
 
 ```
-1. Install the plugin      # Claude Code / Codex / agy — installe le binaire automatiquement
+1. Install the plugin      # Claude Code / Codex / agy — installation automatique du binaire
 2. "Build me a harness"    # votre agent scanne votre dépôt et compile le résultat
 ```
 
@@ -76,7 +76,7 @@ byoh serve   # serveur MCP stdio
 
 Une fois votre host connecté, vous ne tapez plus de commandes — vous discutez simplement. Votre agent appelle directement les outils MCP de BYOH, et la conversation *est* l'entretien, la compilation et le cycle d'évolution :
 
-> **Vous :** *Je suis un développeur backend Go qui livre une API de paiements ce mois-ci. Construis-moi un harness.*
+> **Vous :** *Je suis un développeur backend Go qui met en production une API de paiements ce mois-ci. Construis-moi un harness.*
 >
 > **Agent :** *(scanne votre dépôt via `profile_scan`, pose quelques questions ciblées via `profile_interview`, verrouille le genre sur `developer`)* → compile un `HarnessBundle` → installe les agents, compétences, mémoire et un pipeline de livraison sécurisée dans Claude Code. Terminé — à la prochaine session, votre agent parle déjà votre stack.
 
@@ -90,11 +90,11 @@ profile_create → profile_scan → profile_interview → profile_confirm
 
 Outils disponibles : `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `compile`, `compile_dry_run`, `evolve_cycle`, `genre_list`, `rag_index`, `rag_search`, `registry_clone_skill`, `catalog_search`, `catalog_vendor`, et d'autres.
 
-Vous voulez que l'agent vous guide ? Dites simplement *« build my harness »* — l'agent `byoh-guide` livré avec orchestrer l'ensemble du flux.
+Vous voulez que l'agent vous guide ? Dites simplement *« build my harness »* — l'agent `byoh-guide` fourni avec **orchestre** l'ensemble du flux.
 
 ## Catalogue de plugins
 
-Le catalogue vous propose une liste triée des 100 meilleurs plugins Claude (par nombre d'étoiles, actualisée quotidiennement) pour découvrir et ajouter des compétences communautaires sans quitter la conversation.
+Le catalogue vous propose une **sélection** des 100 meilleurs plugins Claude (par nombre d'étoiles, actualisée quotidiennement) pour découvrir et ajouter des compétences communautaires sans quitter la conversation.
 
 ```bash
 # Indexation unique — télécharge un bundle préconstruit en quelques secondes
@@ -112,13 +112,13 @@ L'agent LLM (via les outils MCP `catalog_search` / `catalog_vendor`) peut réali
 
 ## Utilisateurs avancés : la CLI (optionnel)
 
-Chaque flux ci-dessus est également accessible depuis le terminal. La CLI est **auxiliaire** — pratique pour le scripting, la CI, ou quand vous préférez ne pas discuter — mais le chemin piloté par l'agent reste la voie intentielle.
+Chaque flux ci-dessus est également accessible depuis le terminal. La CLI est **auxiliaire** — pratique pour le scripting, la CI, ou quand vous préférez ne pas discuter — mais le chemin piloté par l'agent reste la voie **prévue**.
 
 ### Votre premier harness — depuis la CLI
 
 ```bash
 byoh profile init me --paths ./src ./docs   # analyse automatique de votre projet
-byoh profile interview me                   # conversation de ~5 min
+byoh profile interview me                   # ~5 min d'entretien
 byoh profile confirm me --genre developer   # verrouiller votre genre
 
 byoh compile me                             # génère le HarnessBundle (validé et contrôlé)

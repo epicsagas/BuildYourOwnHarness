@@ -60,7 +60,7 @@ codex plugin add byoh@epicsagas
 
 ### 그 외 MCP 호환 호스트를 쓰신다면?
 
-BYOH는 MCP를 사용하므로, Cursor, Zed, Continue 같은 호스트에서도 잘 동작합니다. [바이너리](#installation)를 한 번 설치한 뒤, 호스트가 서버를 바라보게 하면 됩니다:
+BYOH는 MCP를 사용하므로, Cursor, Zed, Continue 같은 호스트에서도 잘 동작합니다. [바이너리](#설치)를 한 번 설치한 뒤, 호스트가 서버를 바라보게 하면 됩니다:
 
 ```bash
 byoh serve   # stdio MCP 서버

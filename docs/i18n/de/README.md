@@ -14,12 +14,12 @@
 
 </div>
 
-Die meisten KI-Setups geben dir ein festes Funktionspaket und sagen „Viel Glück". BYOH dreht das um: Es interviewt dich, lernt, wie du wirklich arbeitest, und generiert einen personalisierten Agenten-Harness — Skills, Memory, Pipelines — der von Anfang an zu deinem Workflow passt.
+Die meisten KI-Setups geben dir ein festes Funktionspaket und sagen „Viel Glück." BYOH dreht das um: Es interviewt dich, lernt, wie du wirklich arbeitest, und generiert einen personalisierten Agenten-Harness — Skills, Memory, Pipelines — der von Anfang an zu deinem Workflow passt.
 
 ## Für wen ist das?
 
 - **Entwickler**, die einen Agenten wollen, der ihren Stack, Teststil und Release-Rhythmus bereits kennt
-- **Forscher**, die Literaturrecherche, Zitationsverfolgung und Synthese nahtlos verbunden brauchen
+- **Forscher**, die Literaturrecherche, Zitationsverfolgung und Synthese als integriertes Ganzes benötigen
 - **Kreative**, die einen Schreibpartner wollen, der ihren Stil und ihre Projektstruktur versteht
 - **Business-Analysten**, die Entscheidungsframeworks und Reporting-Pipelines brauchen — kein reines Chat-Tool
 
@@ -27,11 +27,11 @@ Wenn du dir jemals gedacht hast „ich wünschte, meine KI würde meinen Kontext
 
 ## In 60 Sekunden starten
 
-BYOH ist darauf ausgelegt, von deinem KI-Agenten gesteuert zu werden — nicht von dir, die Befehle eintippt. Installiere das Plugin und sprich einfach. Das Gespräch *ist* Interview, Wizard und Build in einem.
+BYOH ist darauf ausgelegt, von deinem KI-Agenten gesteuert zu werden — nicht von dir, die Befehle eintippt. Installiere das Plugin und sprich einfach. Das Gespräch *ist* zugleich Interview, Assistent und Build-Vorgang.
 
 ```
 1. Install the plugin      # Claude Code / Codex / agy — installiert das Binary automatisch
-2. "Build me a harness"    # dein Agent scannt dein Repo und kompiliert das Ergebnis
+2. „Build me a harness"    # dein Agent scannt dein Repo und kompiliert das Ergebnis
 ```
 
 Ab der nächsten Session lädt dein Host den Harness automatisch — Agenten, Skills, Memory und Pipelines, auf dich abgestimmt.
@@ -112,7 +112,7 @@ Der LLM-Agent (über die MCP-Tools `catalog_search` / `catalog_vendor`) kann die
 
 ## Power-User: die CLI (optional)
 
-Jeder der obigen Abläufe lässt sich auch vom Terminal aus erreichen. Die CLI ist **hilfsweise** — nützlich für Skripte, CI oder wenn du lieber nicht chattest — aber der agentengesteuerte Pfad ist der vorgesehene.
+Jeder der obigen Abläufe lässt sich auch vom Terminal aus erreichen. Die CLI ist **eine Ergänzung** — nützlich für Skripte, CI oder wenn du lieber nicht chattest — aber der agentengesteuerte Weg ist der vorgesehene.
 
 ### Dein erster Harness — über die CLI
 
@@ -137,7 +137,7 @@ BYOHs Synthese-Engine gleicht deine Profil-Tags mit der Skill-Registry ab, ordne
 
 - **4-Ring-Sicherheitsmodell** — von integrierten Skills (Ring 1) bis zu Community-/nicht vertrauenswürdigen Skills (Ring 4), jeweils mit eskalierender Validierung
 - **3-Gate-Evolution** — jeder `evolve`-Zyklus durchläuft Critic (Qualität), Seesaw (Regression) und Stagnation (Plateau); kein Bypass möglich
-- **Zielorientierte Pipelines** — ein 30-Tage-Ziel (Produktlaunch, Forschungsbericht, sicheres Deployment…) fügt automatisch eine passende Skill-Leiter hinzu
+- **Zielorientierte Pipelines** — ein 30-Tage-Ziel (Produktlaunch, Forschungsbericht, sicheres Deployment…) legt automatisch eine passende Skill-Leiter darüber
 
 Architektur: hexagonal — `domain / ports / adapters / application / compiler / evolve / templates / deploy / i18n / obs / security / cli`. Vollständige Anleitung in `AGENTS.md`.
 
@@ -195,7 +195,7 @@ cargo install byoh --git https://github.com/epicsagas/BuildYourOwnHarness
 byoh --version   # Installation prüfen
 ```
 
-## Entwickeln & Bauen
+## Bauen & Entwickeln
 
 ```bash
 cargo build --release

@@ -14,20 +14,20 @@
 
 </div>
 
-La mayoría de las herramientas de IA te dan un conjunto fijo de funciones y dicen "arréglate". BYOH hace lo contrario: te entrevista, aprende cómo trabajas de verdad y genera un harness de agente personalizado — habilidades, memoria, pipelines — que encaja con tu flujo de trabajo desde el primer momento.
+La mayoría de las configuraciones de IA te dan un conjunto fijo de herramientas y te dicen "buena suerte". BYOH invierte esa lógica: te entrevista, aprende cómo trabajas de verdad y genera un harness de agente personalizado — habilidades, memoria, pipelines — que encaja con tu flujo de trabajo desde el primer momento.
 
 ## ¿Para quién es?
 
 - **Desarrolladores** que quieren un agente que ya conoce su stack, estilo de pruebas y cadencia de entrega
 - **Investigadores** que necesitan revisión bibliográfica, seguimiento de citas y síntesis conectados entre sí
 - **Creadores** que quieren un compañero de escritura que se adapte a su voz y estructura de proyecto
-- **Analistas de negocio** que necesitan marcos de decisión y pipelines de informes, no solo chat
+- **Analistas de negocio** que necesitan marcos de decisión y pipelines de informes, no un simple chat en crudo
 
 Si alguna vez has pensado "ojalá mi IA supiera realmente mi contexto" — eso es exactamente lo que hace BYOH.
 
 ## Cómo funciona en 60 segundos
 
-BYOH está diseñado para que lo gestione tu agente de IA — no para que tú escribas comandos. Instala el plugin y simplemente habla. La conversación *es* la entrevista, el asistente y la compilación.
+BYOH está diseñado para que lo gestione tu agente de IA — no para que tú escribas comandos. Instala el plugin y simplemente habla. La conversación *es* la entrevista, el asistente de configuración y la compilación.
 
 ```
 1. Instala el plugin       # Claude Code / Codex / agy — instala el binario automáticamente
@@ -60,7 +60,7 @@ codex plugin add byoh@epicsagas
 
 ### ¿Usas cualquier otro host compatible con MCP?
 
-BYOH habla MCP, así que Cursor, Zed, Continue y similares también funcionan. Instala el [binario](#installation) una vez y apunta tu host al servidor:
+BYOH habla MCP, así que Cursor, Zed, Continue y similares también funcionan. Instala el [binario](#instalación) una vez y apunta tu host al servidor:
 
 ```bash
 byoh serve   # servidor MCP por stdio
@@ -78,7 +78,7 @@ Una vez que tu host está conectado, no escribes comandos — simplemente hablas
 
 > **Tú:** *Soy desarrollador backend de Go y este mes voy a sacar a producción una API de pagos. Constrúyeme un harness.*
 >
-> **Agente:** *(escanea tu repo vía `profile_scan`, te hace unas preguntas concretas vía `profile_interview`, fija el género en `developer`)* → compila un `HarnessBundle` → instala agentes, habilidades, memoria y un pipeline de entrega segura en Claude Code. Listo — en la próxima sesión, tu agente ya habla tu stack.
+> **Agente:** *(escanea tu repo vía `profile_scan`, te hace unas preguntas concretas vía `profile_interview`, fija el género en `developer`)* → compila un `HarnessBundle` → instala agentes, habilidades, memoria y un pipeline de entrega segura en Claude Code. Listo — en la próxima sesión, tu agente ya conoce tu stack.
 
 Ese mismo flujo, en el orden de herramientas sugerido:
 
@@ -94,14 +94,14 @@ Herramientas disponibles: `profile_create`, `profile_scan`, `profile_interview`,
 
 ## Catálogo de plugins
 
-El catálogo ofrece una lista curada de los 100 mejores plugins de Claude (ordenados por estrellas, actualizada diariamente) para descubrir y añadir habilidades de la comunidad sin salir de la conversación.
+El catálogo ofrece una selección cuidada de los 100 mejores plugins de Claude (ordenados por estrellas, actualizada diariamente) para descubrir y añadir habilidades de la comunidad sin salir de la conversación.
 
 ```bash
 # Indexación inicial — descarga un bundle precompilado en segundos
 byoh catalog index
 
 # Búsqueda offline — sin red tras la indexación
-byoh catalog search "memoria" --genre developer --limit 5
+byoh catalog search "memory" --genre developer --limit 5
 
 # Añadir un plugin al harness
 # licencia, keywords y género se detectan automáticamente del repo clonado
@@ -112,14 +112,14 @@ El agente LLM (vía herramientas MCP `catalog_search` / `catalog_vendor`) puede 
 
 ## Usuarios avanzados: la CLI (opcional)
 
-Todos los flujos anteriores también son accesibles desde el terminal. La CLI es **auxiliar** — útil para scripting, CI o cuando prefieres no chatear — pero el camino gestionado por el agente es el previsto.
+Todos los flujos anteriores también son accesibles desde el terminal. La CLI es **auxiliar** — útil para scripting, CI o cuando prefieres no usar el chat — pero el camino gestionado por el agente es el previsto.
 
 ### Tu primer harness — desde la CLI
 
 ```bash
 byoh profile init yo --paths ./src ./docs   # escanea tu proyecto automáticamente
 byoh profile interview yo                   # conversación de ~5 minutos
-byoh profile confirm yo --genre developer   # fija tu género de trabajo
+byoh profile confirm yo --genre developer   # fija tu género
 
 byoh compile yo                             # genera el HarnessBundle (validado y comprobado)
 byoh render yo --target claude              # o: codex | agy | all
@@ -137,7 +137,7 @@ El motor de síntesis de BYOH cruza tus etiquetas de perfil con el registro de h
 
 - **Modelo de seguridad de 4 anillos** — desde habilidades integradas (Anillo 1) hasta habilidades de la comunidad/no confiables (Anillo 4), cada una con validación progresiva
 - **Evolución de 3 puertas** — cada ciclo `evolve` pasa por Critic (calidad), Seesaw (regresión) y Stagnation (estancamiento); sin atajos posibles
-- **Pipelines orientados a objetivos** — declarar un objetivo a 30 días (lanzamiento de producto, informe de investigación, entrega segura…) superpone automáticamente una escalera de habilidades a medida
+- **Pipelines orientados a objetivos** — declarar un objetivo a 30 días (lanzamiento de producto, informe de investigación, entrega segura…) superpone automáticamente una ruta de habilidades a juego
 
 Arquitectura hexagonal: `domain / ports / adapters / application / compiler / evolve / templates / deploy / i18n / obs / security / cli`. Consulta `AGENTS.md` para la guía completa.
 

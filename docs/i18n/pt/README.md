@@ -14,12 +14,12 @@
 
 </div>
 
-A maioria das ferramentas de IA entrega um conjunto fixo de funções e diz "se vira". O BYOH faz o contrário: ele entrevista você, aprende como você realmente trabalha e gera um harness de agente personalizado — habilidades, memória, pipelines — que já funciona para o seu fluxo de trabalho desde o início.
+A maioria das ferramentas de IA entrega um conjunto fixo de funções e diz "se vira". O BYOH vira esse jogo: ele entrevista você, aprende como você realmente trabalha e gera um harness de agente personalizado — habilidades, memória, pipelines — que já funciona para o seu fluxo de trabalho desde o início.
 
 ## Para quem é?
 
 - **Desenvolvedores** que querem um agente que já conhece sua stack, estilo de testes e cadência de entrega
-- **Pesquisadores** que precisam de revisão bibliográfica, rastreamento de citações e síntese conectados numa só ferramenta
+- **Pesquisadores** que precisam de revisão bibliográfica, rastreamento de citações e síntese integrados
 - **Criadores** que querem um parceiro de escrita alinhado com sua voz e estrutura de projeto
 - **Analistas de negócio** que precisam de frameworks de decisão e pipelines de relatórios — não de um chat genérico
 
@@ -27,7 +27,7 @@ Se você já pensou "queria que minha IA entendesse meu contexto de verdade" —
 
 ## Como funciona em 60 segundos
 
-O BYOH foi feito para ser conduzido pelo seu agente de IA — não por você digitando comandos. Instale o plugin e simplesmente converse. A conversa *é* a entrevista, o wizard e o build.
+O BYOH foi feito para ser conduzido pelo seu agente de IA — não por você digitando comandos. Instale o plugin e basta conversar. A conversa *é* a entrevista, o wizard e o build.
 
 ```
 1. Instale o plugin        # Claude Code / Codex / agy — auto-instala o binário
@@ -76,7 +76,7 @@ byoh serve   # servidor MCP stdio
 
 Depois que seu host está conectado, você não digita comandos — você apenas conversa. Seu agente chama diretamente as ferramentas MCP do BYOH, e a conversa *é* a entrevista, o build e o ciclo de evolução:
 
-> **Você:** *Sou um desenvolvedor backend em Go entregando uma API de pagamentos este mês. Build me a harness.*
+> **Você:** *Sou um desenvolvedor backend em Go entregando uma API de pagamentos este mês. Monte um harness para mim.*
 >
 > **Agente:** *(escaneia seu repo via `profile_scan`, faz algumas perguntas direcionadas via `profile_interview`, trava o gênero em `developer`)* → compila um `HarnessBundle` → instala agentes, habilidades, memória e um pipeline de entrega segura no Claude Code. Pronto — na próxima sessão, seu agente já fala a sua stack.
 
@@ -94,7 +94,7 @@ Quer que o agente te conduza por tudo isso? Basta dizer *"build my harness"* —
 
 ## Catálogo de plugins
 
-O catálogo oferece uma lista curada dos 100 melhores plugins Claude (ordenados por estrelas, atualizada diariamente) para você descobrir e adicionar habilidades da comunidade sem sair da conversa.
+O catálogo oferece uma lista curada dos 100 melhores plugins Claude (ordenados por estrelas, com atualização diária) para você descobrir e adicionar habilidades da comunidade sem sair da conversa.
 
 ```bash
 # Indexação única — baixa um bundle pré-construído em segundos
@@ -110,9 +110,9 @@ byoh catalog vendor obra/superpowers --genre developer
 
 O agente LLM (via ferramentas MCP `catalog_search` / `catalog_vendor`) pode fazer esse fluxo inteiro de forma autônoma — *"adiciona um plugin de memória ao meu harness"* — ou você pode conduzir diretamente pela CLI.
 
-## Power users: a CLI (opcional)
+## Usuários avançados: a CLI (opcional)
 
-Todos os fluxos acima também são acessíveis pelo terminal. A CLI é **auxiliar** — útil para scripts, CI ou quando você prefere não conversar — mas o caminho conduzido pelo agente é o caminho pretendido.
+Todos os fluxos acima também são acessíveis pelo terminal. A CLI é **auxiliar** — útil para scripts, CI ou quando você prefere evitar o chat — mas o caminho conduzido pelo agente é o caminho pretendido.
 
 ### Seu primeiro harness — pela CLI
 
@@ -137,7 +137,7 @@ O motor de síntese do BYOH combina suas tags de perfil com o registro de habili
 
 - **Modelo de segurança com 4 anéis** — habilidades embutidas (anel 1) até habilidades da comunidade/não confiáveis (anel 4), com validação crescente em cada nível
 - **Evolução com 3 gates** — cada ciclo `evolve` passa pelos gates Critic (qualidade), Seesaw (regressão) e Stagnation (estagnação); sem possibilidade de bypass
-- **Pipelines por objetivo** — declarar um objetivo de 30 dias (lançamento de produto, relatório de pesquisa, entrega segura…) sobrepõe automaticamente uma escada de habilidades correspondente
+- **Pipelines por objetivo** — declarar um objetivo de 30 dias (lançamento de produto, relatório de pesquisa, entrega segura…) sobrepõe automaticamente uma escala progressiva de habilidades correspondente
 
 Arquitetura hexagonal: `domain / ports / adapters / application / compiler / evolve / templates / deploy / i18n / obs / security / cli`. Veja `AGENTS.md` para o guia completo.
 
