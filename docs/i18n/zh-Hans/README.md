@@ -25,69 +25,18 @@
 
 ## 60 秒上手
 
-BYOH 从一开始就是为 AI 智能体驱动而设计的。安装它，通过 MCP 连接你的主机，然后直接对话——对话本身就是访谈、向导和构建过程。
+BYOH 从一开始就是为 AI 智能体驱动而设计的——不是让你敲命令。安装插件，然后直接对话即可。对话本身就是访谈、向导和构建过程。
 
 ```
-1. Install byoh              # 一行安装（见下文）
-2. Connect your host via MCP # byoh serve —— 任何兼容 MCP 的智能体
-3. "Build me a harness"      # 你的智能体扫描仓库并编译出结果
+1. Install the plugin      # Claude Code / Codex / agy —— 自动安装二进制
+2. "Build me a harness"    # 你的智能体扫描仓库并编译出结果
 ```
 
 下次会话时，你的主机会自动加载这套工作台——智能体、技能、记忆和流水线全部按你的工作方式调校到位。
 
-**更喜欢终端？** 同样的流程用 CLI 完成：
-```
-byoh profile init me        # 扫描项目（只读，不修改任何文件）
-byoh profile interview me   # 关于你的角色和目标的简短对话
-byoh compile me             # 生成专属工作台
-byoh install me             # 部署到 Claude / Codex / agy
-```
+## 安装插件（推荐）
 
-**已经知道自己需要什么？** 直接浏览社区目录：
-```bash
-byoh catalog index                                 # 拉取 Top 100 插件列表（几秒钟）
-byoh catalog search "code review"                  # 搜索相关插件
-byoh catalog vendor anthropics/claude-code-review  # 添加一个到工作台
-```
-
-## 安装
-
-### 二进制安装（推荐，无需 Rust 环境）
-
-**macOS / Linux：**
-```bash
-curl --proto '=https' --tlsv1.2 -LsSf \
-  https://github.com/epicsagas/BuildYourOwnHarness/releases/latest/download/install.sh | sh
-```
-
-**Windows（PowerShell）：**
-```powershell
-irm https://github.com/epicsagas/BuildYourOwnHarness/releases/latest/download/install.ps1 | iex
-```
-
-**从源码构建：**
-```bash
-cargo install byoh --git https://github.com/epicsagas/BuildYourOwnHarness
-```
-
-```bash
-byoh --version   # 验证安装
-```
-
-### 连接 AI 主机
-
-BYOH 说 MCP 协议，因此任何兼容 MCP 的智能体都能驱动它。安装上面的二进制文件，启动服务器，你的主机就能直接调用所有 BYOH 工具：
-
-```bash
-byoh serve   # stdio MCP 服务器
-```
-
-对于**其他主机**（Cursor、Zed、Continue……），把 `byoh` 加到主机的 MCP 配置中：
-```json
-{ "mcpServers": { "byoh": { "command": "byoh", "args": ["serve"] } } }
-```
-
-使用的是 **Claude Code、Codex 或 agy**？改用插件安装——它打包了 MCP 服务器，并在首次加载时自动安装二进制（无需 Rust）：
+使用的是 **Claude Code、Codex 或 agy**？安装插件即可。它打包了 MCP 服务器，并**在首次加载时自动安装二进制**——无需 Rust 工具链，无需手动配置：
 
 **Claude Code：**
 ```bash
@@ -107,45 +56,43 @@ codex plugin marketplace add /path/to/BuildYourOwnHarness
 codex plugin add byoh@epicsagas
 ```
 
+### 使用其他兼容 MCP 的主机？
+
+BYOH 说 MCP 协议，因此 Cursor、Zed、Continue 等也能用。安装一次[二进制](#installation)，然后把主机指向服务器即可：
+
+```bash
+byoh serve   # stdio MCP 服务器
+```
+
+```json
+{ "mcpServers": { "byoh": { "command": "byoh", "args": ["serve"] } } }
+```
+
 > **注意：** 仓库目前为私有。请使用上面的路径。公开后将出现在 `epicsagas/plugins` 共享市场中。
 
-## 智能体主导模式
+## 智能体主导模式 —— 主路径
 
-主机连接好之后，你不需要输命令——只需开口对话。你的智能体会直接调用 BYOH 的 14 个工具，对话本身就是访谈、构建和进化循环：
+主机连接好之后，你不需要输命令——只需开口对话。你的智能体会直接调用 BYOH 的 MCP 工具，对话本身就是访谈、构建和进化循环：
 
-可用工具：`profile_create`、`profile_scan`、`profile_interview`、`profile_confirm`、`compile`、`evolve_cycle`、`genre_list`、`registry_clone_skill`、`catalog_search`、`catalog_vendor` 等。
+> **你：** *我是一名后端 Go 开发者，这个月要交付一个支付 API。给我搭一套工作台。*
+>
+> **智能体：** *(通过 `profile_scan` 扫描你的仓库，通过 `profile_interview` 提几个有针对性的问题，把角色锁定为 `developer`)* → 编译出一个 `HarnessBundle` → 把智能体、技能、记忆以及一套安全交付流水线安装到 Claude Code 中。完成——下次会话时，你的智能体就已经懂你的技术栈了。
 
-## 用 CLI 构建你的第一个工作台
+同样的流程，按建议的工具调用顺序排列：
 
-同样的步骤，从终端驱动：
-
-### 第一步 —— 创建档案
-```bash
-byoh profile init me --paths ./src ./docs   # 自动扫描项目结构
-byoh profile interview me                   # 约 5 分钟的引导式问答
-byoh profile confirm me --genre developer   # 确认并锁定角色
+```
+profile_create → profile_scan → profile_interview → profile_confirm
+           → rag_index / rag_search → compile → compile_dry_run
+           → (可选) registry_clone_skill → (后续) evolve_cycle
 ```
 
-BYOH 会询问你的职责、专业水平、使用工具和 30 天目标。问卷自动适配——研究者和开发者收到的问题不同。
+可用工具：`profile_create`、`profile_scan`、`profile_interview`、`profile_confirm`、`compile`、`compile_dry_run`、`evolve_cycle`、`genre_list`、`rag_index`、`rag_search`、`registry_clone_skill`、`catalog_search`、`catalog_vendor` 等。
 
-### 第二步 —— 编译并安装
-```bash
-byoh compile me          # 验证并生成 HarnessBundle（带门控）
-byoh render me --target claude   # 或：codex | agy | all
-byoh install me          # 安全部署到 dist/
-```
-
-### 第三步 —— 运行与进化
-```bash
-byoh run me              # 以你的工作台启动
-byoh evolve me           # 根据会话反馈改进工作台
-```
-
-`evolve` 执行三重门控循环（Critic / Seesaw / Stagnation），无法绕过——进化过程安全且可审计。
+想让智能体引导你走完整个流程？只需说一句 *"build my harness"*——内置的 `byoh-guide` 智能体会编排整个流程。
 
 ## 插件目录
 
-目录提供按 Stars 排序的 Top 100 Claude 插件（每日自动更新），让你在终端里就能发现并添加社区技能。
+目录提供按 Stars 排序的 Top 100 Claude 插件（每日自动更新），让你在对话中就能发现并添加社区技能。
 
 ```bash
 # 一次性索引——几秒钟下载预构建包
@@ -159,7 +106,38 @@ byoh catalog search "memory" --genre developer --limit 5
 byoh catalog vendor obra/superpowers --genre developer
 ```
 
-LLM 智能体（通过 `catalog_search` / `catalog_vendor` MCP 工具）可以自主完成整个流程——你也可以直接用 CLI 驱动。
+LLM 智能体（通过 `catalog_search` / `catalog_vendor` MCP 工具）可以自主完成整个流程——*"给我的工作台加个 memory 插件"*——你也可以直接用 CLI 驱动。
+
+## 进阶用户：CLI（可选）
+
+上述每一个流程都可以从终端完成。CLI 是**辅助性的**——适合脚本化、CI 场景，或者当你不想聊天时使用——但智能体主导的路径才是设计意图所在。
+
+### 用 CLI 构建你的第一个工作台
+
+```bash
+byoh profile init me --paths ./src ./docs   # 自动扫描项目
+byoh profile interview me                   # 约 5 分钟的问答
+byoh profile confirm me --genre developer   # 锁定角色
+
+byoh compile me                             # 生成 HarnessBundle（带验证 + 门控）
+byoh render me --target claude              # 或：codex | agy | all
+byoh install me                             # 安全部署到 dist/
+
+byoh run me                                 # 以你的工作台启动
+byoh evolve me                              # 根据会话反馈改进工作台
+```
+
+BYOH 会询问你的职责、专业水平、使用工具和 30 天目标。问卷会自动适配——研究者和开发者收到的问题不同。`evolve` 执行三重门控循环（Critic / Seesaw / Stagnation），无法绕过——进化过程安全且可审计。
+
+## 底层原理
+
+BYOH 的合成引擎将你的档案标签与技能注册表匹配，按依赖关系排序成流水线，输出 `HarnessBundle`——一个可以渲染为任意支持主机原生格式的 git 制品。
+
+- **四环安全模型** —— 从内置技能（Ring 1）到社区/未信任技能（Ring 4），逐级加强验证
+- **三重门控进化** —— 每次 `evolve` 必须通过 Critic（质量）、Seesaw（回归）、Stagnation（平台期）三道关卡，无法绕过
+- **目标导向流水线** —— 声明 30 天目标（产品发布、研究报告、安全交付……）后自动叠加对应技能阶梯
+
+架构：六边形架构——`domain / ports / adapters / application / compiler / evolve / templates / deploy / i18n / obs / security / cli`。完整架构指南见 `AGENTS.md`。
 
 ## 完整 CLI 参考
 
@@ -189,15 +167,31 @@ byoh catalog search "<query>" [--genre <g>] [--tags k1,k2] [--limit N]
 byoh catalog vendor <owner/repo> [--genre <g>] [--keywords k1,k2]
 ```
 
-## 底层原理
+## 安装
 
-BYOH 的合成引擎将你的档案标签与技能注册表匹配，按依赖关系排序成流水线，输出 `HarnessBundle`——一个可以渲染为任意支持主机原生格式的 git 制品。
+仅当你**不**使用插件（插件会自动安装二进制），或者想在非插件 MCP 主机上使用 BYOH 时才需要。
 
-- **四环安全模型** —— 从内置技能（Ring 1）到社区/未信任技能（Ring 4），逐级加强验证
-- **三重门控进化** —— 每次 `evolve` 必须通过 Critic（质量）、Seesaw（回归）、Stagnation（平台期）三道关卡，无法绕过
-- **目标导向流水线** —— 声明 30 天目标（产品发布、研究报告、安全交付……）后自动叠加对应技能阶梯
+### 二进制安装（无需 Rust 工具链）
 
-架构：六边形架构——`domain / ports / adapters / application / compiler / evolve / templates / deploy / i18n / obs / security / cli`。完整架构指南见 `AGENTS.md`。
+**macOS / Linux：**
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/epicsagas/BuildYourOwnHarness/releases/latest/download/install.sh | sh
+```
+
+**Windows（PowerShell）：**
+```powershell
+irm https://github.com/epicsagas/BuildYourOwnHarness/releases/latest/download/install.ps1 | iex
+```
+
+**从源码构建：**
+```bash
+cargo install byoh --git https://github.com/epicsagas/BuildYourOwnHarness
+```
+
+```bash
+byoh --version   # 验证安装
+```
 
 ## 构建与开发
 

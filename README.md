@@ -25,69 +25,18 @@ If you've ever thought "I wish my AI actually knew my context" — this is what 
 
 ## How it works in 60 seconds
 
-BYOH is built to be driven by your AI agent. Install it, connect your host over MCP, then just talk — the conversation *is* the interview, the wizard, and the build.
+BYOH is built to be driven by your AI agent — not by you typing commands. Install the plugin, then just talk. The conversation *is* the interview, the wizard, and the build.
 
 ```
-1. Install byoh              # one-line install (see below)
-2. Connect your host via MCP # byoh serve — any MCP-compatible agent
-3. "Build me a harness"      # your agent scans your repo and compiles the result
+1. Install the plugin      # Claude Code / Codex / agy — auto-installs the binary
+2. "Build me a harness"    # your agent scans your repo and compiles the result
 ```
 
 On the next session your host loads the harness automatically — agents, skills, memory, and pipelines tuned to you.
 
-**Prefer the terminal?** The same flow from the CLI:
-```
-byoh profile init me        # scan your project — non-destructive, read-only
-byoh profile interview me   # a short conversation about your role and goals
-byoh compile me             # generates your personal harness
-byoh install me             # deploys it to Claude / Codex / agy
-```
+## Install the plugin (recommended)
 
-**Already know what you need?** Browse the community catalog:
-```bash
-byoh catalog index                                 # fetch the top-100 plugin list (seconds)
-byoh catalog search "code review"                  # find relevant plugins
-byoh catalog vendor anthropics/claude-code-review  # add one to your harness
-```
-
-## Installation
-
-### Binary (recommended — no Rust toolchain required)
-
-**macOS / Linux:**
-```bash
-curl --proto '=https' --tlsv1.2 -LsSf \
-  https://github.com/epicsagas/BuildYourOwnHarness/releases/latest/download/install.sh | sh
-```
-
-**Windows (PowerShell):**
-```powershell
-irm https://github.com/epicsagas/BuildYourOwnHarness/releases/latest/download/install.ps1 | iex
-```
-
-**From source:**
-```bash
-cargo install byoh --git https://github.com/epicsagas/BuildYourOwnHarness
-```
-
-```bash
-byoh --version   # verify
-```
-
-### Connect your AI host
-
-BYOH speaks MCP, so any MCP-compatible agent can drive it. Install the binary above, start the server, and your host calls every BYOH tool directly:
-
-```bash
-byoh serve   # stdio MCP server
-```
-
-For **other agents** (Cursor, Zed, Continue, …), add `byoh` to your host's MCP config:
-```json
-{ "mcpServers": { "byoh": { "command": "byoh", "args": ["serve"] } } }
-```
-
-Using **Claude Code, Codex, or agy**? Install the plugin instead — it bundles the MCP server and auto-installs the binary on first load (no Rust required):
+Using **Claude Code, Codex, or agy**? Install the plugin. It bundles the MCP server and **auto-installs the binary on first load** — no Rust toolchain, no manual setup:
 
 **Claude Code:**
 ```bash
@@ -107,45 +56,43 @@ codex plugin marketplace add /path/to/BuildYourOwnHarness
 codex plugin add byoh@epicsagas
 ```
 
+### Using any other MCP-compatible host?
+
+BYOH speaks MCP, so Cursor, Zed, Continue, and friends work too. Install the [binary](#installation) once, then point your host at the server:
+
+```bash
+byoh serve   # stdio MCP server
+```
+
+```json
+{ "mcpServers": { "byoh": { "command": "byoh", "args": ["serve"] } } }
+```
+
 > **Note:** The repo is currently private. Use the paths above. Once public it will appear in the shared `epicsagas/plugins` marketplace.
 
-## Agent-led mode
+## Agent-led mode — the main path
 
-Once your host is connected, you don't type commands — you just talk. Your agent calls BYOH's 14 tools directly, and the conversation *is* the interview, the build, and the evolve cycle:
+Once your host is connected, you don't type commands — you just talk. Your agent calls BYOH's MCP tools directly, and the conversation *is* the interview, the build, and the evolve cycle:
 
-Available tools: `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `compile`, `evolve_cycle`, `genre_list`, `registry_clone_skill`, `catalog_search`, `catalog_vendor`, and more.
+> **You:** *I'm a backend Go developer shipping a payments API this month. Build me a harness.*
+>
+> **Agent:** *(scans your repo via `profile_scan`, asks a few targeted questions via `profile_interview`, locks the genre to `developer`)* → compiles a `HarnessBundle` → installs agents, skills, memory, and a secure-ship pipeline into Claude Code. Done — next session, your agent already speaks your stack.
 
-## Your first harness — from the CLI
+That same flow, in the suggested tool order:
 
-The same steps, driven from the terminal:
-
-### Step 1 — Profile
-```bash
-byoh profile init me --paths ./src ./docs   # auto-scans your project
-byoh profile interview me                   # ~5 min conversation
-byoh profile confirm me --genre developer   # lock in your genre
+```
+profile_create → profile_scan → profile_interview → profile_confirm
+           → rag_index / rag_search → compile → compile_dry_run
+           → (optional) registry_clone_skill → (later) evolve_cycle
 ```
 
-BYOH asks about your role, expertise level, tools, and 30-day goal. The interview adapts — a researcher gets different questions than a developer.
+Available tools: `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `compile`, `compile_dry_run`, `evolve_cycle`, `genre_list`, `rag_index`, `rag_search`, `registry_clone_skill`, `catalog_search`, `catalog_vendor`, and more.
 
-### Step 2 — Compile & install
-```bash
-byoh compile me          # generates HarnessBundle (validated + gated)
-byoh render me --target claude   # or: codex | agy | all
-byoh install me          # safe install to dist/
-```
-
-### Step 3 — Run & evolve
-```bash
-byoh run me              # launch with your harness active
-byoh evolve me           # improve the harness based on session feedback
-```
-
-`evolve` runs a 3-gate cycle (Critic / Seesaw / Stagnation) that can never be bypassed — so evolution is safe and auditable.
+Want the agent to walk you through it? Just say *"build my harness"* — the bundled `byoh-guide` agent orchestrates the whole flow.
 
 ## Plugin catalog
 
-The catalog gives you a curated list of the top 100 Claude plugins (sorted by stars, refreshed daily) so you can discover and add community skills without leaving the terminal.
+The catalog gives you a curated list of the top 100 Claude plugins (sorted by stars, refreshed daily) so you can discover and add community skills without leaving the conversation.
 
 ```bash
 # One-time index — downloads a prebuilt bundle in seconds
@@ -159,7 +106,38 @@ byoh catalog search "memory" --genre developer --limit 5
 byoh catalog vendor obra/superpowers --genre developer
 ```
 
-The LLM agent (via `catalog_search` / `catalog_vendor` MCP tools) can do this entire flow autonomously — or you can drive it directly from the CLI.
+The LLM agent (via `catalog_search` / `catalog_vendor` MCP tools) can do this entire flow autonomously — *"add a memory plugin to my harness"* — or you can drive it directly from the CLI.
+
+## Power users: the CLI (optional)
+
+Every flow above is also reachable from the terminal. The CLI is **auxiliary** — useful for scripting, CI, or when you'd rather not chat — but the agent-led path is the intended one.
+
+### Your first harness — from the CLI
+
+```bash
+byoh profile init me --paths ./src ./docs   # auto-scans your project
+byoh profile interview me                   # ~5 min conversation
+byoh profile confirm me --genre developer   # lock in your genre
+
+byoh compile me                             # generates HarnessBundle (validated + gated)
+byoh render me --target claude              # or: codex | agy | all
+byoh install me                             # safe install to dist/
+
+byoh run me                                 # launch with your harness active
+byoh evolve me                              # improve the harness based on session feedback
+```
+
+BYOH asks about your role, expertise level, tools, and 30-day goal. The interview adapts — a researcher gets different questions than a developer. `evolve` runs a 3-gate cycle (Critic / Seesaw / Stagnation) that can never be bypassed — so evolution is safe and auditable.
+
+## How it works under the hood
+
+BYOH's synthesis engine matches your profile tags against the skill registry, orders them into a dependency-resolved pipeline, and emits a `HarnessBundle` — a git-ready artifact that renders into the native format of any supported host.
+
+- **4-ring security model** — built-in skills (Ring 1) through community/untrusted skills (Ring 4), each with escalating validation
+- **3-gate evolution** — every `evolve` cycle passes Critic (quality), Seesaw (regression), and Stagnation (plateau) gates; no bypass
+- **Goal-oriented pipelines** — declaring a 30-day goal (product launch, research report, secure ship…) overlays a matching skill ladder automatically
+
+Architecture: hexagonal — `domain / ports / adapters / application / compiler / evolve / templates / deploy / i18n / obs / security / cli`. See `AGENTS.md` for the full guide.
 
 ## Full CLI reference
 
@@ -189,15 +167,31 @@ byoh catalog search "<query>" [--genre <g>] [--tags k1,k2] [--limit N]
 byoh catalog vendor <owner/repo> [--genre <g>] [--keywords k1,k2]
 ```
 
-## How it works under the hood
+## Installation
 
-BYOH's synthesis engine matches your profile tags against the skill registry, orders them into a dependency-resolved pipeline, and emits a `HarnessBundle` — a git-ready artifact that renders into the native format of any supported host.
+Only needed if you're **not** using the plugin (which auto-installs the binary) or you want BYOH on a non-plugin MCP host.
 
-- **4-ring security model** — built-in skills (Ring 1) through community/untrusted skills (Ring 4), each with escalating validation
-- **3-gate evolution** — every `evolve` cycle passes Critic (quality), Seesaw (regression), and Stagnation (plateau) gates; no bypass
-- **Goal-oriented pipelines** — declaring a 30-day goal (product launch, research report, secure ship…) overlays a matching skill ladder automatically
+### Binary (no Rust toolchain required)
 
-Architecture: hexagonal — `domain / ports / adapters / application / compiler / evolve / templates / deploy / i18n / obs / security / cli`. See `AGENTS.md` for the full guide.
+**macOS / Linux:**
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/epicsagas/BuildYourOwnHarness/releases/latest/download/install.sh | sh
+```
+
+**Windows (PowerShell):**
+```powershell
+irm https://github.com/epicsagas/BuildYourOwnHarness/releases/latest/download/install.ps1 | iex
+```
+
+**From source:**
+```bash
+cargo install byoh --git https://github.com/epicsagas/BuildYourOwnHarness
+```
+
+```bash
+byoh --version   # verify
+```
 
 ## Build & develop
 
