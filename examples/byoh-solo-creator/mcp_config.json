@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "search_draft_continuity": {
-      "args": [],
-      "command": "byoh-search_draft_continuity"
-    }
-  }
-}

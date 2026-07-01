@@ -344,3 +344,8 @@ stitch-designs/
 # fastembed model cache (downloaded by the `native-rag` feature at build/test time)
 /.fastembed_cache/
 
+
+# BYOH test-output archives — local only, never shipped as a plugin.
+# These are sample harnesses produced during testing; shipping them would
+# expose their inner plugin manifests and pollute the byoh plugin's skills.
+examples/
