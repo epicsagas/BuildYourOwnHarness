@@ -635,7 +635,11 @@ fn install_plugin_blocking(
                     activations.push(json!({
                         "host": t.as_str(),
                         "status": "Skipped",
-                        "message": "no project-local mode (HOME-based CLI); use scope=global",
+                        "reason": "this host's CLI has no project-local plugin scope (HOME only)",
+                        "alternatives": [
+                            "re-run install_plugin with scope=global",
+                            format!("point the {} CLI at the dist tree directly: {}", t.as_str(), path.display()),
+                        ],
                     }));
                     continue;
                 }

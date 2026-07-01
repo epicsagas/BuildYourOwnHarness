@@ -43,6 +43,9 @@ pub struct InstallLocations {
     pub dist: PathBuf,
     /// Antigravity (agy) plugins root (`~/.gemini/config/plugins`), shown in the
     /// activation report (agy copies the tree here on `agy plugin install`).
+    /// NB: agy became a standalone CLI after deprecating Gemini, but still
+    /// uses `~/.gemini/` as its shared config root (verified agy 1.0.13) — this
+    /// is *not* stale. agy never supported a project-local plugin scope.
     pub agy: PathBuf,
     /// Claude Code config root (`~/.claude`), honored from `CLAUDE_CONFIG_DIR`.
     /// Plugins are activated by linking under `<this>/skills/<name>/`.

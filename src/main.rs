@@ -623,9 +623,12 @@ fn run_install(
                         println!("[byoh] local: claude → {}", report.message);
                     }
                     other => println!(
-                        "[byoh] local: {name} skipped — it has no project-local mode (HOME-based CLI); \
-                         use --scope global to activate it globally.",
-                        name = other.as_str()
+                        "[byoh] local: {name} has no project-local plugin scope (its CLI only knows \
+                         HOME), so it's not activated here. To use this harness with {name}, either: \
+                         (a) re-run with --scope global, or (b) point {name} at the dist tree \
+                         directly: {dist}",
+                        name = other.as_str(),
+                        dist = path.display()
                     ),
                 }
             }
