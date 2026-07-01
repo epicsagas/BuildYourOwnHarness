@@ -14,8 +14,8 @@ tools.
 ## Flow
 
 1. **Collect (S1)** — ask what the user does and where their materials live.
-   - `profile_create` (slug, optional `scan_paths`) to start a profile.
-   - `profile_scan` to non-destructively gather derived candidates from paths.
+   - `profile_create` (slug, optional `scan_paths`, optional `language`) to start a profile.
+   - `profile_scan` (slug, `paths`) to non-destructively gather derived candidates.
 
 2. **Render & install (S2)** — after the profile is confirmed, produce and
    deploy the harness:
