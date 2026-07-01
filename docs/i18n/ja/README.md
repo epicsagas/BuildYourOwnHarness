@@ -84,17 +84,17 @@ byoh serve   # stdio MCP サーバー
 
 ```
 profile_create → profile_scan → profile_interview → profile_confirm
-           → rag_index / rag_search → compile → compile_dry_run
+           → compile → compile_dry_run → render_plugin → install_plugin
            → (任意) registry_clone_skill → (後で) evolve_cycle
 ```
 
-利用可能なツール: `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `compile`, `compile_dry_run`, `evolve_cycle`, `genre_list`, `rag_index`, `rag_search`, `registry_clone_skill`, `catalog_search`, `catalog_vendor` など。
+利用可能なツール: `profile_read`, `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `genre_list`, `compile`, `compile_dry_run`, `render_plugin`, `install_plugin`, `evolve_cycle`, `registry_clone_skill`, `catalog_search`, `catalog_vendor`.
 
 エージェントに手取り足取り案内してほしいですか？ *"build my harness"* とだけ言えば、同梱の `byoh-guide` エージェントがフロー全体を取り仕切ります。
 
 ## プラグインカタログ
 
-カタログは、上位 100 個の Claude プラグイン（スター順、毎日更新）をキュレーションして提供します。会話を抜けることなく、コミュニティスキルを発見して追加できます。
+カタログは [`quemsah/awesome-claude-plugins`](https://github.com/quemsah/awesome-claude-plugins) の README から作ります — コミュニティ管理の、上位 100 個の Claude プラグインリポジトリをスター順に並べたリストです。BYOH は事前ビルド済みバンドル（毎週月曜 03:17 UTC に更新）を提供するので `byoh catalog index` が数秒で終わり、`--no-bundle` を渡せば上流リストを直接パースします。
 
 ```bash
 # 初回1回のみのインデックス — 事前ビルド済みバンドルを数秒でダウンロード
@@ -121,9 +121,9 @@ byoh profile init me --paths ./src ./docs   # プロジェクトを自動スキ�
 byoh profile interview me                   # 約5分の会話
 byoh profile confirm me --genre developer   # ジャンルを確定
 
-byoh compile me                             # HarnessBundle を生成（検証 + ゲート通過）
-byoh render me --target claude              # or: codex | agy | all
-byoh install me                             # dist/ に安全にインストール
+byoh compile me --no-dry-run                # HarnessBundle を書き出す（dry-run がデフォルト）
+byoh render me --target claude              # or: codex | agy | all（デフォルト: all）
+byoh install me                             # dist/ にレンダ後、--host で有効化
 
 byoh run me                                 # ハーネスを有効化した状態で起動
 byoh evolve me                              # セッションフィードバックに基づいてハーネスを改善
@@ -150,9 +150,9 @@ byoh profile interview <slug>               # ガイド付きインタビュー
 byoh profile confirm <slug> --genre <g>     # プロファイルを確認・固定
 
 # ビルド
-byoh compile <slug> [--dry-run]             # 検証 + HarnessBundle 生成
-byoh render <slug> --target <host>          # claude | codex | agy | all
-byoh install <slug> [--host <dir>]          # dist/ または稼働中のプラグインディレクトリにデプロイ
+byoh compile <slug> [--no-dry-run]          # dry-run がデフォルト、バンドルを書くには --no-dry-run
+byoh render <slug> [--target <host>]        # claude | codex | agy | all（デフォルト: all）
+byoh install <slug> [--target <host>] [--host] [--force]  # dist/ にポリグロットツリーをレンダ、--host は各ホストで有効化
 
 # 実行 & 進化
 byoh run <slug>
@@ -205,6 +205,16 @@ cvp                               # 並列: check → clippy → test → fmt �
 ```
 
 `mcp` フィーチャー（stdio MCP サーバー）はデフォルトでオンです。BYOH は組み込みのナレッジベースを同梱しません — 検索には、生成したハーネスを [alcove](https://github.com/epicsagas/alcove) のようなドキュメントサーバーに向けてください。
+
+## 謝辞
+
+BYOH はいくつかのコミュニティの取り組みの上に成り立っています:
+
+- **プラグインカタログ** — [`quemsah/awesome-claude-plugins`](https://github.com/quemsah/awesome-claude-plugins) から取得。上位 100 個の Claude プラグインリポジトリのスター順コミュニティリスト。これがなければカタログは存在しません。
+- **companion ツール** — [alcove](https://github.com/epicsagas/alcove)(ドキュメントサーバー/RAG)、[Episteme](https://github.com/epicsagas/Episteme)(ナレッジグラフ)、[obsidian-forge](https://github.com/epicsagas/obsidian-forge)(ボルト自動化)と連携するよう設計。
+- **OSS スタック** — [clap](https://docs.rs/clap)、[serde](https://serde.rs)、[ureq](https://docs.rs/ureq) と Rust エコシステム上に構築。
+
+カタログ項目と取り込んだコミュニティスキルはそれぞれのライセンスに従います（取り込み時に自動検出）。BYOH 自体は Apache-2.0 です。
 
 ## ライセンス
 

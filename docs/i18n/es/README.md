@@ -84,17 +84,17 @@ Ese mismo flujo, en el orden de herramientas sugerido:
 
 ```
 profile_create → profile_scan → profile_interview → profile_confirm
-           → rag_index / rag_search → compile → compile_dry_run
+           → compile → compile_dry_run → render_plugin → install_plugin
            → (opcional) registry_clone_skill → (más tarde) evolve_cycle
 ```
 
-Herramientas disponibles: `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `compile`, `compile_dry_run`, `evolve_cycle`, `genre_list`, `rag_index`, `rag_search`, `registry_clone_skill`, `catalog_search`, `catalog_vendor` y más.
+Herramientas disponibles: `profile_read`, `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `genre_list`, `compile`, `compile_dry_run`, `render_plugin`, `install_plugin`, `evolve_cycle`, `registry_clone_skill`, `catalog_search`, `catalog_vendor`.
 
 ¿Quieres que el agente te guíe paso a paso? Solo di *"build my harness"* — el agente `byoh-guide` incluido orquesta todo el flujo.
 
 ## Catálogo de plugins
 
-El catálogo ofrece una selección cuidada de los 100 mejores plugins de Claude (ordenados por estrellas, actualizada diariamente) para descubrir y añadir habilidades de la comunidad sin salir de la conversación.
+El catálogo se construye a partir del README de [`quemsah/awesome-claude-plugins`](https://github.com/quemsah/awesome-claude-plugins) — una lista comunitaria, ordenada por estrellas, de los 100 principales repositorios de plugins de Claude. BYOH distribuye un bundle precompilado (reconstruido **semanalmente**, cada lunes 03:17 UTC) para que `byoh catalog index` resuelva en segundos; pasa `--no-bundle` para analizar la lista original directamente.
 
 ```bash
 # Indexación inicial — descarga un bundle precompilado en segundos
@@ -121,9 +121,9 @@ byoh profile init yo --paths ./src ./docs   # escanea tu proyecto automáticamen
 byoh profile interview yo                   # conversación de ~5 minutos
 byoh profile confirm yo --genre developer   # fija tu género
 
-byoh compile yo                             # genera el HarnessBundle (validado y comprobado)
-byoh render yo --target claude              # o: codex | agy | all
-byoh install yo                             # instalación segura en dist/
+byoh compile yo --no-dry-run                # valida + escribe el HarnessBundle (dry-run es el predeterminado)
+byoh render yo --target claude              # o: codex | agy | all (predeterminado: all)
+byoh install yo                             # renderiza a dist/ y luego --host lo activa
 
 byoh run yo                                 # lanza tu sesión con el harness activo
 byoh evolve yo                              # mejora el harness según el feedback de tus sesiones
@@ -150,9 +150,9 @@ byoh profile interview <slug>                # entrevista guiada
 byoh profile confirm <slug> --genre <g>      # confirmar y fijar perfil
 
 # Compilación
-byoh compile <slug> [--dry-run]              # validar + generar HarnessBundle
-byoh render <slug> --target <host>           # claude | codex | agy | all
-byoh install <slug> [--host <dir>]           # desplegar en dist/ o directorio live
+byoh compile <slug> [--no-dry-run]          # dry-run es el predeterminado; usa --no-dry-run para escribir el bundle
+byoh render <slug> [--target <host>]        # claude | codex | agy | all (predeterminado: all)
+byoh install <slug> [--target <host>] [--host] [--force]  # renderiza árbol políglota a dist/; --host lo activa en cada host
 
 # Ejecución y evolución
 byoh run <slug>
@@ -205,6 +205,16 @@ cvp                               # paralelo: check → clippy → test → fmt 
 ```
 
 La feature `mcp` (servidor MCP por stdio) está activada por defecto. BYOH no incluye ningún repositorio de documentos integrado — para recuperación, apunta tu harness generado a un servidor de documentación como [alcove](https://github.com/epicsagas/alcove).
+
+## Agradecimientos
+
+BYOH se apoya en varios esfuerzos comunitarios:
+
+- **Catálogo de plugins** — proviene de [`quemsah/awesome-claude-plugins`](https://github.com/quemsah/awesome-claude-plugins), una lista comunitaria ordenada por estrellas de los 100 principales repositorios de plugins de Claude. Sin ella, el catálogo no existiría.
+- **Herramientas complementarias** — diseñado para interoperar con [alcove](https://github.com/epicsagas/alcove) (servidor de docs / RAG), [Episteme](https://github.com/epicsagas/Episteme) (grafo de conocimiento) y [obsidian-forge](https://github.com/epicsagas/obsidian-forge) (automatización de vaults).
+- **Stack de código abierto** — construido sobre [clap](https://docs.rs/clap), [serde](https://serde.rs), [ureq](https://docs.rs/ureq) y el ecosistema de Rust.
+
+Las entradas del catálogo y las habilidades comunitarias integradas conservan sus propias licencias (detectadas automáticamente al integrar). BYOH en sí es Apache-2.0.
 
 ## Licencia
 

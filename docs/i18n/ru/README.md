@@ -84,17 +84,17 @@ byoh serve   # stdio MCP-сервер
 
 ```
 profile_create → profile_scan → profile_interview → profile_confirm
-           → rag_index / rag_search → compile → compile_dry_run
+           → compile → compile_dry_run → render_plugin → install_plugin
            → (опционально) registry_clone_skill → (позже) evolve_cycle
 ```
 
-Доступные инструменты: `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `compile`, `compile_dry_run`, `evolve_cycle`, `genre_list`, `rag_index`, `rag_search`, `registry_clone_skill`, `catalog_search`, `catalog_vendor` и другие.
+Доступные инструменты: `profile_read`, `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `genre_list`, `compile`, `compile_dry_run`, `render_plugin`, `install_plugin`, `evolve_cycle`, `registry_clone_skill`, `catalog_search`, `catalog_vendor`.
 
 Хотите, чтобы агент провёл вас по потоку? Просто скажите *"build my harness"* — встроенный агент `byoh-guide` оркестрирует весь процесс.
 
 ## Каталог плагинов
 
-Каталог даёт курируемый список топ-100 плагинов Claude (отсортированных по звёздам, обновляется ежедневно), чтобы вы могли находить и добавлять навыки сообщества, не выходя из беседы.
+Каталог строится из README репозитория [`quemsah/awesome-claude-plugins`](https://github.com/quemsah/awesome-claude-plugins) — общественный, упорядоченный по звёздам список топ-100 репозиториев плагинов Claude. BYOH поставляет предсобранный bundle (пересобирается **еженедельно**, каждый понедельник 03:17 UTC), поэтому `byoh catalog index` выполняется за секунды; передайте `--no-bundle`, чтобы парсить исходный список напрямую.
 
 ```bash
 # Одноразовая индексация — загружает готовый bundle за секунды
@@ -121,9 +121,9 @@ byoh profile init me --paths ./src ./docs   # автосканирование �
 byoh profile interview me                   # ~5-минутная беседа
 byoh profile confirm me --genre developer   # зафиксировать жанр
 
-byoh compile me                             # генерирует HarnessBundle (валидация + шлюзы)
-byoh render me --target claude              # или: codex | agy | all
-byoh install me                             # безопасная установка в dist/
+byoh compile me --no-dry-run                # проверяет + записывает HarnessBundle (dry-run по умолчанию)
+byoh render me --target claude              # или: codex | agy | all (по умолчанию: all)
+byoh install me                             # рендерит в dist/, затем --host активирует
 
 byoh run me                                 # запустить с активным харнесом
 byoh evolve me                              # улучшить харнес на основе обратной связи
@@ -150,9 +150,9 @@ byoh profile interview <slug>               # интервью с проводн
 byoh profile confirm <slug> --genre <g>     # подтвердить и зафиксировать профиль
 
 # Сборка
-byoh compile <slug> [--dry-run]             # валидация + генерация HarnessBundle
-byoh render <slug> --target <host>          # claude | codex | agy | all
-byoh install <slug> [--host <dir>]          # развернуть в dist/ или в папку плагина
+byoh compile <slug> [--no-dry-run]          # dry-run по умолчанию; --no-dry-run чтобы записать bundle
+byoh render <slug> [--target <host>]        # claude | codex | agy | all (по умолчанию: all)
+byoh install <slug> [--target <host>] [--host] [--force]  # полиглотное дерево в dist/; --host активирует по хостам
 
 # Запуск и эволюция
 byoh run <slug>
@@ -205,6 +205,16 @@ cvp                               # параллельно: check → clippy →
 ```
 
 Фича `mcp` (stdio MCP-сервер) включена по умолчанию. BYOH не включает встроенную базу знаний — для ретривала укажите сгенерированному харнесу на док-сервер вроде [alcove](https://github.com/epicsagas/alcove).
+
+## Благодарности
+
+BYOH стоит на плечах нескольких общественных проектов:
+
+- **Каталог плагинов** — берётся из [`quemsah/awesome-claude-plugins`](https://github.com/quemsah/awesome-claude-plugins), общественный упорядоченный по звёздам список топ-100 репозиториев плагинов Claude. Без него каталога бы не существовало.
+- **Сопутствующие инструменты** — спроектирован для взаимодействия с [alcove](https://github.com/epicsagas/alcove) (сервер документов / RAG), [Episteme](https://github.com/epicsagas/Episteme) (граф знаний) и [obsidian-forge](https://github.com/epicsagas/obsidian-forge) (автоматизация хранилищ).
+- **Стек с открытым исходным кодом** — построен на [clap](https://docs.rs/clap), [serde](https://serde.rs), [ureq](https://docs.rs/ureq) и экосистеме Rust.
+
+Записи каталога и внедрённые общественные навыки сохраняют собственные лицензии (определяются автоматически при внедрении). Сам BYOH распространяется под Apache-2.0.
 
 ## Лицензия
 

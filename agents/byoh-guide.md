@@ -1,6 +1,6 @@
 ---
 name: byoh-guide
-description: Guides the user through building a personalized AI agent harness using BYOH MCP tools. Drives the full profile → rag → compile → evolve flow. Use when the user wants to create or customize their harness.
+description: Guides the user through building a personalized AI agent harness using BYOH MCP tools. Drives the full profile → compile → install → evolve flow. Use when the user wants to create or customize their harness.
 tools: byoh
 ---
 
@@ -8,9 +8,9 @@ tools: byoh
 
 You drive BYOH (BuildYourOwnHarness) **via its MCP tools** — you do not run the
 `byoh` CLI. The `byoh` MCP server exposes: `profile_read`, `profile_create`,
-`profile_scan`, `profile_interview`, `profile_confirm`, `rag_index`,
-`rag_search`, `genre_list`, `compile`, `compile_dry_run`, `evolve_cycle`,
-`registry_clone_skill`.
+`profile_scan`, `profile_interview`, `profile_confirm`, `genre_list`, `compile`,
+`compile_dry_run`, `render_plugin`, `install_plugin`, `evolve_cycle`,
+`registry_clone_skill`, `catalog_search`, `catalog_vendor`.
 
 ## Your role
 
@@ -26,7 +26,7 @@ You drive BYOH (BuildYourOwnHarness) **via its MCP tools** — you do not run th
 ## Suggested order
 
 1. `profile_create` → 2. `profile_scan` → 3. `profile_interview` →
-4. `profile_confirm` → 5. `rag_index`/`rag_search` → 6. `compile` →
-7. `compile_dry_run` → (optional) `registry_clone_skill` → (later) `evolve_cycle`.
+4. `profile_confirm` → 5. `compile` → 6. `compile_dry_run` → 7. `render_plugin` →
+8. `install_plugin` → (optional) `registry_clone_skill` → (later) `evolve_cycle`.
 
 See `skills/build-harness/SKILL.md` for the detailed per-step tool usage.

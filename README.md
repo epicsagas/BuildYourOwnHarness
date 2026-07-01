@@ -82,17 +82,17 @@ That same flow, in the suggested tool order:
 
 ```
 profile_create → profile_scan → profile_interview → profile_confirm
-           → rag_index / rag_search → compile → compile_dry_run
+           → compile → compile_dry_run → render_plugin → install_plugin
            → (optional) registry_clone_skill → (later) evolve_cycle
 ```
 
-Available tools: `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `compile`, `compile_dry_run`, `evolve_cycle`, `genre_list`, `rag_index`, `rag_search`, `registry_clone_skill`, `catalog_search`, `catalog_vendor`, and more.
+Available tools: `profile_read`, `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `genre_list`, `compile`, `compile_dry_run`, `render_plugin`, `install_plugin`, `evolve_cycle`, `registry_clone_skill`, `catalog_search`, `catalog_vendor`.
 
 Want the agent to walk you through it? Just say *"build my harness"* — the bundled `byoh-guide` agent orchestrates the whole flow.
 
 ## Plugin catalog
 
-The catalog gives you a curated list of the top 100 Claude plugins (sorted by stars, refreshed daily) so you can discover and add community skills without leaving the conversation.
+The catalog is built from the [`quemsah/awesome-claude-plugins`](https://github.com/quemsah/awesome-claude-plugins) README — a community-maintained, star-ranked list of the top 100 Claude plugin repositories. BYOH ships a prebuilt bundle (rebuilt **weekly**, every Monday 03:17 UTC) so `byoh catalog index` resolves in seconds; pass `--no-bundle` to parse the upstream list directly.
 
 ```bash
 # One-time index — downloads a prebuilt bundle in seconds
@@ -119,9 +119,9 @@ byoh profile init me --paths ./src ./docs   # auto-scans your project
 byoh profile interview me                   # ~5 min conversation
 byoh profile confirm me --genre developer   # lock in your genre
 
-byoh compile me                             # generates HarnessBundle (validated + gated)
-byoh render me --target claude              # or: codex | agy | all
-byoh install me                             # safe install to dist/
+byoh compile me --no-dry-run                # validate + write the HarnessBundle (dry-run is default)
+byoh render me --target claude              # or: codex | agy | all (default: all)
+byoh install me                             # render to dist/, then --host activates it
 
 byoh run me                                 # launch with your harness active
 byoh evolve me                              # improve the harness based on session feedback
@@ -148,9 +148,9 @@ byoh profile interview <slug>               # guided interview
 byoh profile confirm <slug> --genre <g>     # confirm and lock profile
 
 # Build
-byoh compile <slug> [--dry-run]             # validate + generate HarnessBundle
-byoh render <slug> --target <host>          # claude | codex | agy | all
-byoh install <slug> [--host <dir>]          # deploy to dist/ or live plugin dir
+byoh compile <slug> [--no-dry-run]          # dry-run is on by default; pass --no-dry-run to write the bundle
+byoh render <slug> [--target <host>]        # claude | codex | agy | all (default: all)
+byoh install <slug> [--target <host>] [--host] [--force]  # render polyglot tree to dist/, --host activates it on each host
 
 # Run & evolve
 byoh run <slug>
@@ -203,6 +203,16 @@ cvp                               # parallel: check → clippy → test → fmt 
 ```
 
 The `mcp` feature (stdio MCP server) is on by default. BYOH ships no embedded knowledge base — for retrieval, point your generated harness at a doc server like [alcove](https://github.com/epicsagas/alcove).
+
+## Acknowledgments
+
+BYOH stands on the shoulders of several community efforts:
+
+- **Plugin catalog** — sourced from [`quemsah/awesome-claude-plugins`](https://github.com/quemsah/awesome-claude-plugins), a star-ranked community list of the top 100 Claude plugin repositories. Without it, the catalog would not exist.
+- **Companion tools** — designed to interoperate with [alcove](https://github.com/epicsagas/alcove) (doc server / RAG), [Episteme](https://github.com/epicsagas/Episteme) (knowledge graph), and [obsidian-forge](https://github.com/epicsagas/obsidian-forge) (vault automation).
+- **Open-source stack** — built on [clap](https://docs.rs/clap), [serde](https://serde.rs), [ureq](https://docs.rs/ureq), and the Rust ecosystem.
+
+Catalog entries and vendored community skills keep their own licenses (detected automatically at vendor time). BYOH itself is Apache-2.0.
 
 ## License
 

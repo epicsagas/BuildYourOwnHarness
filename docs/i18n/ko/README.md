@@ -84,17 +84,17 @@ byoh serve   # stdio MCP 서버
 
 ```
 profile_create → profile_scan → profile_interview → profile_confirm
-           → rag_index / rag_search → compile → compile_dry_run
+           → compile → compile_dry_run → render_plugin → install_plugin
            → (옵션) registry_clone_skill → (이후) evolve_cycle
 ```
 
-사용 가능한 도구: `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `compile`, `compile_dry_run`, `evolve_cycle`, `genre_list`, `rag_index`, `rag_search`, `registry_clone_skill`, `catalog_search`, `catalog_vendor` 등.
+사용 가능한 도구: `profile_read`, `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `genre_list`, `compile`, `compile_dry_run`, `render_plugin`, `install_plugin`, `evolve_cycle`, `registry_clone_skill`, `catalog_search`, `catalog_vendor`.
 
 에이전트가 처음부터 끝까지 안내해 주길 원하신다면, 그냥 *"build my harness"*라고 말하세요 — 번들된 `byoh-guide` 에이전트가 전체 흐름을 오케스트레이션합니다.
 
 ## 플러그인 카탈로그
 
-카탈로그는 상위 100개 Claude 플러그인을(Stars 순, 매일 갱신) 큐레이션해서, 대화를 떠나지 않고도 커뮤니티 스킬을 발견하고 추가할 수 있게 해줍니다.
+카탈로그는 [`quemsah/awesome-claude-plugins`](https://github.com/quemsah/awesome-claude-plugins) README에서 만듭니다 — 커뮤니티가 관리하는, 상위 100개 Claude 플러그인 레포지토리의 Stars 순 목록입니다. BYOH는 사전 빌드 번들을(매주 월요일 03:17 UTC에 갱신) 제공해서 `byoh catalog index`가 수 초 만에 끝나며, `--no-bundle`을 주면 upstream 목록을 직접 파싱합니다.
 
 ```bash
 # 최초 1회 인덱싱 — 사전 빌드 번들을 수 초 만에 다운로드
@@ -121,9 +121,9 @@ byoh profile init me --paths ./src ./docs   # 프로젝트 자동 분석
 byoh profile interview me                   # 약 5분 대화
 byoh profile confirm me --genre developer   # 장르 확정
 
-byoh compile me                             # HarnessBundle 생성 (검증 + 게이트 통과)
-byoh render me --target claude              # 또는: codex | agy | all
-byoh install me                             # dist/에 안전하게 설치
+byoh compile me --no-dry-run                # 검증 + HarnessBundle 작성 (dry-run이 기본)
+byoh render me --target claude              # 또는: codex | agy | all (기본: all)
+byoh install me                             # dist/에 렌더 후 --host로 활성화
 
 byoh run me                                 # 하네스가 활성화된 상태로 실행
 byoh evolve me                              # 세션 피드백 기반으로 하네스 개선
@@ -150,9 +150,9 @@ byoh profile interview <slug>               # 인터뷰
 byoh profile confirm <slug> --genre <g>     # 프로파일 확정
 
 # 빌드
-byoh compile <slug> [--dry-run]             # 검증 + HarnessBundle 생성
-byoh render <slug> --target <host>          # claude | codex | agy | all
-byoh install <slug> [--host <dir>]          # dist/ 또는 실제 플러그인 디렉토리에 배포
+byoh compile <slug> [--no-dry-run]          # dry-run이 기본, 번들을 쓰려면 --no-dry-run
+byoh render <slug> [--target <host>]        # claude | codex | agy | all (기본: all)
+byoh install <slug> [--target <host>] [--host] [--force]  # dist/에 폴리글랏 트리 렌더, --host는 각 호스트에 활성화
 
 # 실행 & 진화
 byoh run <slug>
@@ -205,6 +205,16 @@ cvp                               # 병렬 실행: check → clippy → test →
 ```
 
 `mcp` 피쳐(stdio MCP 서버)는 기본으로 켜져 있습니다. BYOH는 내장 문서 검색 색인을 포함하지 않습니다 — 검색 기능이 필요하면 생성된 하네스를 [alcove](https://github.com/epicsagas/alcove) 같은 문서 서버로 연결하세요.
+
+## 감사의 글
+
+BYOH는 여러 커뮤니티 노력 위에 세워졌습니다:
+
+- **플러그인 카탈로그** — [`quemsah/awesome-claude-plugins`](https://github.com/quemsah/awesome-claude-plugins)에서 가져옵니다. 상위 100개 Claude 플러그인 레포지토리의, Stars 순으로 정렬된 커뮤니티 목록입니다. 이 목록이 없었다면 카탈로그도 존재할 수 없습니다.
+- **동반 도구** — [alcove](https://github.com/epicsagas/alcove)(문서 서버 / RAG), [Episteme](https://github.com/epicsagas/Episteme)(지식 그래프), [obsidian-forge](https://github.com/epicsagas/obsidian-forge)(볼트 자동화)와 함께 동작하도록 설계됐습니다.
+- **오픈소스 스택** — [clap](https://docs.rs/clap), [serde](https://serde.rs), [ureq](https://docs.rs/ureq)와 Rust 생태계 위에 빌드됩니다.
+
+카탈로그 항목과 도입한 커뮤니티 스킬은 각자의 라이선스를 따릅니다(도입 시점에 자동 감지). BYOH 자체는 Apache-2.0입니다.
 
 ## 라이선스
 

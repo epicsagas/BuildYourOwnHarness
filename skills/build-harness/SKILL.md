@@ -1,6 +1,6 @@
 ---
 name: build-harness
-description: Trigger when the user asks to build, create, generate, or customize their own AI agent harness ("make my harness", "build my harness", "내 하네스 만들어줘"). Routes the conversation to the BYOH MCP tools and drives the full profile → rag → compile → evolve flow. The conversation IS the interview/wizard.
+description: Trigger when the user asks to build, create, generate, or customize their own AI agent harness ("make my harness", "build my harness", "내 하네스 만들어줘"). Routes the conversation to the BYOH MCP tools and drives the full profile → compile → install → evolve flow. The conversation IS the interview/wizard.
 ---
 
 # Build a Personalized Harness (BYOH)
@@ -17,9 +17,12 @@ tools.
    - `profile_create` (slug, optional `scan_paths`) to start a profile.
    - `profile_scan` to non-destructively gather derived candidates from paths.
 
-2. **Index (S2)** — once you know the genre and corpus:
-   - `rag_index` (genre, corpus path) to build a genre index.
-   - `rag_search` (query, genre, optional corpus) to retrieve relevant material.
+2. **Render & install (S2)** — after the profile is confirmed, produce and
+   deploy the harness:
+   - `render_plugin` (slug, target) to render the host-native plugin tree.
+   - `install_plugin` (slug, target) to write it to `dist/` and activate it on
+     the host. BYOH ships no embedded knowledge base — if the user needs
+     retrieval, point the generated harness at a doc server like `alcove`.
 
 3. **Interview (S3, in-conversation)** — ask the user the open questions. Map
    their answers to `(answer, confidence)` and call `profile_interview`. Empty

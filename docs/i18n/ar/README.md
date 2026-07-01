@@ -84,17 +84,17 @@ byoh serve   # خادم MCP عبر stdio
 
 ```
 profile_create → profile_scan → profile_interview → profile_confirm
-           → rag_index / rag_search → compile → compile_dry_run
+           → compile → compile_dry_run → render_plugin → install_plugin
            → (اختياري) registry_clone_skill → (لاحقًا) evolve_cycle
 ```
 
-الأدوات المتاحة: `profile_create`، `profile_scan`، `profile_interview`، `profile_confirm`، `compile`، `compile_dry_run`، `evolve_cycle`، `genre_list`، `rag_index`، `rag_search`، `registry_clone_skill`، `catalog_search`، `catalog_vendor` وغيرها.
+الأدوات المتاحة: `profile_read`, `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `genre_list`, `compile`, `compile_dry_run`, `render_plugin`, `install_plugin`, `evolve_cycle`, `registry_clone_skill`, `catalog_search`, `catalog_vendor`.
 
 هل تريد أن يأخذك الوكيل خطوة بخطوة؟ فقط قُل *"build my harness"* — فوكيل `byoh-guide` المُدمج ينسّق التدفق كاملًا.
 
 ## كتالوج الإضافات
 
-يمنحك الكتالوج قائمة منتقاة بأفضل 100 إضافة لـ Claude (مرتّبة حسب النجوم، تُحدَّث يوميًا) لتكتشف مهارات المجتمع وتضيفها دون مغادرة المحادثة.
+يُبنى الكتالوج من README لمستودع [`quemsah/awesome-claude-plugins`](https://github.com/quemsah/awesome-claude-plugins) — قائمة مجتمعية مرتّبة حسب النجوم لأفضل 100 مستودع لإضافات Claude. يوفّر BYOH حزمة جاهزة (تُعاد بنيتها **أسبوعيًا**، كل اثنين 03:17 بالتوقيت العالمي) بحيث يُنهي `byoh catalog index` عمله في ثوانٍ؛ مرّر `--no-bundle` لتحليل القائمة الأصلية مباشرةً.
 
 ```bash
 # فهرسة مرة واحدة — تنزيل حزمة جاهزة في ثوانٍ
@@ -121,9 +121,9 @@ byoh profile init me --paths ./src ./docs   # فحص تلقائي لمشروعك
 byoh profile interview me                   # محادثة ~5 دقائق
 byoh profile confirm me --genre developer   # تثبيت تصنيفك
 
-byoh compile me                             # توليد HarnessBundle (مُتحقَّق + مُبوَّب)
-byoh render me --target claude              # أو: codex | agy | all
-byoh install me                             # تثبيت آمن في dist/
+byoh compile me --no-dry-run                # يتحقق + يكتب HarnessBundle (dry-run هو الافتراضي)
+byoh render me --target claude              # أو: codex | agy | all (الافتراضي: all)
+byoh install me                             # يُصيّر إلى dist/، ثم يُفعّله --host
 
 byoh run me                                 # التشغيل مع تفعيل هارنسك
 byoh evolve me                              # تحسين الهارنس بناءً على تغذية الجلسة الراجعة
@@ -150,9 +150,9 @@ byoh profile interview <slug>               # مقابلة موجّهة
 byoh profile confirm <slug> --genre <g>     # تأكيد الملف الشخصي وتثبيته
 
 # البناء
-byoh compile <slug> [--dry-run]             # تحقق + توليد HarnessBundle
-byoh render <slug> --target <host>          # claude | codex | agy | all
-byoh install <slug> [--host <dir>]          # نشر في dist/ أو مجلد الإضافة الفعلي
+byoh compile <slug> [--no-dry-run]          # dry-run افتراضي؛ استخدم --no-dry-run لكتابة الحزمة
+byoh render <slug> [--target <host>]        # claude | codex | agy | all (الافتراضي: all)
+byoh install <slug> [--target <host>] [--host] [--force]  # يُصيّر شجرة متعددة اللغات إلى dist/؛ يُفعّلها --host لكل مضيف
 
 # التشغيل والتطور
 byoh run <slug>
@@ -205,6 +205,16 @@ cvp                               # متوازي: check → clippy → test → 
 ```
 
 ميزة `mcp` (خادم MCP عبر stdio) مُفعّلة افتراضيًا. لا يُضمّن BYOH قاعدة معرفة مدمجة — للاسترجاع، وجّه هارنسك المولّد نحو خادم وثائق مثل [alcove](https://github.com/epicsagas/alcove).
+
+## شكر وتقدير
+
+يقف BYOH على أكتاف جهود مجتمعية عديدة:
+
+- **كتالوج الإضافات** — مصدره [`quemsah/awesome-claude-plugins`](https://github.com/quemsah/awesome-claude-plugins)، قائمة مجتمعية مرتّبة حسب النجوم لأفضل 100 مستودع لإضافات Claude. بدونه، لما وُجد الكتالوج.
+- **أدوات مرافقة** — مصمّم للعمل مع [alcove](https://github.com/epicsagas/alcove) (خادم وثائق/RAG) و[Episteme](https://github.com/epicsagas/Episteme) (رسم معرفي) و[obsidian-forge](https://github.com/epicsagas/obsidian-forge) (أتمتة المخازن).
+- **حزمة مفتوحة المصدر** — مبني على [clap](https://docs.rs/clap) و[serde](https://serde.rs) و[ureq](https://docs.rs/ureq) ومنظومة Rust.
+
+تحتفظ مدخلات الكتالوج والمهارات المجتمعية المُدمجة برخصها الخاصة (تُكتشف تلقائيًا عند الدمج). BYOH نفسه تحت Apache-2.0.
 
 ## الرخصة
 

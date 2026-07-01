@@ -82,17 +82,17 @@ byoh serve   # stdio MCP 服务器
 
 ```
 profile_create → profile_scan → profile_interview → profile_confirm
-           → rag_index / rag_search → compile → compile_dry_run
-           → (可选) registry_clone_skill → (后续) evolve_cycle
+           → compile → compile_dry_run → render_plugin → install_plugin
+           → (可选) registry_clone_skill → (之后) evolve_cycle
 ```
 
-可用工具：`profile_create`、`profile_scan`、`profile_interview`、`profile_confirm`、`compile`、`compile_dry_run`、`evolve_cycle`、`genre_list`、`rag_index`、`rag_search`、`registry_clone_skill`、`catalog_search`、`catalog_vendor` 等。
+可用工具：`profile_read`、`profile_create`、`profile_scan`、`profile_interview`、`profile_confirm`、`genre_list`、`compile`、`compile_dry_run`、`render_plugin`、`install_plugin`、`evolve_cycle`、`registry_clone_skill`、`catalog_search`、`catalog_vendor`。
 
 想让智能体**手把手带你**走完整个流程吗？只需说一句 *"build my harness"*——内置的 `byoh-guide` 智能体会编排整个流程。
 
 ## 插件目录
 
-目录提供一份**精选的** Top 100 Claude 插件列表（按 Stars 排序，每日刷新），让你在对话中就能发现并添加社区技能。
+目录基于 [`quemsah/awesome-claude-plugins`](https://github.com/quemsah/awesome-claude-plugins) 的 README 构建——这是一份社区维护的、按 Stars 排序的 Top 100 Claude 插件仓库列表。BYOH 提供预构建 bundle（**每周一 03:17 UTC 更新**），所以 `byoh catalog index` 几秒就完成；传 `--no-bundle` 可直接解析上游列表。
 
 ```bash
 # 一次性索引——几秒钟下载预构建包
@@ -119,9 +119,9 @@ byoh profile init me --paths ./src ./docs   # 自动扫描项目
 byoh profile interview me                   # 约 5 分钟的问答
 byoh profile confirm me --genre developer   # 锁定角色
 
-byoh compile me                             # 生成 HarnessBundle（带验证 + 门控）
-byoh render me --target claude              # 或：codex | agy | all
-byoh install me                             # 安全部署到 dist/
+byoh compile me --no-dry-run                # 校验 + 写出 HarnessBundle（dry-run 为默认）
+byoh render me --target claude              # 或: codex | agy | all（默认: all）
+byoh install me                             # 渲染到 dist/ 后用 --host 激活
 
 byoh run me                                 # 以你的工作台启动
 byoh evolve me                              # 根据会话反馈改进工作台
@@ -148,9 +148,9 @@ byoh profile interview <slug>                # 引导式问答
 byoh profile confirm <slug> --genre <g>      # 确认并锁定档案
 
 # 构建
-byoh compile <slug> [--dry-run]              # 验证 + 生成 HarnessBundle
-byoh render <slug> --target <host>           # claude | codex | agy | all
-byoh install <slug> [--host <dir>]           # 部署到 dist/ 或实际 plugin 目录
+byoh compile <slug> [--no-dry-run]          # dry-run 为默认，写 bundle 需 --no-dry-run
+byoh render <slug> [--target <host>]        # claude | codex | agy | all（默认: all）
+byoh install <slug> [--target <host>] [--host] [--force]  # 渲染多语言树到 dist/，--host 在各 host 激活
 
 # 运行与进化
 byoh run <slug>
@@ -203,6 +203,16 @@ cvp                               # 并行执行：check → clippy → test →
 ```
 
 `mcp` feature（stdio MCP 服务器）默认开启。BYOH 不内置任何知识库——如需检索能力，请把生成的工作台指向一个文档服务器，例如 [alcove](https://github.com/epicsagas/alcove)。
+
+## 致谢
+
+BYOH 站在多个社区项目的肩膀上：
+
+- **插件目录** — 取自 [`quemsah/awesome-claude-plugins`](https://github.com/quemsah/awesome-claude-plugins)，一份按 Stars 排序的 Top 100 Claude 插件仓库社区列表。没有它就没有目录。
+- **配套工具** — 设计为与 [alcove](https://github.com/epicsagas/alcove)（文档服务器 / RAG）、[Episteme](https://github.com/epicsagas/Episteme)（知识图谱）、[obsidian-forge](https://github.com/epicsagas/obsidian-forge)（库自动化）协同。
+- **开源技术栈** — 基于 [clap](https://docs.rs/clap)、[serde](https://serde.rs)、[ureq](https://docs.rs/ureq) 和 Rust 生态构建。
+
+目录条目和引入的社区技能各自遵循其许可证（引入时自动检测）。BYOH 本身是 Apache-2.0。
 
 ## 许可证
 

@@ -57,4 +57,4 @@ src/
 
 - Edition 2021, `clap` 4 derive, `anyhow` (binary) / `thiserror` `ByohError` (library).
 - Conventional Commits; lint with `cargo clippy -- -D warnings`.
-- Optional features: `native-rag`, `rag-openai`, `mcp`. Default build is light (no async runtime).
+- Optional features: `mcp` (stdio MCP server). Default build is light (no async runtime).
