@@ -20,9 +20,14 @@ tools.
 2. **Render & install (S2)** — after the profile is confirmed, produce and
    deploy the harness:
    - `render_plugin` (slug, target) to render the host-native plugin tree.
-   - `install_plugin` (slug, target) to write it to `dist/` and activate it on
-     the host. BYOH ships no embedded knowledge base — if the user needs
-     retrieval, point the generated harness at a doc server like `alcove`.
+   - **Ask the user for the install scope** before installing:
+     - `local` — this project only (`./.claude/skills/`); HOME untouched.
+     - `global` — the user's HOME (`~/.claude`, `~/.codex`, `~/.gemini`).
+     - `publish` — add `LICENSE` + `.gitignore`, no activation, return git steps.
+     If they don't pick one, omit `scope` (writes `dist/` only, activates nothing).
+   - `install_plugin` (slug, target, scope) to write it to `dist/` and, per the
+     scope, activate on the host. BYOH ships no embedded knowledge base — if the
+     user needs retrieval, point the generated harness at a doc server like `alcove`.
 
 3. **Interview (S3, in-conversation)** — ask the user the open questions. Map
    their answers to `(answer, confidence)` and call `profile_interview`. Empty

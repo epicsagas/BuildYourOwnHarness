@@ -148,6 +148,7 @@ async fn install_plugin_to_dist() {
             slug: "dev".into(),
             target: "claude".into(),
             host: false,
+            scope: None,
             force: false,
         }))
         .await;

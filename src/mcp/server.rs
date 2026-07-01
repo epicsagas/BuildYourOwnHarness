@@ -583,6 +583,10 @@ fn install_plugin_blocking(
         Ok(b) => b,
         Err(e) => return err_result(e),
     };
+    let scope = match crate::deploy::resolve_scope(p.scope.clone(), p.host) {
+        Ok(s) => s,
+        Err(e) => return err_result(e),
+    };
     let loc = crate::deploy::InstallLocations::from_env_with_dist(dist.to_path_buf());
     let path = match crate::deploy::install_plugin(&bundle, &loc, p.force) {
         Ok(path) => path,
@@ -592,24 +596,62 @@ fn install_plugin_blocking(
         "installed_to": path.to_string_lossy(),
         "skills": bundle.skills.len(),
         "agents": bundle.agents.len(),
+        "scope": scope.as_str(),
     });
-    if p.host {
-        let commands = crate::adapters::StdCommand::new();
-        let mut activations = Vec::new();
-        for t in target.concrete() {
-            let entry = match crate::deploy::activate_plugin(*t, &path, &p.slug, &loc, &commands) {
-                Ok(r) => json!({
-                    "host": t.as_str(),
-                    "status": format!("{:?}", r.status),
-                    "message": r.message,
-                }),
-                Err(e) => json!({ "host": t.as_str(), "error": e.to_string() }),
-            };
-            activations.push(entry);
+    match scope {
+        crate::domain::scope::Scope::Publish => {
+            if let Err(e) = crate::application::render_plugin::write_publish_extras(&path) {
+                return err_result(e);
+            }
+            result["publish"] = json!({
+                "license_added": true,
+                "gitignore_added": true,
+                "next_steps": format!(
+                    "cd {} && git init && git add -A && git commit -m 'publish byoh-{}' && git remote add origin <url> && git push -u origin main",
+                    path.display(), p.slug
+                ),
+            });
         }
-        result["activations"] = json!(activations);
-    } else {
-        result["host"] = json!(false);
+        crate::domain::scope::Scope::DistOnly => {
+            result["activated"] = json!(false);
+        }
+        crate::domain::scope::Scope::Global | crate::domain::scope::Scope::Local => {
+            // Local: point Claude at the project-local .claude/ instead of HOME.
+            let loc_act = if matches!(scope, crate::domain::scope::Scope::Local) {
+                let local_claude = std::env::current_dir()
+                    .unwrap_or_else(|_| std::path::PathBuf::from("."))
+                    .join(".claude");
+                loc.with_claude_config(local_claude)
+            } else {
+                loc.clone()
+            };
+            let commands = crate::adapters::StdCommand::new();
+            let mut activations = Vec::new();
+            for t in target.concrete() {
+                // Local scope: codex/agy have no project-local mode — skip them.
+                if matches!(scope, crate::domain::scope::Scope::Local)
+                    && !matches!(t, crate::domain::render_target::Target::Claude)
+                {
+                    activations.push(json!({
+                        "host": t.as_str(),
+                        "status": "Skipped",
+                        "message": "no project-local mode (HOME-based CLI); use scope=global",
+                    }));
+                    continue;
+                }
+                let entry =
+                    match crate::deploy::activate_plugin(*t, &path, &p.slug, &loc_act, &commands) {
+                        Ok(r) => json!({
+                            "host": t.as_str(),
+                            "status": format!("{:?}", r.status),
+                            "message": r.message,
+                        }),
+                        Err(e) => json!({ "host": t.as_str(), "error": e.to_string() }),
+                    };
+                activations.push(entry);
+            }
+            result["activations"] = json!(activations);
+        }
     }
     ok_value(result)
 }

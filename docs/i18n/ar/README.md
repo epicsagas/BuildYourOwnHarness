@@ -123,7 +123,9 @@ byoh profile confirm me --genre developer   # تثبيت تصنيفك
 
 byoh compile me --no-dry-run                # يتحقق + يكتب HarnessBundle (dry-run هو الافتراضي)
 byoh render me --target claude              # أو: codex | agy | all (الافتراضي: all)
-byoh install me                             # يُصيّر إلى dist/، ثم يُفعّله --host
+byoh install me --scope local               # يُصيّر إلى dist/ ويُفعّله فقط في .claude/ لهذا المشروع
+byoh install me --scope global              # ...أو ‎~/.claude + ~/.codex + ~/.gemini (سابقاً --host)
+byoh install me --scope publish             # ...أو يُضيف LICENSE + .gitignore ويطبع تعليمات git
 
 byoh run me                                 # التشغيل مع تفعيل هارنسك
 byoh evolve me                              # تحسين الهارنس بناءً على تغذية الجلسة الراجعة
@@ -152,7 +154,7 @@ byoh profile confirm <slug> --genre <g>     # تأكيد الملف الشخصي
 # البناء
 byoh compile <slug> [--no-dry-run]          # dry-run افتراضي؛ استخدم --no-dry-run لكتابة الحزمة
 byoh render <slug> [--target <host>]        # claude | codex | agy | all (الافتراضي: all)
-byoh install <slug> [--target <host>] [--host] [--force]  # يُصيّر شجرة متعددة اللغات إلى dist/؛ يُفعّلها --host لكل مضيف
+byoh install <slug> [--target <host>] [--scope local|global|publish] [--host] [--force]  # شجرة dist/؛ --scope يُحدد الوجهة (local=هذا المشروع، global=HOME، publish=+LICENSE/.gitignore+خطوات git). --host هو الاسم القديم لـ --scope global.
 
 # التشغيل والتطور
 byoh run <slug>

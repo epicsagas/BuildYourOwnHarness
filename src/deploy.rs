@@ -16,7 +16,7 @@ pub use bootstrap::{cargo_binstall_toml, install_script_posix, install_script_po
 pub use genre_map::infer_genre;
 pub use install::{
     ActivationReport, ActivationStatus, InstallLocations, activate_plugin, install_plugin,
-    set_dist_override,
+    resolve_scope, set_dist_override,
 };
 pub use provider::{CapabilityProfile, match_provider};
 pub use registry::{Registry, RegistryEntry};

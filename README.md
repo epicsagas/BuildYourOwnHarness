@@ -121,7 +121,9 @@ byoh profile confirm me --genre developer   # lock in your genre
 
 byoh compile me --no-dry-run                # validate + write the HarnessBundle (dry-run is default)
 byoh render me --target claude              # or: codex | agy | all (default: all)
-byoh install me                             # render to dist/, then --host activates it
+byoh install me --scope local               # render to dist/, activate into this project's .claude/ only
+byoh install me --scope global              # ...or ~/.claude + ~/.codex + ~/.gemini (was --host)
+byoh install me --scope publish             # ...or add LICENSE + .gitignore and print git instructions
 
 byoh run me                                 # launch with your harness active
 byoh evolve me                              # improve the harness based on session feedback
@@ -150,7 +152,7 @@ byoh profile confirm <slug> --genre <g>     # confirm and lock profile
 # Build
 byoh compile <slug> [--no-dry-run]          # dry-run is on by default; pass --no-dry-run to write the bundle
 byoh render <slug> [--target <host>]        # claude | codex | agy | all (default: all)
-byoh install <slug> [--target <host>] [--host] [--force]  # render polyglot tree to dist/, --host activates it on each host
+byoh install <slug> [--target <host>] [--scope local|global|publish] [--host] [--force]  # dist/ tree; --scope decides where it goes (local=this project, global=HOME, publish=+LICENSE/.gitignore+git steps). --host is legacy for --scope global.
 
 # Run & evolve
 byoh run <slug>

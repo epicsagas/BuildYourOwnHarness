@@ -116,6 +116,12 @@ pub struct InstallPluginParams {
     /// safe project-local `dist/`. Default false.
     #[serde(default)]
     pub host: bool,
+    /// Where the installed harness goes: "local" (this project's .claude/),
+    /// "global" (HOME, same as host=true), or "publish" (add LICENSE + .gitignore,
+    /// no activation, return git instructions). Conflicts with host unless
+    /// "global". Omit to write dist/ only.
+    #[serde(default)]
+    pub scope: Option<String>,
     /// Overwrite a non-BYOH directory of the same name. Default false.
     #[serde(default)]
     pub force: bool,

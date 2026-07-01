@@ -123,7 +123,9 @@ byoh profile confirm me --genre developer   # ジャンルを確定
 
 byoh compile me --no-dry-run                # HarnessBundle を書き出す（dry-run がデフォルト）
 byoh render me --target claude              # or: codex | agy | all（デフォルト: all）
-byoh install me                             # dist/ にレンダ後、--host で有効化
+byoh install me --scope local               # dist/ にレンダ後、このプロジェクトの .claude/ のみに有効化
+byoh install me --scope global              # ...または ~/.claude + ~/.codex + ~/.gemini（旧 --host）
+byoh install me --scope publish             # ...または LICENSE + .gitignore を追加し git 手順を出力
 
 byoh run me                                 # ハーネスを有効化した状態で起動
 byoh evolve me                              # セッションフィードバックに基づいてハーネスを改善
@@ -152,7 +154,7 @@ byoh profile confirm <slug> --genre <g>     # プロファイルを確認・固�
 # ビルド
 byoh compile <slug> [--no-dry-run]          # dry-run がデフォルト、バンドルを書くには --no-dry-run
 byoh render <slug> [--target <host>]        # claude | codex | agy | all（デフォルト: all）
-byoh install <slug> [--target <host>] [--host] [--force]  # dist/ にポリグロットツリーをレンダ、--host は各ホストで有効化
+byoh install <slug> [--target <host>] [--scope local|global|publish] [--host] [--force]  # dist/ ツリー; --scope がインストール先を決定（local=このプロジェクト、global=HOME、publish=+LICENSE/.gitignore+git 手順）。--host は --scope global のレガシー。
 
 # 実行 & 進化
 byoh run <slug>

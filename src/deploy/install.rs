@@ -25,6 +25,7 @@ use crate::application::render_target;
 use crate::domain::bundle::HarnessBundle;
 use crate::domain::error::ByohError;
 use crate::domain::render_target::Target;
+use crate::domain::scope::Scope;
 use crate::ports::command::{CommandOutcome, CommandPort};
 use crate::store::{create_symlink_or_copy, sanitize_slug, write_file};
 
@@ -96,6 +97,46 @@ thread_local! {
 /// Use this instead of `set_var("BYOH_DIST_DIR", …)`: `unsafe`-free, thread-scoped.
 pub fn set_dist_override(path: Option<PathBuf>) {
     DIST_OVERRIDE.with(|c| *c.borrow_mut() = path);
+}
+
+impl InstallLocations {
+    /// Return a copy with `claude_config` swapped — used by `Scope::Local` to
+    /// activate into the project's `./.claude/` instead of the user's HOME.
+    /// The other roots are unchanged.
+    pub fn with_claude_config(&self, claude_config: PathBuf) -> Self {
+        let mut c = self.clone();
+        c.claude_config = claude_config;
+        c
+    }
+}
+
+/// Resolve the user's `--scope`/`--host` choice into a single [`Scope`].
+///
+/// Precedence (back-compat preserving):
+/// - `(None, false)` → `DistOnly` (the legacy no-activation default).
+/// - `(None, true)`  → `Global` (the legacy `--host` behavior).
+/// - `(Some(s), false)` → parse `s`.
+/// - `(Some(s), true)`  → `Global` if `s` is `global`/`host`; otherwise an
+///   **error** — `--host` and `--scope <other>` conflict and silently picking
+///   one could activate into the wrong root.
+pub fn resolve_scope(scope: Option<String>, host: bool) -> Result<Scope> {
+    match (scope, host) {
+        (None, false) => Ok(Scope::DistOnly),
+        (None, true) => Ok(Scope::Global),
+        (Some(raw), false) => raw.parse::<Scope>(),
+        (Some(raw), true) => {
+            let parsed: Scope = raw.parse::<Scope>()?;
+            if parsed == Scope::Global {
+                Ok(Scope::Global)
+            } else {
+                Err(ByohError::Other(format!(
+                    "--host conflicts with --scope {}; --host means global activation, \
+                     so use exactly one of --host or --scope <local|global|publish>",
+                    parsed.as_str()
+                )))
+            }
+        }
+    }
 }
 
 /// Install a compiled/synthesized bundle as a **polyglot** plugin.
@@ -722,5 +763,66 @@ mod tests {
         let loc = locs(dir.path());
         let r = activate_plugin(Target::Agy, &plugin, "dev", &loc, &AgyAlreadyEnabled).unwrap();
         assert_eq!(r.status, ActivationStatus::Activated);
+    }
+
+    #[test]
+    fn with_claude_config_is_immutable_copy() {
+        let dir = tempfile::tempdir().unwrap();
+        let loc = locs(dir.path());
+        let original_claude = loc.claude_config.clone();
+        let local = loc.with_claude_config(PathBuf::from("./.claude"));
+        // copy got the new root...
+        assert_eq!(local.claude_config, PathBuf::from("./.claude"));
+        // ...original is untouched, and other roots are carried over.
+        assert_eq!(loc.claude_config, original_claude);
+        assert_eq!(local.agy, loc.agy);
+        assert_eq!(local.dist, loc.dist);
+    }
+
+    #[test]
+    fn local_scope_activates_into_project_claude_root() {
+        // `Scope::Local` routes Claude activation into a project-local
+        // .claude/ instead of HOME: simulate by pointing claude_config at a
+        // tempdir "project root" and activating normally.
+        let dir = tempfile::tempdir().unwrap();
+        let plugin = dir.path().join("byoh-dev");
+        std::fs::create_dir_all(&plugin).unwrap();
+        let project_root = dir.path().join("project");
+        let loc = locs(dir.path()).with_claude_config(project_root.join(".claude"));
+        let r = activate_plugin(Target::Claude, &plugin, "dev", &loc, &MissingCli).unwrap();
+        let link = project_root.join(".claude").join("skills").join("byoh-dev");
+        assert!(
+            link.exists(),
+            "local skills-dir link must exist under project"
+        );
+        assert_eq!(r.status, ActivationStatus::Activated);
+    }
+
+    #[test]
+    fn resolve_scope_back_compat_and_conflicts() {
+        use crate::domain::scope::Scope;
+        // No flags → legacy no-activation default.
+        assert_eq!(resolve_scope(None, false).unwrap(), Scope::DistOnly);
+        // --host alone → legacy global.
+        assert_eq!(resolve_scope(None, true).unwrap(), Scope::Global);
+        // --scope alone parses.
+        assert_eq!(
+            resolve_scope(Some("local".into()), false).unwrap(),
+            Scope::Local
+        );
+        assert_eq!(
+            resolve_scope(Some("publish".into()), false).unwrap(),
+            Scope::Publish
+        );
+        // --host + --scope global → same intent, OK.
+        assert_eq!(
+            resolve_scope(Some("global".into()), true).unwrap(),
+            Scope::Global
+        );
+        // --host + --scope <other> → conflict, must error.
+        assert!(resolve_scope(Some("local".into()), true).is_err());
+        assert!(resolve_scope(Some("publish".into()), true).is_err());
+        // Bad scope string → error.
+        assert!(resolve_scope(Some("nope".into()), false).is_err());
     }
 }

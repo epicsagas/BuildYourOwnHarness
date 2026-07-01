@@ -121,7 +121,9 @@ byoh profile confirm me --genre developer   # 锁定角色
 
 byoh compile me --no-dry-run                # 校验 + 写出 HarnessBundle（dry-run 为默认）
 byoh render me --target claude              # 或: codex | agy | all（默认: all）
-byoh install me                             # 渲染到 dist/ 后用 --host 激活
+byoh install me --scope local               # 渲染到 dist/，仅激活到此项目的 .claude/
+byoh install me --scope global              # ...或 ~/.claude + ~/.codex + ~/.gemini（原 --host）
+byoh install me --scope publish             # ...或添加 LICENSE + .gitignore 并输出 git 说明
 
 byoh run me                                 # 以你的工作台启动
 byoh evolve me                              # 根据会话反馈改进工作台
@@ -150,7 +152,7 @@ byoh profile confirm <slug> --genre <g>      # 确认并锁定档案
 # 构建
 byoh compile <slug> [--no-dry-run]          # dry-run 为默认，写 bundle 需 --no-dry-run
 byoh render <slug> [--target <host>]        # claude | codex | agy | all（默认: all）
-byoh install <slug> [--target <host>] [--host] [--force]  # 渲染多语言树到 dist/，--host 在各 host 激活
+byoh install <slug> [--target <host>] [--scope local|global|publish] [--host] [--force]  # dist/ 树; --scope 决定安装位置（local=此项目, global=HOME, publish=+LICENSE/.gitignore+git 步骤）。--host 是 --scope global 的旧版。
 
 # 运行与进化
 byoh run <slug>

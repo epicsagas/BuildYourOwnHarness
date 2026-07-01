@@ -123,7 +123,9 @@ byoh profile confirm me --genre developer   # зафиксировать жан�
 
 byoh compile me --no-dry-run                # проверяет + записывает HarnessBundle (dry-run по умолчанию)
 byoh render me --target claude              # или: codex | agy | all (по умолчанию: all)
-byoh install me                             # рендерит в dist/, затем --host активирует
+byoh install me --scope local               # рендерит в dist/, активирует только в .claude/ этого проекта
+byoh install me --scope global              # ...или ~/.claude + ~/.codex + ~/.gemini (раньше --host)
+byoh install me --scope publish             # ...или добавляет LICENSE + .gitignore и выводит инструкции git
 
 byoh run me                                 # запустить с активным харнесом
 byoh evolve me                              # улучшить харнес на основе обратной связи
@@ -152,7 +154,7 @@ byoh profile confirm <slug> --genre <g>     # подтвердить и зафи
 # Сборка
 byoh compile <slug> [--no-dry-run]          # dry-run по умолчанию; --no-dry-run чтобы записать bundle
 byoh render <slug> [--target <host>]        # claude | codex | agy | all (по умолчанию: all)
-byoh install <slug> [--target <host>] [--host] [--force]  # полиглотное дерево в dist/; --host активирует по хостам
+byoh install <slug> [--target <host>] [--scope local|global|publish] [--host] [--force]  # дерево в dist/; --scope определяет место установки (local=этот проект, global=HOME, publish=+LICENSE/.gitignore+шаги git). --host — устаревший аналог --scope global.
 
 # Запуск и эволюция
 byoh run <slug>

@@ -17,6 +17,28 @@ use crate::Result;
 use crate::domain::bundle::{AgentSpec, HarnessBundle, SkillSpec};
 use crate::domain::render_target::Target;
 
+/// Embedded Apache-2.0 text — what every BYOH-published plugin ships under.
+/// `include_str!` bakes it into the binary at compile time, so a `cargo install
+/// --git` binary carries its own LICENSE with no runtime file dependency.
+const LICENSE_TEXT: &str = include_str!("../../LICENSE");
+
+/// Minimal `.gitignore` for a published plugin tree.
+const GITIGNORE_TEXT: &str = "\
+# BYOH-generated plugin — build/runtime noise\n\
+.byoh-manifest\n\
+*.log\n\
+.DS_Store\n\
+";
+
+/// Add the publish-only files (`LICENSE` + `.gitignore`) to an already-rendered
+/// plugin tree. Called by `install`/`install_plugin` only when the scope is
+/// `Publish`; the base render is unchanged for the other scopes.
+pub fn write_publish_extras(out: &Path) -> Result<()> {
+    crate::store::write_file(out, "LICENSE", LICENSE_TEXT)?;
+    crate::store::write_file(out, ".gitignore", GITIGNORE_TEXT)?;
+    Ok(())
+}
+
 /// Render `bundle` for `target` into `out`. For `Target::All`, writes a single
 /// **polyglot** tree carrying all three hosts' manifests (`.claude-plugin/`,
 /// `.codex-plugin/`, root agy `plugin.json`) plus shared `skills/`/`agents/`.
@@ -815,5 +837,18 @@ mod tests {
         };
         let md = skill_md(&s);
         assert!(md.starts_with("---\nname: tdd\ndescription: test first\n---"));
+    }
+
+    #[test]
+    fn write_publish_extras_adds_license_and_gitignore() {
+        let dir = tempfile::tempdir().unwrap();
+        write_publish_extras(dir.path()).unwrap();
+        let license = std::fs::read_to_string(dir.path().join("LICENSE")).unwrap();
+        assert!(
+            license.contains("Apache License") && license.contains("Version 2.0"),
+            "LICENSE must be the full Apache-2.0 text"
+        );
+        let gi = std::fs::read_to_string(dir.path().join(".gitignore")).unwrap();
+        assert!(gi.contains(".byoh-manifest") && gi.contains("*.log"));
     }
 }

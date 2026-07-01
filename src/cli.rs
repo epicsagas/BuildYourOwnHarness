@@ -57,6 +57,12 @@ pub enum Command {
         /// The dist render is always polyglot (all three manifests).
         #[arg(long, default_value = "all")]
         target: String,
+        /// Where the installed harness goes: `local` (this project's .claude/),
+        /// `global` (HOME, same as --host), or `publish` (add LICENSE + .gitignore,
+        /// no activation, print git instructions). Conflicts with --host unless
+        /// `--scope global`. Omit to write `dist/` only (default).
+        #[arg(long)]
+        scope: Option<String>,
         /// Activate the polyglot tree so each host loads it — Claude links
         /// @skills-dir, Codex registers via its marketplace, agy via
         /// `agy plugin install` + `enable`. Without this, only `dist/` is written.

@@ -37,8 +37,9 @@ fn main() -> anyhow::Result<()> {
             slug,
             target,
             host,
+            scope,
             force,
-        } => run_install(&slug, &target, host, force, &lang)?,
+        } => run_install(&slug, &target, host, scope, force, &lang)?,
         Command::Run { slug } => run_run(&slug, &lang)?,
         Command::Evolve {
             slug,
@@ -558,11 +559,13 @@ fn run_install(
     slug: &str,
     target: &str,
     host: bool,
+    scope: Option<String>,
     force: bool,
     _lang: &str,
 ) -> anyhow::Result<()> {
     let slug = byoh::store::sanitize_slug(slug)?;
     let target: byoh::domain::render_target::Target = target.parse()?;
+    let scope = byoh::deploy::resolve_scope(scope, host)?;
     let profile = byoh::store::load_profile(slug)?;
     if profile.status != ProfileStatus::Confirmed {
         anyhow::bail!(
@@ -582,25 +585,75 @@ fn run_install(
         path.display()
     );
 
-    if !host {
-        println!(
-            "[byoh] (polyglot tree in dist; pass --host to activate claude/codex/agy against it)"
-        );
-        return Ok(());
-    }
-
-    // --host: activate each selected host against the dist tree. `all` activates
-    // all three; agy/codex copy the tree into their own root, claude links it.
-    let commands = StdCommand::new();
-    for t in target.concrete() {
-        let report = byoh::deploy::activate_plugin(*t, &path, slug, &loc, &commands)?;
-        let prefix = match report.status {
-            byoh::deploy::ActivationStatus::Failed => "activation failed —",
-            _ => "",
-        };
-        println!("[byoh] {}: {prefix}{}", t.as_str(), report.message);
+    match scope {
+        byoh::domain::scope::Scope::DistOnly => println!(
+            "[byoh] (polyglot tree in dist; pass --scope local|global|publish, or --host, to activate)"
+        ),
+        byoh::domain::scope::Scope::Publish => {
+            byoh::application::render_plugin::write_publish_extras(&path)?;
+            println!(
+                "[byoh] publish: added LICENSE + .gitignore to {}",
+                path.display()
+            );
+            println!(
+                "[byoh]   cd {} && git init && git add -A && git commit -m 'publish byoh-{slug}'",
+                path.display()
+            );
+            println!("[byoh]   then: git remote add origin <url> && git push -u origin main");
+            println!("[byoh]   (auto-push is intentionally not performed; review the tree first.)");
+        }
+        byoh::domain::scope::Scope::Global => activate_all(target, &path, slug, &loc),
+        byoh::domain::scope::Scope::Local => {
+            // Point Claude at the project-local .claude/ instead of HOME.
+            let local_claude = std::env::current_dir()
+                .unwrap_or_else(|_| PathBuf::from("."))
+                .join(".claude");
+            let loc_local = loc.with_claude_config(local_claude.clone());
+            let commands = StdCommand::new();
+            for t in target.concrete() {
+                match t {
+                    byoh::domain::render_target::Target::Claude => {
+                        let report = byoh::deploy::activate_plugin(
+                            byoh::domain::render_target::Target::Claude,
+                            &path,
+                            slug,
+                            &loc_local,
+                            &commands,
+                        )?;
+                        println!("[byoh] local: claude → {}", report.message);
+                    }
+                    other => println!(
+                        "[byoh] local: {name} skipped — it has no project-local mode (HOME-based CLI); \
+                         use --scope global to activate it globally.",
+                        name = other.as_str()
+                    ),
+                }
+            }
+        }
     }
     Ok(())
+}
+
+/// `--scope global` / legacy `--host`: activate each selected host from HOME.
+fn activate_all(
+    target: byoh::domain::render_target::Target,
+    path: &std::path::Path,
+    slug: &str,
+    loc: &byoh::deploy::InstallLocations,
+) {
+    let commands = StdCommand::new();
+    for t in target.concrete() {
+        match byoh::deploy::activate_plugin(*t, path, slug, loc, &commands) {
+            Ok(report) => {
+                let prefix = match report.status {
+                    byoh::deploy::ActivationStatus::Failed => "activation failed —",
+                    _ => "",
+                };
+                println!("[byoh] {}: {prefix}{}", t.as_str(), report.message);
+            }
+            Err(e) => println!("[byoh] {}: error: {e}", t.as_str()),
+        }
+    }
 }
 
 /// Resolve and report what an installed harness would run — BYOH renders/installs

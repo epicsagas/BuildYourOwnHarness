@@ -9,6 +9,7 @@ pub mod evidence;
 pub mod genre;
 pub mod profile;
 pub mod render_target;
+pub mod scope;
 pub mod state;
 pub mod synthesis;
 

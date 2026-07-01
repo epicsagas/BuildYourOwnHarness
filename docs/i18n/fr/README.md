@@ -123,7 +123,9 @@ byoh profile confirm me --genre developer   # verrouiller votre genre
 
 byoh compile me --no-dry-run                # valide + écrit le HarnessBundle (dry-run par défaut)
 byoh render me --target claude              # ou : codex | agy | all (défaut : all)
-byoh install me                             # rend vers dist/, puis --host l'active
+byoh install me --scope local               # rend vers dist/, active uniquement dans le .claude/ de ce projet
+byoh install me --scope global              # ...ou ~/.claude + ~/.codex + ~/.gemini (anciennement --host)
+byoh install me --scope publish             # ...ou ajoute LICENSE + .gitignore et affiche les instructions git
 
 byoh run me                                 # lancer avec votre harness actif
 byoh evolve me                              # améliorer le harness selon les retours de session
@@ -152,7 +154,7 @@ byoh profile confirm <slug> --genre <g>     # confirmer et verrouiller le profil
 # Build
 byoh compile <slug> [--no-dry-run]          # dry-run par défaut ; --no-dry-run pour écrire le bundle
 byoh render <slug> [--target <host>]        # claude | codex | agy | all (défaut : all)
-byoh install <slug> [--target <host>] [--host] [--force]  # rend l'arbre polyglotte vers dist/ ; --host l'active par hôte
+byoh install <slug> [--target <host>] [--scope local|global|publish] [--host] [--force]  # arbre dist/ ; --scope décide de la destination (local=ce projet, global=HOME, publish=+LICENSE/.gitignore+étapes git). --host est l'ancien nom pour --scope global.
 
 # Exécuter et évoluer
 byoh run <slug>

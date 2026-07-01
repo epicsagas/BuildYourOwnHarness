@@ -27,6 +27,23 @@ You drive BYOH (BuildYourOwnHarness) **via its MCP tools** — you do not run th
 
 1. `profile_create` → 2. `profile_scan` → 3. `profile_interview` →
 4. `profile_confirm` → 5. `compile` → 6. `compile_dry_run` → 7. `render_plugin` →
-8. `install_plugin` → (optional) `registry_clone_skill` → (later) `evolve_cycle`.
+8. **ask the user for the install scope** → 9. `install_plugin`.
+
+**Step 8 — pick a scope (ask, don't assume):** before calling `install_plugin`,
+ask the user where the harness should go. Present the three options:
+
+- **`local`** — activate only in *this* project (`./.claude/skills/`). Safest; the
+  user's HOME is never touched. Default recommendation for experimentation.
+- **`global`** — activate into the user's HOME (`~/.claude`, `~/.codex`,
+  `~/.gemini`) so every project sees it.
+- **`publish`** — package the tree for a git repo: adds `LICENSE` + `.gitignore`
+  and prints `git init` instructions. No activation.
+
+Pass the choice as `install_plugin({slug, scope, target})`. If the user declines
+to choose, call `install_plugin` **without** `scope` (and `host: false`) — that
+writes `dist/` only and activates nothing, so nothing is polluted. Do not fall
+back to `global` silently.
+
+Then → (optional) `registry_clone_skill` → (later) `evolve_cycle`.
 
 See `skills/build-harness/SKILL.md` for the detailed per-step tool usage.

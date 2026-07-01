@@ -123,7 +123,9 @@ byoh profile confirm me --genre developer   # 장르 확정
 
 byoh compile me --no-dry-run                # 검증 + HarnessBundle 작성 (dry-run이 기본)
 byoh render me --target claude              # 또는: codex | agy | all (기본: all)
-byoh install me                             # dist/에 렌더 후 --host로 활성화
+byoh install me --scope local               # dist/에 렌더 후 이 프로젝트의 .claude/에만 활성화
+byoh install me --scope global              # ...또는 ~/.claude + ~/.codex + ~/.gemini (구 --host)
+byoh install me --scope publish             # ...또는 LICENSE + .gitignore 추가 후 git 안내 출력
 
 byoh run me                                 # 하네스가 활성화된 상태로 실행
 byoh evolve me                              # 세션 피드백 기반으로 하네스 개선
@@ -152,7 +154,7 @@ byoh profile confirm <slug> --genre <g>     # 프로파일 확정
 # 빌드
 byoh compile <slug> [--no-dry-run]          # dry-run이 기본, 번들을 쓰려면 --no-dry-run
 byoh render <slug> [--target <host>]        # claude | codex | agy | all (기본: all)
-byoh install <slug> [--target <host>] [--host] [--force]  # dist/에 폴리글랏 트리 렌더, --host는 각 호스트에 활성화
+byoh install <slug> [--target <host>] [--scope local|global|publish] [--host] [--force]  # dist/ 트리; --scope가 설치 위치 결정 (local=이 프로젝트, global=HOME, publish=+LICENSE/.gitignore+git 단계). --host는 --scope global의 레거시.
 
 # 실행 & 진화
 byoh run <slug>
