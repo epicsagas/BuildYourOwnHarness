@@ -520,18 +520,26 @@ impl ByohServer {
 #[tool_handler]
 impl ServerHandler for ByohServer {
     fn get_info(&self) -> rmcp::model::ServerInfo {
-        // Use Defaults + field assignment to stay forward-compatible with rmcp's
-        // non-exhaustive model structs.
-        let mut info = rmcp::model::ServerInfo::default();
-        info.server_info = rmcp::model::Implementation::new("byoh", env!("CARGO_PKG_VERSION"));
-        info.instructions = Some(
+        // `#[tool_handler]` only auto-generates `get_info()` (with
+        // `capabilities.tools` enabled) when the impl doesn't already define
+        // one — defining our own for custom instructions means we must
+        // declare `enable_tools()` ourselves, or clients see empty
+        // capabilities and never call `tools/list`.
+        rmcp::model::ServerInfo::new(
+            rmcp::model::ServerCapabilities::builder()
+                .enable_tools()
+                .build(),
+        )
+        .with_server_info(rmcp::model::Implementation::new(
+            "byoh",
+            env!("CARGO_PKG_VERSION"),
+        ))
+        .with_instructions(
             "BYOH: build a personalized AI agent harness. Drive the flow: \
-             profile_create → profile_scan → profile_interview → profile_confirm \
-             → compile → compile_dry_run → registry_clone_skill. The conversation \
-             IS the interview/wizard."
-                .into(),
-        );
-        info
+                 profile_create → profile_scan → profile_interview → profile_confirm \
+                 → compile → compile_dry_run → registry_clone_skill. The conversation \
+                 IS the interview/wizard.",
+        )
     }
 }
 
@@ -759,5 +767,29 @@ fn catalog_vendor_blocking(home: &std::path::Path, p: &CatalogVendorParams) -> C
             }))
         }
         Err(e) => err_result(e),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn get_info_declares_tools_capability() {
+        // Regression: overriding `get_info()` for custom instructions makes
+        // `#[tool_handler]` skip its own auto-generated version (which would
+        // have enabled `capabilities.tools`), so without an explicit
+        // `enable_tools()` call, clients see empty capabilities and never
+        // call `tools/list` even though it works fine when called directly.
+        let ctx = ByohContext {
+            home: PathBuf::from("/tmp/byoh-test-home"),
+            language: "en".to_string(),
+        };
+        let server = ByohServer::new(ctx);
+        let info = server.get_info();
+        assert!(
+            info.capabilities.tools.is_some(),
+            "get_info() must declare capabilities.tools so clients call tools/list"
+        );
     }
 }

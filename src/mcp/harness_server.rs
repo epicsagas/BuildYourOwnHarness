@@ -54,6 +54,26 @@ impl HarnessServer {
 }
 
 impl ServerHandler for HarnessServer {
+    fn get_info(&self) -> rmcp::model::ServerInfo {
+        // The trait default (`ServerInfo::default()`) leaves `capabilities`
+        // empty, so capability-respecting clients never call `tools/list` —
+        // must declare `enable_tools()` explicitly (see the matching fix in
+        // `crate::mcp::server::ByohServer::get_info`).
+        rmcp::model::ServerInfo::new(
+            rmcp::model::ServerCapabilities::builder()
+                .enable_tools()
+                .build(),
+        )
+        .with_server_info(rmcp::model::Implementation::new(
+            format!("byoh-harness-{}", self.bundle.slug),
+            env!("CARGO_PKG_VERSION").to_string(),
+        ))
+        .with_instructions(format!(
+            "MCP tools for the '{}' harness (genre: {}).",
+            self.bundle.slug, self.bundle.genre,
+        ))
+    }
+
     async fn list_tools(
         &self,
         _request: Option<PaginatedRequestParams>,
@@ -100,5 +120,40 @@ impl ServerHandler for HarnessServer {
             tool.name, self.bundle.slug, self.bundle.genre,
         );
         Ok(CallToolResult::error(vec![Content::text(message)]))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::compiler::compile_profile;
+    use crate::domain::genre::Genre;
+    use crate::domain::profile::{GenreConfidence, ProfileStatus, UserProfile};
+
+    fn confirmed_profile() -> UserProfile {
+        let mut p = UserProfile::new_draft("hs-test", "en");
+        p.candidates.identity.genre = Some(GenreConfidence {
+            value: Genre::Developer,
+            confidence: 1.0,
+            provenance: vec![],
+        });
+        p.status = ProfileStatus::Confirmed;
+        p
+    }
+
+    #[test]
+    fn get_info_declares_tools_capability() {
+        // Regression: `ServerInfo::default()` (or the `ServerHandler` trait
+        // default `get_info()`) leaves `capabilities` empty, so
+        // capability-respecting MCP clients never call `tools/list` even
+        // though it would return a real list — they see "Capabilities: none"
+        // and stop right after `initialize`.
+        let bundle = compile_profile(&confirmed_profile()).unwrap();
+        let server = HarnessServer::new(bundle);
+        let info = server.get_info();
+        assert!(
+            info.capabilities.tools.is_some(),
+            "get_info() must declare capabilities.tools so clients call tools/list"
+        );
     }
 }
