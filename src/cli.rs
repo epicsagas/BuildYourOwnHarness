@@ -122,6 +122,15 @@ pub enum Command {
     /// Requires the `mcp` cargo feature.
     #[cfg(feature = "mcp")]
     Serve,
+    /// Serve one rendered harness's own `mcp_tools` over stdio MCP. Not for
+    /// humans to run directly — a harness's generated `mcp_config.json` points
+    /// its `command`/`args` at this subcommand so the host (Claude/Codex/agy)
+    /// launches it. Requires the `mcp` cargo feature.
+    #[cfg(feature = "mcp")]
+    HarnessServe {
+        /// Profile slug whose compiled bundle's `mcp_tools` to serve.
+        slug: String,
+    },
 }
 
 #[derive(Debug, Subcommand)]

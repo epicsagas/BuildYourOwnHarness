@@ -178,6 +178,17 @@ pub struct HarnessBundle {
     pub improvement_threshold: f64,
     /// sha256 of the source ConfirmedProfile (ARCH §9.1 source_profile_hash).
     pub source_profile_hash: String,
+    /// Profile language code (e.g. "en", "ko"). Drives user-facing doc
+    /// localization (README); AI-facing instructions (skills/agents/AGENTS.md)
+    /// stay English. Defaults to "en" for pre-language bundles.
+    #[serde(default = "default_language")]
+    pub language: String,
+}
+
+/// Serde default for [`HarnessBundle::language`]. Old bundles deserialize
+/// without a language field → treated as English.
+fn default_language() -> String {
+    "en".into()
 }
 
 impl HarnessBundle {

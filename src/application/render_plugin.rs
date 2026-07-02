@@ -47,6 +47,7 @@ pub fn render_target(bundle: &HarnessBundle, target: Target, out: &Path) -> Resu
     if target == Target::All {
         render_polyglot(bundle, out)?;
         write_readme(bundle, out, Target::All)?;
+        write_docs_guide(bundle, out)?;
         return Ok(out.to_path_buf());
     }
     render_one(bundle, target, out)?;
@@ -115,11 +116,9 @@ fn render_polyglot(bundle: &HarnessBundle, out: &Path) -> Result<()> {
             "hooks.json",
             &pretty(&codex_hooks(bundle)),
         )?;
-        crate::store::write_file(
-            out,
-            "hooks.json",
-            &pretty(&hooks_json(bundle, "${PLUGIN_ROOT}", false)),
-        )?;
+        // Root hooks.json is the agy (Antigravity) schema — a distinct shape
+        // from Claude's, with SessionStart/End remapped to PreInvocation/Stop.
+        crate::store::write_file(out, "hooks.json", &pretty(&agy_hooks(bundle)))?;
     }
 
     // Shared MCP: one `mcp_config.json` at the root. Claude and Codex reference
@@ -144,10 +143,57 @@ fn render_polyglot(bundle: &HarnessBundle, out: &Path) -> Result<()> {
 
     // Shared root system prompt (once).
     crate::store::write_file(out, "AGENTS.md", &root_agents_md(bundle))?;
+
+    // Per-host discovery dirs (.claude/.gemini/.codex) linking shared skills/
+    // agents and the host-specific hooks.json.
+    write_host_symlinks(out, !bundle.hooks.is_empty())?;
     Ok(())
 }
 
 // ─── common builders ────────────────────────────────────────────────────────
+
+/// Create the per-host discovery directories (`.claude/`, `.gemini/`) that link
+/// the shared `skills/`, `agents/`, and host-specific `hooks.json`. The single
+/// source of truth stays at the root + `.{host}-plugin/`; hosts discover via
+/// their own dir. `.codex/` already carries skills/agents links from
+/// [`render_polyglot`]; only its `hooks.json` link is added here.
+///
+/// `has_hooks` gates the `hooks.json` links so they never dangle when a bundle
+/// has no hooks. Uses [`create_symlink_or_copy`] (symlink on Unix, recursive
+/// copy fallback elsewhere) — the same mechanism as the existing `.codex` links.
+fn write_host_symlinks(out: &Path, has_hooks: bool) -> Result<()> {
+    // `.claude/` → Claude-plugin skills/agents/hooks.
+    let claude = out.join(".claude");
+    crate::store::create_symlink_or_copy(&PathBuf::from("../skills"), &claude.join("skills"))?;
+    crate::store::create_symlink_or_copy(&PathBuf::from("../agents"), &claude.join("agents"))?;
+    if has_hooks {
+        crate::store::create_symlink_or_copy(
+            &PathBuf::from("../.claude-plugin/hooks.json"),
+            &claude.join("hooks.json"),
+        )?;
+    }
+
+    // `.gemini/` → agy (root) skills/agents/hooks. agy's hooks.json is the root
+    // file (distinct agy schema), NOT .claude-plugin's.
+    let gemini = out.join(".gemini");
+    crate::store::create_symlink_or_copy(&PathBuf::from("../skills"), &gemini.join("skills"))?;
+    crate::store::create_symlink_or_copy(&PathBuf::from("../agents"), &gemini.join("agents"))?;
+    if has_hooks {
+        crate::store::create_symlink_or_copy(
+            &PathBuf::from("../hooks.json"),
+            &gemini.join("hooks.json"),
+        )?;
+    }
+
+    // `.codex/` already has skills/agents links; add the hooks.json link only.
+    if has_hooks {
+        crate::store::create_symlink_or_copy(
+            &PathBuf::from("../.codex-plugin/hooks.json"),
+            &out.join(".codex").join("hooks.json"),
+        )?;
+    }
+    Ok(())
+}
 
 fn author_obj() -> Value {
     json!({ "name": "byoh", "url": "https://github.com/epicsagas/BuildYourOwnHarness" })
@@ -288,20 +334,23 @@ fn hooks_json(bundle: &HarnessBundle, root_var: &str, versioned: bool) -> Value 
     }
 }
 
-/// `mcp_config.json` (shared MCP config): { mcpServers: { name: {command, args} } }.
+/// `mcp_config.json` (shared MCP config): { mcpServers: { <slug>: {command, args} } }.
+///
+/// A single server entry, keyed by the harness slug, launches `byoh
+/// harness-serve <slug>` — the real `byoh` binary, not a fabricated
+/// `byoh-<tool>` binary that never existed on disk. That subcommand loads
+/// this bundle's `mcp_tools` and serves them over stdio MCP (see
+/// `src/mcp/harness_server.rs`), so every tool the harness declares is
+/// actually reachable instead of failing at process spawn.
 fn mcp_servers(bundle: &HarnessBundle) -> Value {
-    let servers: Vec<(String, Value)> = bundle
-        .mcp_tools
-        .iter()
-        .map(|t| {
-            (
-                t.name.clone(),
-                json!({ "command": format!("byoh-{}", t.name), "args": [] }),
-            )
-        })
-        .collect();
-    let map = serde_json::Map::from_iter(servers);
-    json!({ "mcpServers": Value::Object(map) })
+    json!({
+        "mcpServers": {
+            bundle.slug.clone(): {
+                "command": "byoh",
+                "args": ["harness-serve", bundle.slug.clone()],
+            }
+        }
+    })
 }
 
 fn write_skills(bundle: &HarnessBundle, root: &Path) -> Result<()> {
@@ -426,6 +475,61 @@ fn codex_hooks(bundle: &HarnessBundle) -> Value {
     hooks_json(&tmp_bundle, "${PLUGIN_ROOT}", true)
 }
 
+/// Antigravity (agy) hooks schema. agy uses a DIFFERENT shape than Claude:
+///   { "<hook-name>": { "<EventName>": [ { matcher?, hooks: [...] } ] } }
+/// (top-level is a map keyed by hook name, not `{ hooks: { Event: [...] } }`).
+/// agy does NOT support SessionStart/SessionEnd — remap them:
+///   SessionStart → PreInvocation, SessionEnd → Stop.
+/// PreToolUse/PostToolUse pass through. `matcher` is included for tool events
+/// and omitted for PreInvocation/Stop (which ignore matchers). No
+/// `description` field (not in the agy schema). Each command carries a 30s
+/// timeout. `${PLUGIN_ROOT}` resolves at agy load time.
+///
+/// Verified shape: `/Users/hackme/Downloads/paper-whisperer/dist/.../hooks.json`.
+fn agy_hooks(bundle: &HarnessBundle) -> Value {
+    // hook-name key → { agy_event → matcher? }. Insertion order is preserved by
+    // serde_json::Map (preserve_order feature), so output is deterministic.
+    let mut map = serde_json::Map::new();
+    for h in &bundle.hooks {
+        let Some((hook_key, agy_event)) = agy_hook_key(&h.event) else {
+            continue; // unsupported event for agy — drop it.
+        };
+        let entry = {
+            let hooks_arr = json!([{
+                "type": "command",
+                "command": h.command,
+                "timeout": 30,
+            }]);
+            // Tool events carry a matcher; PreInvocation/Stop omit it (ignored).
+            if agy_event == "PreToolUse" || agy_event == "PostToolUse" {
+                json!([{
+                    "matcher": "*",
+                    "hooks": hooks_arr,
+                }])
+            } else {
+                json!([{ "hooks": hooks_arr }])
+            }
+        };
+        // Each hook-name key maps to a single event bucket.
+        let bucket = map.entry(hook_key.to_string()).or_insert_with(|| json!({}));
+        bucket[agy_event] = entry;
+    }
+    Value::Object(map)
+}
+
+/// Map a neutral hook event (from `bundle/hooks/hooks.json`) to its agy
+/// equivalent: `(hook-name key, agy event name)`. Returns `None` for events agy
+/// cannot express (dropped rather than emitted broken).
+fn agy_hook_key(event: &str) -> Option<(&'static str, &'static str)> {
+    match event {
+        "SessionStart" => Some(("byoh-session-resume", "PreInvocation")),
+        "SessionEnd" => Some(("byoh-session-end-observe", "Stop")),
+        "PreToolUse" => Some(("byoh-pre-tool-guard", "PreToolUse")),
+        "PostToolUse" => Some(("byoh-post-tool-compress", "PostToolUse")),
+        _ => None,
+    }
+}
+
 fn codex_config_toml(bundle: &HarnessBundle) -> String {
     format!(
         "# Codex config — generated by BYOH for '{slug}'.\n\
@@ -462,13 +566,10 @@ fn render_agy(bundle: &HarnessBundle, out: &Path) -> Result<()> {
     write_skills(bundle, out)?;
     write_agents_md(bundle, out)?;
 
-    // hooks.json at the plugin root (NOT a hooks/ subdir).
+    // hooks.json at the plugin root (NOT a hooks/ subdir). agy schema: a
+    // hook-name-keyed map with PreInvocation/Stop (not SessionStart/End).
     if !bundle.hooks.is_empty() {
-        crate::store::write_file(
-            out,
-            "hooks.json",
-            &pretty(&hooks_json(bundle, "${PLUGIN_ROOT}", false)),
-        )?;
+        crate::store::write_file(out, "hooks.json", &pretty(&agy_hooks(bundle)))?;
     }
 
     // mcp_config.json at the plugin root — agy reads MCP from here (NOT .mcp.json).
@@ -517,12 +618,125 @@ fn root_agents_md(bundle: &HarnessBundle) -> String {
 }
 
 fn write_readme(bundle: &HarnessBundle, out: &Path, target: Target) -> Result<()> {
+    let body = match bundle.language.as_str() {
+        "ko" => readme_ko(bundle, target),
+        // English is the canonical fallback for every other / unknown language.
+        _ => readme_en(bundle, target),
+    };
+    crate::store::write_file(out, "README.md", &body)?;
+    Ok(())
+}
+
+/// Write a getting-started guide under `docs/`. User-facing (follows the README
+/// language); the filename carries the lang code so multiple languages don't
+/// collide. Only emitted for the polyglot (All) target — single-host renders
+/// stay minimal. AI instructions (skills/agents/AGENTS.md) stay English.
+fn write_docs_guide(bundle: &HarnessBundle, out: &Path) -> Result<()> {
+    let (body, lang_suffix) = match bundle.language.as_str() {
+        "ko" => (docs_guide_ko(bundle), "ko"),
+        _ => (docs_guide_en(bundle), "en"),
+    };
+    let name = format!("getting-started.{lang_suffix}.md");
+    crate::store::write_file(&out.join("docs"), &name, &body)?;
+    Ok(())
+}
+
+/// English getting-started guide. Covers harness-common structure (entry rule,
+/// skill list from the bundle, output dirs, safety gates) — genre-neutral.
+fn docs_guide_en(bundle: &HarnessBundle) -> String {
+    let skill_lines: Vec<String> = bundle
+        .skills
+        .iter()
+        .map(|s| format!("- `{}` — {}", s.id, s.description.replace('\n', " ")))
+        .collect();
+    let agent_lines: Vec<String> = bundle
+        .agents
+        .iter()
+        .map(|a| format!("- `{}` — {}", a.id, a.description.replace('\n', " ")))
+        .collect();
+    format!(
+        "# Getting started — byoh-{slug}\n\n\
+         This is a personalized BYOH harness. This guide covers the parts common to every harness.\n\n\
+         ## Entry rule\n\n\
+         Sessions begin with the `spec` skill (or this harness's designated entry skill): it turns your \
+         request into a structured spec and routes it to the right workflow. Skills persist their \
+         output as files under the workspace — never keep results only in context.\n\n\
+         ## Skills\n\n\
+         {skills}\n\n\
+         ## Agents\n\n\
+         {agents}\n\n\
+         ## Output locations\n\n\
+         - Skills write notes, summaries, comparisons, and ideas to workspace files.\n\
+         - Each skill documents its own output path in its SKILL.md.\n\n\
+         ## Safety gates\n\n\
+         Artifacts pass the BYOH gates before release: {gates}.\n",
+        slug = bundle.slug,
+        skills = if skill_lines.is_empty() {
+            "_(none)_".into()
+        } else {
+            skill_lines.join("\n")
+        },
+        agents = if agent_lines.is_empty() {
+            "_(none)_".into()
+        } else {
+            agent_lines.join("\n")
+        },
+        gates = bundle.safety_gates.join(", "),
+    )
+}
+
+/// Korean getting-started guide (user-facing only; AI instructions stay English).
+fn docs_guide_ko(bundle: &HarnessBundle) -> String {
+    let skill_lines: Vec<String> = bundle
+        .skills
+        .iter()
+        .map(|s| format!("- `{}` — {}", s.id, s.description.replace('\n', " ")))
+        .collect();
+    let agent_lines: Vec<String> = bundle
+        .agents
+        .iter()
+        .map(|a| format!("- `{}` — {}", a.id, a.description.replace('\n', " ")))
+        .collect();
+    format!(
+        "# 시작하기 — byoh-{slug}\n\n\
+         BYOH로 생성된 개인화 하네스입니다. 이 문서는 모든 하네스에 공통인 부분을 다룹니다.\n\n\
+         ## 진입 규칙\n\n\
+         세션은 `spec` 스킬(또는 이 하네스의 지정 진입 스킬)에서 시작합니다. 사용자 요청을 \
+         구조화된 명세로 바꾸고 알맞은 워크플로우로 분기합니다. 스킬은 산출물을 워크스페이스 파일로 \
+         저장합니다 — 컨텍스트에만 두지 않습니다.\n\n\
+         ## 스킬\n\n\
+         {skills}\n\n\
+         ## 에이전트\n\n\
+         {agents}\n\n\
+         ## 산출물 위치\n\n\
+         - 스킬은 노트·요약·비교·아이디어를 워크스페이스 파일로 저장합니다.\n\
+         - 각 스킬의 산출 경로는 해당 SKILL.md에 적혀 있습니다.\n\n\
+         ## 안전 게이트\n\n\
+         산출물은 출시 전 BYOH 게이트를 거칩니다: {gates}.\n",
+        slug = bundle.slug,
+        skills = if skill_lines.is_empty() {
+            "_(없음)_".into()
+        } else {
+            skill_lines.join("\n")
+        },
+        agents = if agent_lines.is_empty() {
+            "_(없음)_".into()
+        } else {
+            agent_lines.join("\n")
+        },
+        gates = bundle.safety_gates.join(", "),
+    )
+}
+
+/// English README (canonical). User-facing doc; AI instructions stay English
+/// regardless of this language.
+fn readme_en(bundle: &HarnessBundle, target: Target) -> String {
     let targets_line = if target == Target::All {
         "polyglot (Claude Code + Codex + Antigravity)".to_string()
     } else {
         format!("target `{}`", target.as_str())
     };
-    let body = format!(
+    format!(
         "# byoh-{slug}\n\n\
          A personalized AI agent harness generated by [BYOH](https://github.com/epicsagas/BuildYourOwnHarness).\n\n\
          This directory contains the {targets} plugin and is ready to `git init && git push`.\n\n\
@@ -534,6 +748,10 @@ fn write_readme(bundle: &HarnessBundle, out: &Path, target: Target) -> Result<()
          - **agy (Antigravity)**: `agy plugin install <this-dir>` (the `plugin.json` \
          marker + skills/agents/hooks.json/mcp_config.json are staged under \
          `~/.gemini/config/plugins/`).\n\n\
+         ## Structure\n\n\
+         The single source of truth is the root `skills/` + `agents/`. Each host \
+         discovers it via its own directory (symlinks): `.claude/`, `.gemini/`, \
+         `.codex/` each link `skills`, `agents`, and the host-specific `hooks.json`.\n\n\
          ## Contents\n\n\
          - Genre: `{genre}`\n\
          - Skills: {n_skills} · Agents: {n_agents}\n\
@@ -544,9 +762,42 @@ fn write_readme(bundle: &HarnessBundle, out: &Path, target: Target) -> Result<()
         n_skills = bundle.skills.len(),
         n_agents = bundle.agents.len(),
         gates = bundle.safety_gates.join(", "),
-    );
-    crate::store::write_file(out, "README.md", &body)?;
-    Ok(())
+    )
+}
+
+/// Korean README. User-facing only; AI instructions (skills/agents/AGENTS.md)
+/// remain English by design.
+fn readme_ko(bundle: &HarnessBundle, target: Target) -> String {
+    let targets_line = if target == Target::All {
+        "다호스트 폴리글롯(Claude Code + Codex + Antigravity)".to_string()
+    } else {
+        format!("`{}` 타겟", target.as_str())
+    };
+    format!(
+        "# byoh-{slug}\n\n\
+         [BYOH](https://github.com/epicsagas/BuildYourOwnHarness)로 생성된 AI 에이전트 하네스입니다.\n\n\
+         이 디렉토리는 {targets} 플러그인이며, `git init && git push` 하면 바로 사용할 수 있습니다.\n\n\
+         ## 설치\n\n\
+         각 호스트의 플러그인 설치 흐름을 따르거나, 플러그인 위치에 클론하세요.\n\n\
+         - **Claude Code**: `.claude-plugin/` 매니페스트가 자동 인식됩니다.\n\
+         - **Codex**: `.codex-plugin/` 매니페스트 + `.codex/` 설정이 자동 인식됩니다.\n\
+         - **agy (Antigravity)**: `agy plugin install <이-디렉토리>` (`plugin.json` 마커 + \
+         skills/agents/hooks.json/mcp_config.json 이 `~/.gemini/config/plugins/` 아래에 스테이징됩니다).\n\n\
+         ## 구조\n\n\
+         단일 진실원천은 루트의 `skills/` + `agents/` 입니다. 각 호스트는 자기 디렉토리\
+         (`.claude/`, `.gemini/`, `.codex/`)에서 심볼릭링크로 `skills`, `agents`, 호스트별 \
+         `hooks.json`을 가리켜 발견합니다.\n\n\
+         ## 내용\n\n\
+         - 장르(genre): `{genre}`\n\
+         - 스킬: {n_skills}개 · 에이전트: {n_agents}개\n\
+         - 안전 게이트: {gates}\n",
+        slug = bundle.slug,
+        targets = targets_line,
+        genre = bundle.genre.as_str(),
+        n_skills = bundle.skills.len(),
+        n_agents = bundle.agents.len(),
+        gates = bundle.safety_gates.join(", "),
+    )
 }
 
 fn pretty(v: &Value) -> String {
@@ -741,6 +992,27 @@ mod tests {
     }
 
     #[test]
+    fn mcp_config_command_is_real_byoh_binary() {
+        // Regression: the server entry must launch the actual `byoh` binary via
+        // its `harness-serve` subcommand, not a fabricated `byoh-<tool>` binary
+        // that was never installed anywhere.
+        let bundle = bundle_with_mcp();
+        let dir = tempfile::tempdir().unwrap();
+        render_target(&bundle, Target::All, dir.path()).unwrap();
+        let cfg: Value = serde_json::from_str(
+            &std::fs::read_to_string(dir.path().join("mcp_config.json")).unwrap(),
+        )
+        .unwrap();
+        let servers = cfg["mcpServers"].as_object().unwrap();
+        assert_eq!(servers.len(), 1, "one server entry keyed by harness slug");
+        let entry = servers
+            .get(&bundle.slug)
+            .expect("server keyed by bundle.slug");
+        assert_eq!(entry["command"], "byoh");
+        assert_eq!(entry["args"], json!(["harness-serve", bundle.slug]));
+    }
+
+    #[test]
     fn render_all_creates_polyglot_tree() {
         let bundle = compile_profile(&confirmed_profile()).unwrap();
         let dir = tempfile::tempdir().unwrap();
@@ -808,6 +1080,108 @@ mod tests {
         let v = codex_hooks(&bundle);
         assert_eq!(v["version"], 1);
         assert!(v["hooks"]["Stop"].is_array(), "SessionEnd must map to Stop");
+    }
+
+    #[test]
+    fn agy_hooks_remap_session_events() {
+        // Full neutral set from bundle/hooks/hooks.json.
+        let mut bundle = compile_profile(&confirmed_profile()).unwrap();
+        bundle.hooks = vec![
+            crate::domain::bundle::HookSpec {
+                event: "SessionStart".into(),
+                command: "byoh hook resume".into(),
+                reads: vec![],
+            },
+            crate::domain::bundle::HookSpec {
+                event: "SessionEnd".into(),
+                command: "byoh hook observe".into(),
+                reads: vec![],
+            },
+            crate::domain::bundle::HookSpec {
+                event: "PreToolUse".into(),
+                command: "byoh hook guard".into(),
+                reads: vec![],
+            },
+        ];
+        let v = agy_hooks(&bundle);
+        let obj = v.as_object().expect("agy hooks is a hook-name-keyed map");
+        // Top-level keys are hook names, NOT Claude's {hooks: {...}}.
+        assert!(
+            !obj.contains_key("hooks"),
+            "agy hooks.json must NOT use the Claude {{hooks:{{}}}} shape"
+        );
+        // SessionStart → PreInvocation under its hook-name key.
+        assert!(
+            obj["byoh-session-resume"]["PreInvocation"].is_array(),
+            "SessionStart must map to PreInvocation"
+        );
+        // SessionEnd → Stop.
+        assert!(
+            obj["byoh-session-end-observe"]["Stop"].is_array(),
+            "SessionEnd must map to Stop"
+        );
+        // PreToolUse keeps a matcher.
+        let pre = &obj["byoh-pre-tool-guard"]["PreToolUse"][0];
+        assert_eq!(pre["matcher"], "*", "PreToolUse keeps matcher");
+        assert_eq!(pre["hooks"][0]["timeout"], 30);
+        // PreInvocation has NO matcher (agy ignores it).
+        let invoc = &obj["byoh-session-resume"]["PreInvocation"][0];
+        assert!(
+            invoc.get("matcher").is_none(),
+            "PreInvocation must omit matcher"
+        );
+        // No description field (not in the agy schema).
+        assert!(
+            !v.to_string().contains("description"),
+            "agy hooks must not carry a description field"
+        );
+    }
+
+    #[test]
+    fn render_polyglot_creates_host_symlinks() {
+        let bundle = compile_profile(&confirmed_profile()).unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        render_target(&bundle, Target::All, dir.path()).unwrap();
+
+        // Each host dir links skills + agents (always) + hooks.json (bundle has hooks).
+        for host in [".claude", ".gemini", ".codex"] {
+            let h = dir.path().join(host);
+            assert!(h.join("skills").exists(), "{host}/skills must resolve");
+            assert!(h.join("agents").exists(), "{host}/agents must resolve");
+            assert!(
+                h.join("hooks.json").exists(),
+                "{host}/hooks.json must resolve (bundle has hooks)"
+            );
+        }
+        // The links point to the right host hooks (distinct schemas).
+        let claude_hooks = std::fs::read_to_string(dir.path().join(".claude/hooks.json")).unwrap();
+        assert!(
+            claude_hooks.contains("\"SessionStart\""),
+            ".claude hooks must be the Claude schema"
+        );
+        let gemini_hooks = std::fs::read_to_string(dir.path().join(".gemini/hooks.json")).unwrap();
+        assert!(
+            gemini_hooks.contains("byoh-session-resume"),
+            ".gemini hooks must be the agy schema"
+        );
+    }
+
+    #[test]
+    fn render_polyglot_readme_follows_language() {
+        // Korean profile → Korean README (user doc); AI instructions stay English.
+        let mut p = confirmed_profile();
+        p.language = "ko".into();
+        let bundle = compile_profile(&p).unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        render_target(&bundle, Target::All, dir.path()).unwrap();
+        let readme = std::fs::read_to_string(dir.path().join("README.md")).unwrap();
+        assert!(readme.contains("설치"), "ko profile → Korean README");
+        // AGENTS.md is AI-facing → always English regardless of language.
+        let agents = std::fs::read_to_string(dir.path().join("AGENTS.md")).unwrap();
+        assert!(
+            agents.contains("BYOH Harness"),
+            "AGENTS.md stays English (AI instruction)"
+        );
     }
 
     #[test]

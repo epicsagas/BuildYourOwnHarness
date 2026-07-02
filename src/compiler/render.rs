@@ -79,6 +79,7 @@ pub fn compile_profile(profile: &UserProfile) -> crate::domain::Result<HarnessBu
         stagnation_limit: merged.evolution.stagnation_limit,
         improvement_threshold: merged.evolution.improvement_threshold,
         source_profile_hash,
+        language: profile.language.clone(),
     })
 }
 

@@ -62,6 +62,8 @@ fn main() -> anyhow::Result<()> {
         Command::Catalog { action } => run_catalog(action)?,
         #[cfg(feature = "mcp")]
         Command::Serve => run_serve(&lang)?,
+        #[cfg(feature = "mcp")]
+        Command::HarnessServe { slug } => run_harness_serve(&slug)?,
     }
     Ok(())
 }
@@ -358,6 +360,20 @@ fn run_serve(lang: &str) -> anyhow::Result<()> {
     };
     let rt = tokio::runtime::Runtime::new()?;
     rt.block_on(byoh::mcp::server::ByohServer::new(ctx).serve_stdio())
+        .map_err(anyhow::Error::msg)?;
+    Ok(())
+}
+
+/// Start the stdio MCP server for one rendered harness's own `mcp_tools`.
+/// Loads the confirmed profile by slug, compiles it, and serves the resulting
+/// bundle's tool list — this is what a harness's `mcp_config.json` launches.
+#[cfg(feature = "mcp")]
+fn run_harness_serve(slug: &str) -> anyhow::Result<()> {
+    let slug = byoh::store::sanitize_slug(slug)?;
+    let profile = byoh::store::load_profile(slug)?;
+    let bundle = compile_profile(&profile)?;
+    let rt = tokio::runtime::Runtime::new()?;
+    rt.block_on(byoh::mcp::harness_server::HarnessServer::new(bundle).serve_stdio())
         .map_err(anyhow::Error::msg)?;
     Ok(())
 }
