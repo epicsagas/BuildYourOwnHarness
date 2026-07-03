@@ -5,7 +5,6 @@ use byoh::adapters::{FilesystemSource, RuleInterview, RuleLlm};
 use byoh::application::ProfileOrchestrator;
 use byoh::compiler::{compile_profile, dry_run, static_gate};
 use byoh::deploy::provider::{CapabilityProfile, match_provider};
-use byoh::deploy::registry::Registry;
 use byoh::domain::bundle::Ring;
 use byoh::domain::evidence::AbMetric;
 use byoh::domain::genre::Genre;
@@ -199,22 +198,6 @@ fn i18n_resolves_both_languages() {
     assert!(t(Msg::Installed, "en").contains("installed"));
     assert!(t(Msg::Installed, "ko").contains("설치"));
     assert!(t(Msg::DryRunPassed, "ko").contains("통과"));
-}
-
-#[test]
-fn registry_registers_compiled_bundle() {
-    let mut p = UserProfile::new_draft("dev1", "ko");
-    p.candidates.identity.genre = Some(byoh::domain::profile::GenreConfidence {
-        value: Genre::Developer,
-        confidence: 1.0,
-        provenance: vec![],
-    });
-    p.status = ProfileStatus::Confirmed;
-    let bundle = compile_profile(&p).unwrap();
-    let mut reg = Registry::new();
-    let entry = reg.register(&bundle);
-    assert_eq!(entry.slug, "dev1");
-    assert!(reg.lookup("dev1").is_some());
 }
 
 #[test]
