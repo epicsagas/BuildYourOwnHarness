@@ -85,6 +85,81 @@ pub fn cache_is_fresh(cache: &CatalogCache, ttl_hours: u64) -> bool {
     cache.built_at + ttl_hours * 3600 > now
 }
 
+/// Curated companion-tool entries — the epiccounty execution-layer tools that
+/// BYOH-generated MCP tool descriptions reference as example backends (e.g.
+/// "Backed by the user's knowledge base (e.g. alcove)"). These are **reference
+/// material**, not hardcoded dependencies: they surface in `catalog_search`
+/// results so an agent can recommend them contextually, and the user can vendor
+/// one with `catalog vendor` / `vendor add` if they actually want it.
+///
+/// `byoh_genre = None` on the cross-cutting tools (alcove, obsidian-forge) so
+/// they pass through every genre filter — researchers and developers both use
+/// doc servers and vault automation.
+pub fn curated_seeds() -> Vec<CatalogEntry> {
+    vec![
+        CatalogEntry {
+            id: "epicsagas/alcove".into(),
+            name: "alcove".into(),
+            description: "Private doc server with MCP tools — search backend for the \
+                          search_citations / search_code tools a BYOH harness can declare."
+                .into(),
+            keywords: vec!["docs".into(), "search".into(), "mcp".into(), "rag".into()],
+            github_url: "https://github.com/epicsagas/alcove".into(),
+            stars: None,
+            license: "Apache-2.0".into(),
+            byoh_genre: None,
+            fetched_at: 0,
+        },
+        CatalogEntry {
+            id: "epicsagas/obsidian-forge".into(),
+            name: "obsidian-forge".into(),
+            description: "Obsidian vault automation — collection, PARA routing, graph \
+                          strengthening. The collection half of a BYOH harness's gather loop."
+                .into(),
+            keywords: vec![
+                "vault".into(),
+                "obsidian".into(),
+                "notes".into(),
+                "para".into(),
+            ],
+            github_url: "https://github.com/epicsagas/obsidian-forge".into(),
+            stars: None,
+            license: "Apache-2.0".into(),
+            byoh_genre: None,
+            fetched_at: 0,
+        },
+        CatalogEntry {
+            id: "epicsagas/epic-harness".into(),
+            name: "epic-harness".into(),
+            description: "Central AI agent harness — Ring 0 hooks and the 4-section skill \
+                          format BYOH bundles follow. A reference runtime, not a requirement."
+                .into(),
+            keywords: vec![
+                "harness".into(),
+                "hooks".into(),
+                "skills".into(),
+                "runtime".into(),
+            ],
+            github_url: "https://github.com/epicsagas/epic-harness".into(),
+            stars: None,
+            license: "Apache-2.0".into(),
+            byoh_genre: Some(Genre::Developer),
+            fetched_at: 0,
+        },
+    ]
+}
+
+/// Merge [`curated_seeds`] into `cache` in place, skipping any seed whose `id`
+/// is already present (the user's indexed data wins). Used as a read-time
+/// overlay in `catalog_search` only — the on-disk cache stays pure indexed data.
+pub fn merge_curated_seeds(cache: &mut CatalogCache) {
+    for seed in curated_seeds() {
+        if !cache.entries.iter().any(|e| e.id == seed.id) {
+            cache.entries.push(seed);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -96,6 +171,58 @@ mod tests {
         let c = load_cache(dir.path()).unwrap();
         assert!(c.entries.is_empty());
         assert_eq!(c.built_at, 0);
+    }
+
+    #[test]
+    fn curated_seeds_merge_without_polluting_disk() {
+        // Seeds are a read-time overlay: an empty on-disk cache gains the seeds
+        // after merge, but the file on disk is never written by merge alone.
+        let dir = tempdir().unwrap();
+        let on_disk = load_cache(dir.path()).unwrap();
+        assert!(on_disk.entries.is_empty(), "no seed has been persisted");
+
+        let mut merged = on_disk.clone();
+        merge_curated_seeds(&mut merged);
+        let ids: Vec<&str> = merged.entries.iter().map(|e| e.id.as_str()).collect();
+        assert!(ids.contains(&"epicsagas/alcove"));
+        assert!(ids.contains(&"epicsagas/obsidian-forge"));
+        assert!(ids.contains(&"epicsagas/epic-harness"));
+
+        // The disk file is still absent / empty — merge never wrote it.
+        assert!(load_cache(dir.path()).unwrap().entries.is_empty());
+    }
+
+    #[test]
+    fn merge_does_not_duplicate_an_already_indexed_seed() {
+        // If the user indexed alcove themselves, the merge must not duplicate it.
+        let mut cache = CatalogCache::default();
+        cache.entries.push(CatalogEntry {
+            id: "epicsagas/alcove".into(),
+            name: "alcove (user-indexed)".into(),
+            description: "mine".into(),
+            keywords: vec![],
+            github_url: "https://github.com/epicsagas/alcove".into(),
+            stars: Some(42),
+            license: "Apache-2.0".into(),
+            byoh_genre: None,
+            fetched_at: 1,
+        });
+        merge_curated_seeds(&mut cache);
+        let alcoves: Vec<_> = cache
+            .entries
+            .iter()
+            .filter(|e| e.id == "epicsagas/alcove")
+            .collect();
+        assert_eq!(
+            alcoves.len(),
+            1,
+            "user's indexed entry must win, no duplicate"
+        );
+        assert_eq!(
+            alcoves[0].stars,
+            Some(42),
+            "the kept entry is the user's, not the seed"
+        );
     }
 
     #[test]

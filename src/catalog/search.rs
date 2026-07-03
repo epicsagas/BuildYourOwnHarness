@@ -1,6 +1,6 @@
 //! Offline keyword search over the local catalog cache — no network.
 
-use super::{CatalogCache, CatalogEntry, load_cache};
+use super::{CatalogCache, CatalogEntry, load_cache, merge_curated_seeds};
 use crate::domain::genre::Genre;
 use std::path::Path;
 
@@ -16,8 +16,11 @@ pub struct SearchOptions<'a> {
 
 /// Search `~/.byoh/catalog.json` — returns at most `opts.limit` entries ranked
 /// by match score. Never errors on a missing cache file (returns empty vec).
+/// Curated companion-tool seeds are overlaid at read time (see
+/// [`crate::catalog::merge_curated_seeds`]); the on-disk cache is unchanged.
 pub fn catalog_search(home: &Path, opts: &SearchOptions) -> crate::Result<Vec<CatalogEntry>> {
-    let cache = load_cache(home)?;
+    let mut cache = load_cache(home)?;
+    merge_curated_seeds(&mut cache);
     Ok(search_cache(&cache, opts))
 }
 
@@ -269,5 +272,34 @@ mod tests {
             limit: 5,
         };
         assert_eq!(search_cache(&c, &opts).len(), 2);
+    }
+
+    #[test]
+    fn curated_seeds_surface_for_relevant_query() {
+        // Emergent discovery: even with an empty cache, a "search backend" /
+        // "docs" query surfaces the curated alcove seed via catalog_search.
+        use crate::catalog::merge_curated_seeds;
+        let dir = tempfile::tempdir().unwrap();
+        let opts = SearchOptions {
+            query: "doc server search backend",
+            genre: None,
+            tags: &[],
+            limit: 5,
+        };
+        // Empty cache alone → no alcove.
+        let bare = load_cache(dir.path()).unwrap();
+        assert!(
+            search_cache(&bare, &opts)
+                .iter()
+                .all(|e| e.id != "epicsagas/alcove")
+        );
+        // With the seed overlay merged (as catalog_search does) → alcove appears.
+        let mut with_seeds = bare;
+        merge_curated_seeds(&mut with_seeds);
+        let res = search_cache(&with_seeds, &opts);
+        assert!(
+            res.iter().any(|e| e.id == "epicsagas/alcove"),
+            "alcove seed should surface for a search-backend query"
+        );
     }
 }
