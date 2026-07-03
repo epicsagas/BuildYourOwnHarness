@@ -84,20 +84,12 @@ pub fn compile_profile(profile: &UserProfile) -> crate::domain::Result<HarnessBu
 }
 
 fn default_dependencies() -> Vec<DependencyPin> {
-    vec![
-        DependencyPin {
-            id: "obsidian-forge".into(),
-            min_version: "0.1.0".into(),
-        },
-        DependencyPin {
-            id: "alcove".into(),
-            min_version: "0.1.0".into(),
-        },
-        DependencyPin {
-            id: "epic-harness".into(),
-            min_version: "0.1.0".into(),
-        },
-    ]
+    // Dependency-free by default. The execution layer (obsidian-forge / alcove /
+    // epic-harness) is optional companion tooling, not a hard requirement: the
+    // dry-run probes any declared deps and degrades gracefully when absent. We
+    // therefore ship bundles standalone and let users opt into specific deps via
+    // the profile rather than hardcoding the epiccounty companion stack.
+    Vec::new()
 }
 
 fn render_skill(id: &str, ring: Ring, genre: Genre) -> SkillSpec {
@@ -237,7 +229,9 @@ mod tests {
         assert!(b.skills.iter().any(|s| s.ring == Ring::Ring2));
         assert!(b.skills.iter().any(|s| s.ring == Ring::Ring3));
         assert!(b.source_profile_hash.starts_with("sha256:"));
-        assert!(b.config.depends_on.len() >= 3);
+        // Bundles are dependency-free by default; companion execution-layer tools
+        // (obsidian-forge/alcove/epic-harness) are optional, not declared deps.
+        assert!(b.config.depends_on.is_empty());
     }
 
     #[test]
