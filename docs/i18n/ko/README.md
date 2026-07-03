@@ -14,7 +14,7 @@
 
 </div>
 
-대부분의 AI 도구는 고정된 기능 묶음을 주고 "알아서 써보세요"라고 합니다. BYOH는 정반대입니다. 짧은 인터뷰로 실제로 어떤 일을 하는지 파악하고, 그에 맞는 에이전트 하네스 — 스킬, 메모리, 파이프라인 — 를 자동으로 생성합니다. 바로 꺼내 쓸 수 있도록 내 워크플로에 맞춰진 상태로요.
+대부분의 AI 도구는 고정된 기능 묶음을 주고 "알아서 써보세요"라고 합니다. BYOH는 정반대입니다. 짧은 인터뷰로 실제로 어떤 일을 하는지 파악하고, 그에 맞는 에이전트 하네스 — 스킬, 에이전트, 목표 파이프라인 — 를 자동으로 생성합니다. 바로 꺼내 쓸 수 있도록 내 워크플로에 맞춰진 상태로요.
 
 ## 이런 분께 맞습니다
 
@@ -34,7 +34,7 @@ BYOH는 AI 에이전트가 주도하도록 설계됐습니다 — 사용자가 �
 2. "Build me a harness"    # 에이전트가 레포를 스캔해서 결과를 컴파일
 ```
 
-다음 세션부터 호스트가 하네스를 자동으로 로드합니다 — 에이전트, 스킬, 메모리, 파이프라인 모두 나에게 맞춰진 상태로.
+다음 세션부터 호스트가 하네스를 자동으로 로드합니다 — 에이전트, 스킬, 목표 파이프라인 모두 나에게 맞춰진 상태로.
 
 ## 플러그인으로 설치 (권장)
 
@@ -78,7 +78,7 @@ byoh serve   # stdio MCP 서버
 
 > **나:** *이번 달에 결제 API를 출시할 백엔드 Go 개발자야. 하네스 하나 만들어줘.*
 >
-> **에이전트:** *(`profile_scan`으로 레포를 스캔하고, `profile_interview`로 타깃팅된 질문 몇 개를 던지고, 장르를 `developer`로 고정)* → `HarnessBundle`을 컴파일 → 에이전트, 스킬, 메모리, 보안 배포 파이프라인을 Claude Code에 설치. 완료 — 다음 세션부터 에이전트가 내 스택을 이미 알고 있습니다.
+> **에이전트:** *(`profile_scan`으로 레포를 스캔하고, `profile_interview`로 타깃팅된 질문 몇 개를 던지고, 장르를 `developer`로 고정)* → `HarnessBundle`을 컴파일 → 에이전트, 스킬, 보안 배포 목표 파이프라인을 Claude Code에 설치. 완료 — 다음 세션부터 에이전트가 내 스택을 이미 알고 있습니다.
 
 같은 흐름을, 권장 도구 호출 순서대로 보면:
 
@@ -118,49 +118,43 @@ LLM 에이전트가(`catalog_search` / `catalog_vendor` MCP 도구로) 이 흐�
 
 ```bash
 byoh profile init me --paths ./src ./docs   # 프로젝트 자동 분석
-byoh profile interview me                   # 약 5분 대화
-byoh profile confirm me --genre developer   # 장르 확정
+byoh profile confirm me --genre developer   # 장르 확정 (+ 선택 --goal)
 
-byoh compile me --no-dry-run                # 검증 + HarnessBundle 작성 (dry-run이 기본)
+byoh compile me                             # 게이트(static + dry-run)는 항상 실행; HarnessBundle 작성
 byoh render me --target claude              # 또는: codex | agy | all (기본: all)
 byoh install me --scope local               # dist/에 렌더 후 이 프로젝트의 .claude/에만 활성화
 byoh install me --scope global              # ...또는 ~/.claude + ~/.codex + ~/.gemini (구 --host)
 byoh install me --scope publish             # ...또는 LICENSE + .gitignore 추가 후 git 안내 출력
-
-byoh run me                                 # 하네스가 활성화된 상태로 실행
-byoh evolve me                              # 세션 피드백 기반으로 하네스 개선
 ```
 
-BYOH는 역할, 전문성 수준, 사용 도구, 30일 목표를 물어봅니다. 인터뷰는 맞춰집니다 — 연구자는 개발자와 다른 질문을 받습니다. `evolve`는 3중 게이트 사이클(Critic / Seesaw / Stagnation)을 돌며, 이 게이트는 절대 우회할 수 없습니다 — 덕분에 진화가 안전하고 추적 가능합니다.
+인터뷰 자체는 에이전트 주도입니다(`profile_interview` MCP 도구) — 대화가 곧 인터뷰이므로 별도의 인터랙티브 CLI 인터뷰는 없습니다. 진화(`evolve_cycle` MCP 도구)는 3중 게이트 사이클(Critic / Seesaw / Stagnation)을 돌며, 이 게이트는 절대 우회할 수 없습니다 — 덕분에 진화가 안전하고 추적 가능합니다.
 
 ## 내부 동작 원리
 
 BYOH의 합성 엔진은 프로파일 태그를 스킬 레지스트리와 매칭하고, 의존성이 정리된 파이프라인으로 정렬한 뒤, `HarnessBundle` — 모든 지원 호스트의 네이티브 포맷으로 렌더링되는 git-ready 산출물 — 을 만들어냅니다.
 
-- **4-ring 보안 모델** — 내장 스킬(Ring 1)부터 커뮤니티/미신뢰 스킬(Ring 4)까지, 단계마다 검증 수위가 올라감
+- **4-ring 보안 모델** — 라이프사이클 스펙(Ring 0)과 내장 파이프라인 스킬(Ring 1)부터 커뮤니티/미신뢰 스킬(Ring 3)까지, 단계마다 검증 수위가 올라감; 벤더링된 스킬은 sha256 핀이 읽기·임베드 시점에 실검증됨
 - **3중 게이트 진화** — 매 `evolve` 사이클이 Critic(품질), Seesaw(회귀), Stagnation(정체) 게이트를 모두 통과해야 반영, 우회 불가
 - **목표 지향 파이프라인** — 30일 목표(제품 출시, 리서치 리포트, 보안 배포 등)를 선언하면 매칭되는 스킬 래더를 자동으로 얹어줌
 
-아키텍처: 헥사고날 — `domain / ports / adapters / application / compiler / evolve / templates / deploy / i18n / obs / security / cli`. 전체 가이드는 `AGENTS.md` 참고.
+아키텍처: 헥사고날 — `domain / ports / adapters / application / compiler / evolve / templates / deploy / catalog / mcp / i18n / security / cli`. 전체 가이드는 `AGENTS.md` 참고.
 
 ## 전체 CLI 레퍼런스
+
+CLI는 의도적으로 작게 유지합니다: 기계 진입점(`serve`, CI의 `catalog index`, 유지보수자용 `vendor`)과 핵심 빌드 흐름의 스크립트용 미러만 남겼습니다. 인터뷰와 진화는 MCP 전용(에이전트 주도)입니다.
 
 ```bash
 # 프로파일
 byoh profile init <slug> [--paths ...]      # 읽기 전용 프로젝트 스캔
-byoh profile interview <slug>               # 인터뷰
-byoh profile confirm <slug> --genre <g>     # 프로파일 확정
+byoh profile confirm <slug> --genre <g> [--goal <텍스트>]  # 프로파일 확정
+byoh profile show <slug>                    # 프로파일 YAML 출력
 
-# 빌드
-byoh compile <slug> [--no-dry-run]          # dry-run이 기본, 번들을 쓰려면 --no-dry-run
+# 빌드 (static 게이트 + 읽기 전용 dry-run 게이트가 항상 실행)
+byoh compile <slug> [--out <dir>]           # HarnessBundle 작성
 byoh render <slug> [--target <host>]        # claude | codex | agy | all (기본: all)
 byoh install <slug> [--target <host>] [--scope local|global|publish] [--host] [--force]  # dist/ 트리; --scope가 설치 위치 결정 (local=이 프로젝트, global=HOME, publish=+LICENSE/.gitignore+git 단계). --host는 --scope global의 레거시.
 
-# 실행 & 진화
-byoh run <slug>
-byoh evolve <slug>
-
-# 커뮤니티 스킬
+# 커뮤니티 스킬 (유지보수자/빌드타임; sha256 핀이 읽기·임베드 시점에 검증됨)
 byoh vendor add <src> --genre <g> --id <id> [--keywords k1,k2] [--trust] [--sha <s>]
 byoh vendor list
 byoh vendor remove <id> --genre <g>
@@ -169,7 +163,13 @@ byoh vendor remove <id> --genre <g>
 byoh catalog index [--no-bundle] [--limit N]
 byoh catalog search "<쿼리>" [--genre <g>] [--tags k1,k2] [--limit N]
 byoh catalog vendor <owner/repo> [--genre <g>] [--keywords k1,k2]
+
+# 진단 / 서버
+byoh doctor                                 # 실행 계층 도구 점검
+byoh serve                                  # stdio MCP 서버 (에이전트 주도 모드)
 ```
+
+프로파일과 카탈로그 캐시는 기본적으로 `~/.byoh` 아래에 저장됩니다(`BYOH_HOME`으로 재정의).
 
 ## 설치
 

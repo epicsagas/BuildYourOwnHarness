@@ -13,13 +13,34 @@ tools.
 
 ## Flow
 
+Follow the steps in this order — compile/render/install require a **confirmed**
+profile and will refuse a draft.
+
 1. **Collect (S1)** — ask what the user does and where their materials live.
    - `profile_create` (slug, optional `scan_paths`, optional `language`) to start a profile.
    - `profile_scan` (slug, `paths`) to non-destructively gather derived candidates.
 
-2. **Render & install (S2)** — after the profile is confirmed, produce and
-   deploy the harness:
-   - `render_plugin` (slug, target) to render the host-native plugin tree.
+2. **Interview (S2, in-conversation)** — ask the user the open questions. Map
+   their answers to `(answer, confidence)` and call `profile_interview`. Only
+   explicit answers are applied — unanswered questions stay open, so you can
+   ask one question per turn and call the tool again. Use `genre_list` to show
+   genres.
+
+3. **Confirm (S3)** — once genre + goal are settled:
+   - `profile_confirm` (slug, genre, goal_30d) → status becomes `confirmed`.
+
+4. **Compile (S4)** — `compile` (slug, run_static_gate=true) to render the
+   4-Ring HarnessBundle. Then `compile_dry_run` (slug) to validate gates.
+
+5. **Clone vetted skills (optional)** — `registry_clone_skill` (genre, skill_id
+   like `tdd`/`debug`, slug) to inject a verified preset skill into the bundle.
+   Generate and clone coexist.
+
+6. **Render & install (S5)** — produce and deploy the harness:
+   - `render_plugin` (slug, target) to render the host-native plugin tree. The
+     output is a static polyglot plugin (skills/agents/manifests, incl.
+     `.claude-plugin/marketplace.json`) — push it to GitHub and it installs via
+     `claude plugin marketplace add`.
    - **Ask the user for the install scope** before installing:
      - `local` — this project only (`./.claude/skills/`); HOME untouched.
      - `global` — the user's HOME (`~/.claude`, `~/.codex`, `~/.gemini`).
@@ -28,20 +49,6 @@ tools.
    - `install_plugin` (slug, target, scope) to write it to `dist/` and, per the
      scope, activate on the host. BYOH ships no embedded knowledge base — if the
      user needs retrieval, point the generated harness at a doc server like `alcove`.
-
-3. **Interview (S3, in-conversation)** — ask the user the open questions. Map
-   their answers to `(answer, confidence)` and call `profile_interview`. Empty
-   answers auto-accept rule-based suggestions. Use `genre_list` to show genres.
-
-4. **Confirm (S3)** — once genre + goal are settled:
-   - `profile_confirm` (slug, genre, goal_30d) → status becomes `confirmed`.
-
-5. **Compile (S4)** — `compile` (slug, run_static_gate=true) to render the
-   4-Ring HarnessBundle. Then `compile_dry_run` (slug) to validate gates.
-
-6. **Clone vetted skills (optional)** — `registry_clone_skill` (genre, skill_id
-   like `tdd`/`debug`, slug) to inject a verified preset skill into the bundle.
-   Generate and clone coexist.
 
 7. **Evolve (later)** — once the harness is running and you have observations,
    `evolve_cycle` (genre, edit_type, metric) runs one Ring-3 cycle under the

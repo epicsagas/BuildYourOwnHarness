@@ -12,7 +12,7 @@
 
 </div>
 
-Most AI setups hand you a fixed set of tools and say "good luck." BYOH flips that: it interviews you, learns what you actually do, and generates a personalized agent harness — skills, memory, pipelines — that fits your workflow out of the box.
+Most AI setups hand you a fixed set of tools and say "good luck." BYOH flips that: it interviews you, learns what you actually do, and generates a personalized agent harness — skills, agents, goal pipelines — that fits your workflow out of the box.
 
 ## Who is this for?
 
@@ -32,7 +32,7 @@ BYOH is built to be driven by your AI agent — not by you typing commands. Inst
 2. "Build me a harness"    # your agent scans your repo and compiles the result
 ```
 
-On the next session your host loads the harness automatically — agents, skills, memory, and pipelines tuned to you.
+On the next session your host loads the harness automatically — agents, skills, and goal pipelines tuned to you.
 
 ## Install the plugin (recommended)
 
@@ -76,7 +76,7 @@ Once your host is connected, you don't type commands — you just talk. Your age
 
 > **You:** *I'm a backend Go developer shipping a payments API this month. Build me a harness.*
 >
-> **Agent:** *(scans your repo via `profile_scan`, asks a few targeted questions via `profile_interview`, locks the genre to `developer`)* → compiles a `HarnessBundle` → installs agents, skills, memory, and a secure-ship pipeline into Claude Code. Done — next session, your agent already speaks your stack.
+> **Agent:** *(scans your repo via `profile_scan`, asks a few targeted questions via `profile_interview`, locks the genre to `developer`)* → compiles a `HarnessBundle` → installs agents, skills, and a secure-ship goal pipeline into Claude Code. Done — next session, your agent already speaks your stack.
 
 That same flow, in the suggested tool order:
 
@@ -116,49 +116,43 @@ Every flow above is also reachable from the terminal. The CLI is **auxiliary** �
 
 ```bash
 byoh profile init me --paths ./src ./docs   # auto-scans your project
-byoh profile interview me                   # ~5 min conversation
-byoh profile confirm me --genre developer   # lock in your genre
+byoh profile confirm me --genre developer   # lock in your genre (+ optional --goal)
 
-byoh compile me --no-dry-run                # validate + write the HarnessBundle (dry-run is default)
+byoh compile me                             # gates (static + dry-run) always run; writes the HarnessBundle
 byoh render me --target claude              # or: codex | agy | all (default: all)
 byoh install me --scope local               # render to dist/, activate into this project's .claude/ only
 byoh install me --scope global              # ...or ~/.claude + ~/.codex + ~/.gemini (was --host)
 byoh install me --scope publish             # ...or add LICENSE + .gitignore and print git instructions
-
-byoh run me                                 # launch with your harness active
-byoh evolve me                              # improve the harness based on session feedback
 ```
 
-BYOH asks about your role, expertise level, tools, and 30-day goal. The interview adapts — a researcher gets different questions than a developer. `evolve` runs a 3-gate cycle (Critic / Seesaw / Stagnation) that can never be bypassed — so evolution is safe and auditable.
+The interview itself is agent-led (the `profile_interview` MCP tool) — the conversation is the interview, so there is no interactive CLI interview. Evolution (`evolve_cycle` MCP tool) runs a 3-gate cycle (Critic / Seesaw / Stagnation) that can never be bypassed — so evolution is safe and auditable.
 
 ## How it works under the hood
 
 BYOH's synthesis engine matches your profile tags against the skill registry, orders them into a dependency-resolved pipeline, and emits a `HarnessBundle` — a git-ready artifact that renders into the native format of any supported host.
 
-- **4-ring security model** — built-in skills (Ring 1) through community/untrusted skills (Ring 4), each with escalating validation
+- **4-ring security model** — lifecycle spec (Ring 0) and built-in pipeline skills (Ring 1) through community/untrusted skills (Ring 3), each with escalating validation; vendored skills are sha256-pinned and verified at read + embed time
 - **3-gate evolution** — every `evolve` cycle passes Critic (quality), Seesaw (regression), and Stagnation (plateau) gates; no bypass
 - **Goal-oriented pipelines** — declaring a 30-day goal (product launch, research report, secure ship…) overlays a matching skill ladder automatically
 
-Architecture: hexagonal — `domain / ports / adapters / application / compiler / evolve / templates / deploy / i18n / obs / security / cli`. See `AGENTS.md` for the full guide.
+Architecture: hexagonal — `domain / ports / adapters / application / compiler / evolve / templates / deploy / catalog / mcp / i18n / security / cli`. See `AGENTS.md` for the full guide.
 
 ## Full CLI reference
+
+The CLI is intentionally small: machine entry points (`serve`, `catalog index` in CI, `vendor` for maintainers) plus a scriptable mirror of the core build flow. Interview and evolution are MCP-only (agent-led).
 
 ```bash
 # Profile
 byoh profile init <slug> [--paths ...]      # non-destructive project scan
-byoh profile interview <slug>               # guided interview
-byoh profile confirm <slug> --genre <g>     # confirm and lock profile
+byoh profile confirm <slug> --genre <g> [--goal <text>]  # confirm and lock profile
+byoh profile show <slug>                    # print the profile YAML
 
-# Build
-byoh compile <slug> [--no-dry-run]          # dry-run is on by default; pass --no-dry-run to write the bundle
+# Build (static gate + read-only dry-run gate always run)
+byoh compile <slug> [--out <dir>]           # write the HarnessBundle
 byoh render <slug> [--target <host>]        # claude | codex | agy | all (default: all)
 byoh install <slug> [--target <host>] [--scope local|global|publish] [--host] [--force]  # dist/ tree; --scope decides where it goes (local=this project, global=HOME, publish=+LICENSE/.gitignore+git steps). --host is legacy for --scope global.
 
-# Run & evolve
-byoh run <slug>
-byoh evolve <slug>
-
-# Community skills
+# Community skills (maintainer/build-time; sha256-pinned and verified at read + embed time)
 byoh vendor add <src> --genre <g> --id <id> [--keywords k1,k2] [--trust] [--sha <s>]
 byoh vendor list
 byoh vendor remove <id> --genre <g>
@@ -167,7 +161,13 @@ byoh vendor remove <id> --genre <g>
 byoh catalog index [--no-bundle] [--limit N]
 byoh catalog search "<query>" [--genre <g>] [--tags k1,k2] [--limit N]
 byoh catalog vendor <owner/repo> [--genre <g>] [--keywords k1,k2]
+
+# Diagnostics / server
+byoh doctor                                 # check execution-layer tools
+byoh serve                                  # stdio MCP server (agent-led mode)
 ```
+
+Profiles and the catalog cache live under `~/.byoh` by default (override with `BYOH_HOME`).
 
 ## Installation
 
