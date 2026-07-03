@@ -173,7 +173,7 @@ pub fn install_plugin(
     let _ = std::fs::remove_dir_all(&staging); // clean any prior aborted staging
     render_target(bundle, Target::All, &staging)?;
     // Drop the owned-marker into the staged tree.
-    write_marker(&staging, &name)?;
+    write_owned_marker(&staging, &name)?;
 
     // Swap: move current → .bak, staging → final, then drop .bak.
     let backup = root.join(format!(".{name}.bak"));
@@ -201,7 +201,10 @@ pub fn install_plugin(
     }
 }
 
-fn write_marker(dir: &Path, name: &str) -> Result<()> {
+/// Drop the BYOH ownership marker into `dir`. Shared with the renderer so a
+/// plain `byoh render` output is also recognizably BYOH-owned (re-render and
+/// install guards both key off this marker).
+pub fn write_owned_marker(dir: &Path, name: &str) -> Result<()> {
     let body = format!("{{\"tool\":\"byoh\",\"plugin\":\"{name}\",\"owned\":true}}\n");
     std::fs::write(dir.join(OWNED_MARKER), body).map_err(|e| io_at(dir, e))?;
     Ok(())

@@ -90,16 +90,6 @@ impl LlmPort for RuleLlm {
             })
             .collect()
     }
-
-    fn council_verdict(&self, voice: CouncilVoice, goal: &str, bundle_summary: &str) -> bool {
-        // Deterministic heuristic: a bundle is "safe" per a voice unless an
-        // obvious mismatch keyword appears. Conservative (Critic is strictest).
-        let gl = goal.to_lowercase();
-        let bl = bundle_summary.to_lowercase();
-        let obviously_unsafe = matches!(voice, CouncilVoice::Critic)
-            && (bl.contains("broken") || bl.contains("incomplete"));
-        !obviously_unsafe && (gl.len() >= 2 || bl.len() >= 2)
-    }
 }
 
 #[cfg(test)]

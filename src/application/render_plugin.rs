@@ -4,10 +4,16 @@
 //! writes a deployable plugin into `out`. The output dir is `git init`-ready:
 //! a user can push it and anyone who clones gets a working plugin.
 //!
+//! The rendered plugin is deliberately **static** — skills, agents, manifests,
+//! docs. Bundle-declared hooks and MCP tools are an internal spec and are NOT
+//! wired into the plugin: they would require a `byoh` binary (plus this
+//! machine's profile) on every consumer's machine, which turns into a dead MCP
+//! server / failing hooks the moment the plugin leaves this repo. Static
+//! content works in every host with zero runtime dependencies.
+//!
 //! Claude/Codex formats are grounded in real epiccounty reference projects
 //! (korean-law-rag, epic-harness, Velith, obsidian-forge). The agy layout
-//! follows the official Antigravity CLI plugin spec (plugin.json marker +
-//! skills/agents/hooks.json/mcp_config.json/rules). See the plan doc.
+//! follows the official Antigravity CLI plugin spec.
 
 use std::path::{Path, PathBuf};
 
@@ -43,16 +49,41 @@ pub fn write_publish_extras(out: &Path) -> Result<()> {
 /// **polyglot** tree carrying all three hosts' manifests (`.claude-plugin/`,
 /// `.codex-plugin/`, root agy `plugin.json`) plus shared `skills/`/`agents/`.
 /// A single concrete target renders a host-only tree.
+///
+/// Refuses to write into an existing non-empty directory that is not
+/// BYOH-owned (no `.byoh-manifest`) — an agent calling `render_plugin` with
+/// `out: "."` must not silently clobber a real project's README/plugin.json.
 pub fn render_target(bundle: &HarnessBundle, target: Target, out: &Path) -> Result<PathBuf> {
+    guard_output_dir(out)?;
     if target == Target::All {
         render_polyglot(bundle, out)?;
         write_readme(bundle, out, Target::All)?;
         write_docs_guide(bundle, out)?;
-        return Ok(out.to_path_buf());
+    } else {
+        render_one(bundle, target, out)?;
+        write_readme(bundle, out, target)?;
     }
-    render_one(bundle, target, out)?;
-    write_readme(bundle, out, target)?;
+    // Mark the tree BYOH-owned so re-renders and installs recognize it.
+    crate::deploy::install::write_owned_marker(out, &format!("byoh-{}", bundle.slug))?;
     Ok(out.to_path_buf())
+}
+
+/// Overwrite guard shared by all render paths.
+fn guard_output_dir(out: &Path) -> Result<()> {
+    let occupied = out.exists()
+        && std::fs::read_dir(out)
+            .map(|mut d| d.next().is_some())
+            .unwrap_or(false);
+    if occupied && !crate::deploy::install::is_byoh_owned(out) {
+        return Err(crate::domain::ByohError::ValidationGateFailed {
+            gate: "render_output",
+            reason: format!(
+                "refusing to render into non-empty, non-BYOH directory {} — pass a fresh output dir",
+                out.display()
+            ),
+        });
+    }
+    Ok(())
 }
 
 fn render_one(bundle: &HarnessBundle, target: Target, out: &Path) -> Result<()> {
@@ -79,11 +110,17 @@ fn render_polyglot(bundle: &HarnessBundle, out: &Path) -> Result<()> {
     // agy marker (root, strict 3-key form).
     crate::store::write_file(out, "plugin.json", &pretty(&agy_manifest(bundle)))?;
 
-    // Claude manifest.
+    // Claude manifest + marketplace.json (so `claude plugin marketplace add
+    // <this repo>` works the moment the tree is pushed to GitHub).
     crate::store::write_file(
         &out.join(".claude-plugin"),
         "plugin.json",
         &pretty(&claude_manifest(bundle)),
+    )?;
+    crate::store::write_file(
+        &out.join(".claude-plugin"),
+        "marketplace.json",
+        &pretty(&claude_marketplace(bundle)),
     )?;
 
     // Codex manifest + TOML agents.
@@ -104,28 +141,10 @@ fn render_polyglot(bundle: &HarnessBundle, out: &Path) -> Result<()> {
     write_skills(bundle, out)?;
     write_agents_md(bundle, out)?;
 
-    // Per-host hooks (distinct paths + bodies).
-    if !bundle.hooks.is_empty() {
-        crate::store::write_file(
-            &out.join(".claude-plugin"),
-            "hooks.json",
-            &pretty(&hooks_json(bundle, "${CLAUDE_PLUGIN_ROOT}", false)),
-        )?;
-        crate::store::write_file(
-            &out.join(".codex-plugin"),
-            "hooks.json",
-            &pretty(&codex_hooks(bundle)),
-        )?;
-        // Root hooks.json is the agy (Antigravity) schema — a distinct shape
-        // from Claude's, with SessionStart/End remapped to PreInvocation/Stop.
-        crate::store::write_file(out, "hooks.json", &pretty(&agy_hooks(bundle)))?;
-    }
-
-    // Shared MCP: one `mcp_config.json` at the root. Claude and Codex reference
-    // it via their manifest `mcpServers` field; agy reads it from the root.
-    if !bundle.mcp_tools.is_empty() {
-        crate::store::write_file(out, "mcp_config.json", &pretty(&mcp_servers(bundle)))?;
-    }
+    // NOTE: bundle.hooks / bundle.mcp_tools are an internal spec and are NOT
+    // rendered — see the module doc. A plugin that ships hook commands or an
+    // MCP server pointing at a binary + profile the consumer doesn't have is
+    // broken on arrival; the static tree works everywhere.
 
     // Codex .codex/ config + symlinks. Relative targets still resolve: the
     // polyglot root IS the codex root.
@@ -142,55 +161,26 @@ fn render_polyglot(bundle: &HarnessBundle, out: &Path) -> Result<()> {
     crate::store::create_symlink_or_copy(&PathBuf::from("../skills"), &codex.join("skills"))?;
 
     // Shared root system prompt (once).
-    crate::store::write_file(out, "AGENTS.md", &root_agents_md(bundle))?;
+    crate::store::write_file(out, "AGENTS.md", &mask(&root_agents_md(bundle)))?;
 
-    // Per-host discovery dirs (.claude/.gemini/.codex) linking shared skills/
-    // agents and the host-specific hooks.json.
-    write_host_symlinks(out, !bundle.hooks.is_empty())?;
+    // Per-host discovery dirs (.claude/.gemini/.codex) linking shared skills/agents.
+    write_host_symlinks(out)?;
     Ok(())
 }
 
 // ─── common builders ────────────────────────────────────────────────────────
 
 /// Create the per-host discovery directories (`.claude/`, `.gemini/`) that link
-/// the shared `skills/`, `agents/`, and host-specific `hooks.json`. The single
-/// source of truth stays at the root + `.{host}-plugin/`; hosts discover via
-/// their own dir. `.codex/` already carries skills/agents links from
-/// [`render_polyglot`]; only its `hooks.json` link is added here.
-///
-/// `has_hooks` gates the `hooks.json` links so they never dangle when a bundle
-/// has no hooks. Uses [`create_symlink_or_copy`] (symlink on Unix, recursive
-/// copy fallback elsewhere) — the same mechanism as the existing `.codex` links.
-fn write_host_symlinks(out: &Path, has_hooks: bool) -> Result<()> {
-    // `.claude/` → Claude-plugin skills/agents/hooks.
-    let claude = out.join(".claude");
-    crate::store::create_symlink_or_copy(&PathBuf::from("../skills"), &claude.join("skills"))?;
-    crate::store::create_symlink_or_copy(&PathBuf::from("../agents"), &claude.join("agents"))?;
-    if has_hooks {
-        crate::store::create_symlink_or_copy(
-            &PathBuf::from("../.claude-plugin/hooks.json"),
-            &claude.join("hooks.json"),
-        )?;
-    }
-
-    // `.gemini/` → agy (root) skills/agents/hooks. agy's hooks.json is the root
-    // file (distinct agy schema), NOT .claude-plugin's.
-    let gemini = out.join(".gemini");
-    crate::store::create_symlink_or_copy(&PathBuf::from("../skills"), &gemini.join("skills"))?;
-    crate::store::create_symlink_or_copy(&PathBuf::from("../agents"), &gemini.join("agents"))?;
-    if has_hooks {
-        crate::store::create_symlink_or_copy(
-            &PathBuf::from("../hooks.json"),
-            &gemini.join("hooks.json"),
-        )?;
-    }
-
-    // `.codex/` already has skills/agents links; add the hooks.json link only.
-    if has_hooks {
-        crate::store::create_symlink_or_copy(
-            &PathBuf::from("../.codex-plugin/hooks.json"),
-            &out.join(".codex").join("hooks.json"),
-        )?;
+/// the shared `skills/` and `agents/`. The single source of truth stays at the
+/// root + `.{host}-plugin/`; hosts discover via their own dir. `.codex/`
+/// already carries skills/agents links from [`render_polyglot`]. Uses
+/// [`crate::store::create_symlink_or_copy`] (symlink on Unix, recursive copy
+/// fallback elsewhere).
+fn write_host_symlinks(out: &Path) -> Result<()> {
+    for host in [".claude", ".gemini"] {
+        let dir = out.join(host);
+        crate::store::create_symlink_or_copy(&PathBuf::from("../skills"), &dir.join("skills"))?;
+        crate::store::create_symlink_or_copy(&PathBuf::from("../agents"), &dir.join("agents"))?;
     }
     Ok(())
 }
@@ -231,10 +221,36 @@ fn claude_manifest(bundle: &HarnessBundle) -> Value {
     if !agent_paths.is_empty() {
         manifest["agents"] = json!(agent_paths);
     }
-    if !bundle.mcp_tools.is_empty() {
-        manifest["mcpServers"] = json!("./mcp_config.json");
-    }
     manifest
+}
+
+/// `.claude-plugin/marketplace.json` — makes the rendered repo itself a
+/// one-plugin marketplace. Without this file `claude plugin marketplace add
+/// <repo>` rejects the repo outright, so "push it and others can install it"
+/// would be false for the host we care most about.
+fn claude_marketplace(bundle: &HarnessBundle) -> Value {
+    let name = format!("byoh-{}", bundle.slug);
+    json!({
+        "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+        "name": name,
+        "owner": author_obj(),
+        "metadata": {
+            "description": format!(
+                "BYOH-generated {} harness for '{}'.",
+                bundle.genre.as_str(),
+                bundle.slug
+            ),
+        },
+        "plugins": [{
+            "name": name,
+            "source": "./",
+            "description": format!(
+                "BYOH-generated {} harness for '{}'.",
+                bundle.genre.as_str(),
+                bundle.slug
+            ),
+        }],
+    })
 }
 
 /// `.codex-plugin/plugin.json`: base manifest + skills + agents dir + interface.
@@ -249,12 +265,6 @@ fn codex_manifest(bundle: &HarnessBundle) -> Value {
         "category": "Development & Workflow",
         "capabilities": ["Read", "Write"],
     });
-    if !bundle.hooks.is_empty() {
-        manifest["hooks"] = json!("./.codex-plugin/hooks.json");
-    }
-    if !bundle.mcp_tools.is_empty() {
-        manifest["mcpServers"] = json!("./mcp_config.json");
-    }
     manifest
 }
 
@@ -314,49 +324,19 @@ fn agent_toml(agent: &AgentSpec) -> String {
     )
 }
 
-/// Claude/hooks.json shape. Codex uses a variant (see codex_hooks).
-fn hooks_json(bundle: &HarnessBundle, root_var: &str, versioned: bool) -> Value {
-    // Group hooks by event. Each event → list of {matcher, hooks:[{type,command}], description}.
-    let mut by_event: std::collections::BTreeMap<String, Vec<Value>> =
-        std::collections::BTreeMap::new();
-    for h in &bundle.hooks {
-        by_event.entry(h.event.clone()).or_default().push(json!({
-            "matcher": "*",
-            "hooks": [{ "type": "command", "command": h.command.replace("${PLUGIN_ROOT}", root_var) }],
-            "description": format!("{} hook (reads: {})", h.event, h.reads.join(", ")),
-        }));
-    }
-    let hooks = json!(by_event);
-    if versioned {
-        json!({ "version": 1, "hooks": hooks })
-    } else {
-        json!({ "hooks": hooks })
-    }
-}
-
-/// `mcp_config.json` (shared MCP config): { mcpServers: { <slug>: {command, args} } }.
-///
-/// A single server entry, keyed by the harness slug, launches `byoh
-/// harness-serve <slug>` — the real `byoh` binary, not a fabricated
-/// `byoh-<tool>` binary that never existed on disk. That subcommand loads
-/// this bundle's `mcp_tools` and serves them over stdio MCP (see
-/// `src/mcp/harness_server.rs`), so every tool the harness declares is
-/// actually reachable instead of failing at process spawn.
-fn mcp_servers(bundle: &HarnessBundle) -> Value {
-    json!({
-        "mcpServers": {
-            bundle.slug.clone(): {
-                "command": "byoh",
-                "args": ["harness-serve", bundle.slug.clone()],
-            }
-        }
-    })
+/// Secret masking over every profile-derived markdown artifact. Manifests are
+/// built from fixed fields (sanitized slug + genre) and skip this; free-text
+/// bodies (skills, agents, docs, AGENTS.md, README) go through `mask` so a
+/// token pasted into a goal or vendored skill never lands on disk in a
+/// published tree (R20).
+fn mask(text: &str) -> String {
+    crate::security::mask(text)
 }
 
 fn write_skills(bundle: &HarnessBundle, root: &Path) -> Result<()> {
     for skill in &bundle.skills {
         let dir = root.join("skills").join(&skill.id);
-        crate::store::write_file(&dir, "SKILL.md", &skill_md(skill))?;
+        crate::store::write_file(&dir, "SKILL.md", &mask(&skill_md(skill)))?;
     }
     Ok(())
 }
@@ -367,7 +347,7 @@ fn write_agents_md(bundle: &HarnessBundle, out: &Path) -> Result<()> {
         crate::store::write_file(
             &out.join("agents"),
             &format!("{}.md", agent.id),
-            &agent_md(agent),
+            &mask(&agent_md(agent)),
         )?;
     }
     Ok(())
@@ -376,33 +356,25 @@ fn write_agents_md(bundle: &HarnessBundle, out: &Path) -> Result<()> {
 // ─── Claude Code ────────────────────────────────────────────────────────────
 
 fn render_claude(bundle: &HarnessBundle, out: &Path) -> Result<()> {
-    // .claude-plugin/plugin.json — agents as array of file paths.
+    // .claude-plugin/plugin.json — agents as array of file paths — plus the
+    // marketplace.json that makes the pushed repo installable.
     crate::store::write_file(
         &out.join(".claude-plugin"),
         "plugin.json",
         &pretty(&claude_manifest(bundle)),
+    )?;
+    crate::store::write_file(
+        &out.join(".claude-plugin"),
+        "marketplace.json",
+        &pretty(&claude_marketplace(bundle)),
     )?;
 
     // skills/<id>/SKILL.md + agents/<id>.md
     write_skills(bundle, out)?;
     write_agents_md(bundle, out)?;
 
-    // hooks.json (Claude: ${CLAUDE_PLUGIN_ROOT}).
-    if !bundle.hooks.is_empty() {
-        crate::store::write_file(
-            &out.join(".claude-plugin"),
-            "hooks.json",
-            &pretty(&hooks_json(bundle, "${CLAUDE_PLUGIN_ROOT}", false)),
-        )?;
-    }
-
-    // mcp_config.json at the root (referenced by the manifest's `mcpServers` field).
-    if !bundle.mcp_tools.is_empty() {
-        crate::store::write_file(out, "mcp_config.json", &pretty(&mcp_servers(bundle)))?;
-    }
-
-    // AGENTS.md root system prompt.
-    crate::store::write_file(out, "AGENTS.md", &root_agents_md(bundle))?;
+    // AGENTS.md root system prompt. (No hooks/MCP — see module doc.)
+    crate::store::write_file(out, "AGENTS.md", &mask(&root_agents_md(bundle)))?;
     Ok(())
 }
 
@@ -443,91 +415,9 @@ fn render_codex(bundle: &HarnessBundle, out: &Path) -> Result<()> {
     )?;
     crate::store::create_symlink_or_copy(&PathBuf::from("../skills"), &codex.join("skills"))?;
 
-    // hooks.json (Codex: version:1, Stop event, ${PLUGIN_ROOT}).
-    if !bundle.hooks.is_empty() {
-        crate::store::write_file(
-            &out.join(".codex-plugin"),
-            "hooks.json",
-            &pretty(&codex_hooks(bundle)),
-        )?;
-    }
-
-    // mcp_config.json at the root (referenced by the codex manifest's `mcpServers` field).
-    if !bundle.mcp_tools.is_empty() {
-        crate::store::write_file(out, "mcp_config.json", &pretty(&mcp_servers(bundle)))?;
-    }
-
-    // AGENTS.md.
-    crate::store::write_file(out, "AGENTS.md", &root_agents_md(bundle))?;
+    // AGENTS.md. (No hooks/MCP — see module doc.)
+    crate::store::write_file(out, "AGENTS.md", &mask(&root_agents_md(bundle)))?;
     Ok(())
-}
-
-/// Codex hooks: remap SessionEnd → Stop (Codex event name), version:1, ${PLUGIN_ROOT}.
-fn codex_hooks(bundle: &HarnessBundle) -> Value {
-    let mut remapped = bundle.hooks.clone();
-    for h in &mut remapped {
-        if h.event == "SessionEnd" {
-            h.event = "Stop".into();
-        }
-    }
-    let mut tmp_bundle = bundle.clone();
-    tmp_bundle.hooks = remapped;
-    hooks_json(&tmp_bundle, "${PLUGIN_ROOT}", true)
-}
-
-/// Antigravity (agy) hooks schema. agy uses a DIFFERENT shape than Claude:
-///   { "<hook-name>": { "<EventName>": [ { matcher?, hooks: [...] } ] } }
-/// (top-level is a map keyed by hook name, not `{ hooks: { Event: [...] } }`).
-/// agy does NOT support SessionStart/SessionEnd — remap them:
-///   SessionStart → PreInvocation, SessionEnd → Stop.
-/// PreToolUse/PostToolUse pass through. `matcher` is included for tool events
-/// and omitted for PreInvocation/Stop (which ignore matchers). No
-/// `description` field (not in the agy schema). Each command carries a 30s
-/// timeout. `${PLUGIN_ROOT}` resolves at agy load time.
-///
-/// Verified shape: `/Users/hackme/Downloads/paper-whisperer/dist/.../hooks.json`.
-fn agy_hooks(bundle: &HarnessBundle) -> Value {
-    // hook-name key → { agy_event → matcher? }. Insertion order is preserved by
-    // serde_json::Map (preserve_order feature), so output is deterministic.
-    let mut map = serde_json::Map::new();
-    for h in &bundle.hooks {
-        let Some((hook_key, agy_event)) = agy_hook_key(&h.event) else {
-            continue; // unsupported event for agy — drop it.
-        };
-        let entry = {
-            let hooks_arr = json!([{
-                "type": "command",
-                "command": h.command,
-                "timeout": 30,
-            }]);
-            // Tool events carry a matcher; PreInvocation/Stop omit it (ignored).
-            if agy_event == "PreToolUse" || agy_event == "PostToolUse" {
-                json!([{
-                    "matcher": "*",
-                    "hooks": hooks_arr,
-                }])
-            } else {
-                json!([{ "hooks": hooks_arr }])
-            }
-        };
-        // Each hook-name key maps to a single event bucket.
-        let bucket = map.entry(hook_key.to_string()).or_insert_with(|| json!({}));
-        bucket[agy_event] = entry;
-    }
-    Value::Object(map)
-}
-
-/// Map a neutral hook event (from `bundle/hooks/hooks.json`) to its agy
-/// equivalent: `(hook-name key, agy event name)`. Returns `None` for events agy
-/// cannot express (dropped rather than emitted broken).
-fn agy_hook_key(event: &str) -> Option<(&'static str, &'static str)> {
-    match event {
-        "SessionStart" => Some(("byoh-session-resume", "PreInvocation")),
-        "SessionEnd" => Some(("byoh-session-end-observe", "Stop")),
-        "PreToolUse" => Some(("byoh-pre-tool-guard", "PreToolUse")),
-        "PostToolUse" => Some(("byoh-post-tool-compress", "PostToolUse")),
-        _ => None,
-    }
 }
 
 fn codex_config_toml(bundle: &HarnessBundle) -> String {
@@ -566,19 +456,9 @@ fn render_agy(bundle: &HarnessBundle, out: &Path) -> Result<()> {
     write_skills(bundle, out)?;
     write_agents_md(bundle, out)?;
 
-    // hooks.json at the plugin root (NOT a hooks/ subdir). agy schema: a
-    // hook-name-keyed map with PreInvocation/Stop (not SessionStart/End).
-    if !bundle.hooks.is_empty() {
-        crate::store::write_file(out, "hooks.json", &pretty(&agy_hooks(bundle)))?;
-    }
-
-    // mcp_config.json at the plugin root — agy reads MCP from here (NOT .mcp.json).
-    if !bundle.mcp_tools.is_empty() {
-        crate::store::write_file(out, "mcp_config.json", &pretty(&mcp_servers(bundle)))?;
-    }
-
     // AGENTS.md root system prompt (still useful as a harness overview).
-    crate::store::write_file(out, "AGENTS.md", &root_agents_md(bundle))?;
+    // (No hooks/MCP — see module doc.)
+    crate::store::write_file(out, "AGENTS.md", &mask(&root_agents_md(bundle)))?;
     Ok(())
 }
 
@@ -623,7 +503,7 @@ fn write_readme(bundle: &HarnessBundle, out: &Path, target: Target) -> Result<()
         // English is the canonical fallback for every other / unknown language.
         _ => readme_en(bundle, target),
     };
-    crate::store::write_file(out, "README.md", &body)?;
+    crate::store::write_file(out, "README.md", &mask(&body))?;
     Ok(())
 }
 
@@ -637,7 +517,7 @@ fn write_docs_guide(bundle: &HarnessBundle, out: &Path) -> Result<()> {
         _ => (docs_guide_en(bundle), "en"),
     };
     let name = format!("getting-started.{lang_suffix}.md");
-    crate::store::write_file(&out.join("docs"), &name, &body)?;
+    crate::store::write_file(&out.join("docs"), &name, &mask(&body))?;
     Ok(())
 }
 
@@ -739,23 +619,37 @@ fn readme_en(bundle: &HarnessBundle, target: Target) -> String {
     format!(
         "# byoh-{slug}\n\n\
          A personalized AI agent harness generated by [BYOH](https://github.com/epicsagas/BuildYourOwnHarness).\n\n\
-         This directory contains the {targets} plugin and is ready to `git init && git push`.\n\n\
+         This directory contains the {targets} plugin. It is fully static — skills, \
+         agents, manifests — so it works on any machine with no extra binaries.\n\n\
          ## Install\n\n\
-         Clone this repo into your host tool's plugin location, or follow the host's \
-         plugin-install flow:\n\n\
-         - **Claude Code**: the `.claude-plugin/` manifest is auto-discovered.\n\
-         - **Codex**: the `.codex-plugin/` manifest + `.codex/` config are auto-discovered.\n\
-         - **agy (Antigravity)**: `agy plugin install <this-dir>` (the `plugin.json` \
-         marker + skills/agents/hooks.json/mcp_config.json are staged under \
-         `~/.gemini/config/plugins/`).\n\n\
+         ### Claude Code\n\n\
+         From a pushed GitHub repo (this tree ships its own `.claude-plugin/marketplace.json`):\n\n\
+         ```bash\n\
+         claude plugin marketplace add <github-owner>/<repo>\n\
+         claude plugin install byoh-{slug}@byoh-{slug}\n\
+         ```\n\n\
+         From a local checkout: `claude plugin marketplace add /path/to/this-dir`, then the \
+         same install command.\n\n\
+         ### agy (Antigravity)\n\n\
+         ```bash\n\
+         agy plugin install <this-dir>\n\
+         agy plugin enable byoh-{slug}\n\
+         ```\n\n\
+         ### Codex\n\n\
+         ```bash\n\
+         codex plugin marketplace add /path/to/this-dir\n\
+         codex plugin add byoh-{slug}\n\
+         ```\n\n\
          ## Structure\n\n\
          The single source of truth is the root `skills/` + `agents/`. Each host \
-         discovers it via its own directory (symlinks): `.claude/`, `.gemini/`, \
-         `.codex/` each link `skills`, `agents`, and the host-specific `hooks.json`.\n\n\
+         reads it via its own manifest (`.claude-plugin/`, `.codex-plugin/`, root \
+         `plugin.json` for agy); `.claude/`, `.gemini/`, `.codex/` carry symlinks \
+         to `skills` and `agents` for project-local use. Note: symlinks require a \
+         symlink-capable checkout (on Windows, enable `core.symlinks`).\n\n\
          ## Contents\n\n\
          - Genre: `{genre}`\n\
          - Skills: {n_skills} · Agents: {n_agents}\n\
-         - Safety gates: {gates}\n",
+         - Safety gates (BYOH compile/evolve-time): {gates}\n",
         slug = bundle.slug,
         targets = targets_line,
         genre = bundle.genre.as_str(),
@@ -776,21 +670,37 @@ fn readme_ko(bundle: &HarnessBundle, target: Target) -> String {
     format!(
         "# byoh-{slug}\n\n\
          [BYOH](https://github.com/epicsagas/BuildYourOwnHarness)로 생성된 AI 에이전트 하네스입니다.\n\n\
-         이 디렉토리는 {targets} 플러그인이며, `git init && git push` 하면 바로 사용할 수 있습니다.\n\n\
+         이 디렉토리는 {targets} 플러그인입니다. 스킬·에이전트·매니페스트만으로 구성된 \
+         정적 플러그인이라 추가 바이너리 없이 어느 머신에서든 동작합니다.\n\n\
          ## 설치\n\n\
-         각 호스트의 플러그인 설치 흐름을 따르거나, 플러그인 위치에 클론하세요.\n\n\
-         - **Claude Code**: `.claude-plugin/` 매니페스트가 자동 인식됩니다.\n\
-         - **Codex**: `.codex-plugin/` 매니페스트 + `.codex/` 설정이 자동 인식됩니다.\n\
-         - **agy (Antigravity)**: `agy plugin install <이-디렉토리>` (`plugin.json` 마커 + \
-         skills/agents/hooks.json/mcp_config.json 이 `~/.gemini/config/plugins/` 아래에 스테이징됩니다).\n\n\
+         ### Claude Code\n\n\
+         깃헙에 push한 리포에서 (이 트리는 자체 `.claude-plugin/marketplace.json`을 포함합니다):\n\n\
+         ```bash\n\
+         claude plugin marketplace add <github-owner>/<repo>\n\
+         claude plugin install byoh-{slug}@byoh-{slug}\n\
+         ```\n\n\
+         로컬 체크아웃에서는 `claude plugin marketplace add /path/to/this-dir` 후 같은 install \
+         명령을 실행하세요.\n\n\
+         ### agy (Antigravity)\n\n\
+         ```bash\n\
+         agy plugin install <이-디렉토리>\n\
+         agy plugin enable byoh-{slug}\n\
+         ```\n\n\
+         ### Codex\n\n\
+         ```bash\n\
+         codex plugin marketplace add /path/to/this-dir\n\
+         codex plugin add byoh-{slug}\n\
+         ```\n\n\
          ## 구조\n\n\
-         단일 진실원천은 루트의 `skills/` + `agents/` 입니다. 각 호스트는 자기 디렉토리\
-         (`.claude/`, `.gemini/`, `.codex/`)에서 심볼릭링크로 `skills`, `agents`, 호스트별 \
-         `hooks.json`을 가리켜 발견합니다.\n\n\
+         단일 진실원천은 루트의 `skills/` + `agents/` 입니다. 각 호스트는 자기 매니페스트\
+         (`.claude-plugin/`, `.codex-plugin/`, agy용 루트 `plugin.json`)로 이를 읽고, \
+         `.claude/`, `.gemini/`, `.codex/`는 프로젝트-로컬 사용을 위한 `skills`/`agents` \
+         심볼릭링크를 담습니다. 참고: 심볼릭링크는 지원되는 체크아웃이 필요합니다 \
+         (Windows에서는 `core.symlinks` 활성화).\n\n\
          ## 내용\n\n\
          - 장르(genre): `{genre}`\n\
          - 스킬: {n_skills}개 · 에이전트: {n_agents}개\n\
-         - 안전 게이트: {gates}\n",
+         - 안전 게이트(BYOH 컴파일/진화 시점): {gates}\n",
         slug = bundle.slug,
         targets = targets_line,
         genre = bundle.genre.as_str(),
@@ -917,99 +827,91 @@ mod tests {
         assert!(dir.path().join("AGENTS.md").exists());
     }
 
-    fn bundle_with_mcp() -> HarnessBundle {
+    #[test]
+    fn rendered_plugin_is_static_no_mcp_no_hooks() {
+        // Regression: the rendered plugin must NOT wire bundle mcp_tools/hooks
+        // into host config. An mcp_config.json pointing at `byoh` + a local
+        // profile is a dead server on every other machine, and hook commands
+        // have no executable — both were confirmed DOA in review.
         let mut bundle = compile_profile(&confirmed_profile()).unwrap();
         bundle.mcp_tools = vec![crate::domain::bundle::McpTool {
             name: "byoh-search".into(),
             description: "search".into(),
             input_schema: serde_json::json!({"type": "object"}),
         }];
-        bundle
-    }
-
-    #[test]
-    fn render_agy_uses_mcp_config_json() {
-        let bundle = bundle_with_mcp();
-        let dir = tempfile::tempdir().unwrap();
-        render_agy(&bundle, dir.path()).unwrap();
-        // agy reads MCP from mcp_config.json (verified live — it does NOT read .mcp.json).
-        assert!(dir.path().join("mcp_config.json").exists());
-        assert!(
-            !dir.path().join(".mcp.json").exists(),
-            "agy must not emit .mcp.json (it reads mcp_config.json)"
-        );
-    }
-
-    #[test]
-    fn render_codex_emits_mcp_config_and_manifest_ref() {
-        let bundle = bundle_with_mcp();
-        let dir = tempfile::tempdir().unwrap();
-        render_codex(&bundle, dir.path()).unwrap();
-        assert!(
-            dir.path().join("mcp_config.json").exists(),
-            "codex must emit shared mcp_config.json"
-        );
-        let m: Value = serde_json::from_str(
-            &std::fs::read_to_string(dir.path().join(".codex-plugin/plugin.json")).unwrap(),
-        )
-        .unwrap();
-        assert_eq!(
-            m["mcpServers"], "./mcp_config.json",
-            "codex manifest must reference mcp_config.json via mcpServers"
-        );
-    }
-
-    #[test]
-    fn render_claude_manifest_references_mcp() {
-        let bundle = bundle_with_mcp();
-        let dir = tempfile::tempdir().unwrap();
-        render_claude(&bundle, dir.path()).unwrap();
-        assert!(dir.path().join("mcp_config.json").exists());
-        let m: Value = serde_json::from_str(
-            &std::fs::read_to_string(dir.path().join(".claude-plugin/plugin.json")).unwrap(),
-        )
-        .unwrap();
-        assert_eq!(
-            m["mcpServers"], "./mcp_config.json",
-            "claude manifest must reference mcp_config.json via mcpServers"
-        );
-    }
-
-    #[test]
-    fn render_polyglot_emits_single_mcp_config() {
-        let bundle = bundle_with_mcp();
         let dir = tempfile::tempdir().unwrap();
         render_target(&bundle, Target::All, dir.path()).unwrap();
-        // One shared mcp_config.json — claude/codex via mcpServers field, agy from root.
-        assert!(
-            dir.path().join("mcp_config.json").exists(),
-            "polyglot tree has shared mcp_config.json"
-        );
-        assert!(
-            !dir.path().join(".mcp.json").exists(),
-            "no legacy .mcp.json (consolidated to mcp_config.json)"
-        );
+
+        for f in ["mcp_config.json", ".mcp.json", "hooks.json"] {
+            assert!(!dir.path().join(f).exists(), "{f} must not be rendered");
+        }
+        assert!(!dir.path().join(".claude-plugin/hooks.json").exists());
+        assert!(!dir.path().join(".codex-plugin/hooks.json").exists());
+        for host_manifest in [".claude-plugin/plugin.json", ".codex-plugin/plugin.json"] {
+            let m: Value = serde_json::from_str(
+                &std::fs::read_to_string(dir.path().join(host_manifest)).unwrap(),
+            )
+            .unwrap();
+            assert!(
+                m.get("mcpServers").is_none(),
+                "{host_manifest} must not reference an MCP server"
+            );
+            assert!(m.get("hooks").is_none());
+        }
     }
 
     #[test]
-    fn mcp_config_command_is_real_byoh_binary() {
-        // Regression: the server entry must launch the actual `byoh` binary via
-        // its `harness-serve` subcommand, not a fabricated `byoh-<tool>` binary
-        // that was never installed anywhere.
-        let bundle = bundle_with_mcp();
+    fn rendered_plugin_ships_claude_marketplace() {
+        // `claude plugin marketplace add <repo>` requires marketplace.json —
+        // without it, "push and install" is false for Claude Code.
+        let bundle = compile_profile(&confirmed_profile()).unwrap();
         let dir = tempfile::tempdir().unwrap();
         render_target(&bundle, Target::All, dir.path()).unwrap();
-        let cfg: Value = serde_json::from_str(
-            &std::fs::read_to_string(dir.path().join("mcp_config.json")).unwrap(),
+        let m: Value = serde_json::from_str(
+            &std::fs::read_to_string(dir.path().join(".claude-plugin/marketplace.json")).unwrap(),
         )
         .unwrap();
-        let servers = cfg["mcpServers"].as_object().unwrap();
-        assert_eq!(servers.len(), 1, "one server entry keyed by harness slug");
-        let entry = servers
-            .get(&bundle.slug)
-            .expect("server keyed by bundle.slug");
-        assert_eq!(entry["command"], "byoh");
-        assert_eq!(entry["args"], json!(["harness-serve", bundle.slug]));
+        assert_eq!(m["name"], "byoh-dev");
+        let plugins = m["plugins"].as_array().unwrap();
+        assert_eq!(plugins.len(), 1);
+        assert_eq!(plugins[0]["name"], "byoh-dev");
+        assert_eq!(plugins[0]["source"], "./");
+    }
+
+    #[test]
+    fn render_refuses_non_byoh_output_dir_and_allows_rerender() {
+        let bundle = compile_profile(&confirmed_profile()).unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        // Simulate a real project dir: has a README the render would clobber.
+        std::fs::write(dir.path().join("README.md"), "my real project").unwrap();
+        let err = render_target(&bundle, Target::All, dir.path());
+        assert!(err.is_err(), "must refuse a non-empty non-BYOH dir");
+        assert_eq!(
+            std::fs::read_to_string(dir.path().join("README.md")).unwrap(),
+            "my real project",
+            "existing files must be untouched"
+        );
+
+        // Fresh dir renders fine, and re-rendering over a BYOH-owned tree works.
+        let fresh = tempfile::tempdir().unwrap();
+        render_target(&bundle, Target::All, fresh.path()).unwrap();
+        assert!(fresh.path().join(".byoh-manifest").exists());
+        render_target(&bundle, Target::All, fresh.path()).unwrap();
+    }
+
+    #[test]
+    fn rendered_markdown_is_secret_masked() {
+        let mut bundle = compile_profile(&confirmed_profile()).unwrap();
+        // A leaked token pasted into a skill body must not survive rendering.
+        bundle.skills[0].body_markdown = "use TOKEN=supersecretvalue1234 to auth".into();
+        let dir = tempfile::tempdir().unwrap();
+        render_target(&bundle, Target::All, dir.path()).unwrap();
+        let skill_dir = dir.path().join("skills").join(&bundle.skills[0].id);
+        let body = std::fs::read_to_string(skill_dir.join("SKILL.md")).unwrap();
+        assert!(
+            !body.contains("supersecretvalue1234"),
+            "secret must be masked in rendered SKILL.md"
+        );
     }
 
     #[test]
@@ -1070,100 +972,17 @@ mod tests {
     }
 
     #[test]
-    fn codex_hooks_remap_sessionend_to_stop() {
-        let mut bundle = compile_profile(&confirmed_profile()).unwrap();
-        bundle.hooks = vec![crate::domain::bundle::HookSpec {
-            event: "SessionEnd".into(),
-            command: "epic reflect".into(),
-            reads: vec![],
-        }];
-        let v = codex_hooks(&bundle);
-        assert_eq!(v["version"], 1);
-        assert!(v["hooks"]["Stop"].is_array(), "SessionEnd must map to Stop");
-    }
-
-    #[test]
-    fn agy_hooks_remap_session_events() {
-        // Full neutral set from bundle/hooks/hooks.json.
-        let mut bundle = compile_profile(&confirmed_profile()).unwrap();
-        bundle.hooks = vec![
-            crate::domain::bundle::HookSpec {
-                event: "SessionStart".into(),
-                command: "byoh hook resume".into(),
-                reads: vec![],
-            },
-            crate::domain::bundle::HookSpec {
-                event: "SessionEnd".into(),
-                command: "byoh hook observe".into(),
-                reads: vec![],
-            },
-            crate::domain::bundle::HookSpec {
-                event: "PreToolUse".into(),
-                command: "byoh hook guard".into(),
-                reads: vec![],
-            },
-        ];
-        let v = agy_hooks(&bundle);
-        let obj = v.as_object().expect("agy hooks is a hook-name-keyed map");
-        // Top-level keys are hook names, NOT Claude's {hooks: {...}}.
-        assert!(
-            !obj.contains_key("hooks"),
-            "agy hooks.json must NOT use the Claude {{hooks:{{}}}} shape"
-        );
-        // SessionStart → PreInvocation under its hook-name key.
-        assert!(
-            obj["byoh-session-resume"]["PreInvocation"].is_array(),
-            "SessionStart must map to PreInvocation"
-        );
-        // SessionEnd → Stop.
-        assert!(
-            obj["byoh-session-end-observe"]["Stop"].is_array(),
-            "SessionEnd must map to Stop"
-        );
-        // PreToolUse keeps a matcher.
-        let pre = &obj["byoh-pre-tool-guard"]["PreToolUse"][0];
-        assert_eq!(pre["matcher"], "*", "PreToolUse keeps matcher");
-        assert_eq!(pre["hooks"][0]["timeout"], 30);
-        // PreInvocation has NO matcher (agy ignores it).
-        let invoc = &obj["byoh-session-resume"]["PreInvocation"][0];
-        assert!(
-            invoc.get("matcher").is_none(),
-            "PreInvocation must omit matcher"
-        );
-        // No description field (not in the agy schema).
-        assert!(
-            !v.to_string().contains("description"),
-            "agy hooks must not carry a description field"
-        );
-    }
-
-    #[test]
     fn render_polyglot_creates_host_symlinks() {
         let bundle = compile_profile(&confirmed_profile()).unwrap();
         let dir = tempfile::tempdir().unwrap();
         render_target(&bundle, Target::All, dir.path()).unwrap();
 
-        // Each host dir links skills + agents (always) + hooks.json (bundle has hooks).
+        // Each host dir links the shared skills + agents.
         for host in [".claude", ".gemini", ".codex"] {
             let h = dir.path().join(host);
             assert!(h.join("skills").exists(), "{host}/skills must resolve");
             assert!(h.join("agents").exists(), "{host}/agents must resolve");
-            assert!(
-                h.join("hooks.json").exists(),
-                "{host}/hooks.json must resolve (bundle has hooks)"
-            );
         }
-        // The links point to the right host hooks (distinct schemas).
-        let claude_hooks = std::fs::read_to_string(dir.path().join(".claude/hooks.json")).unwrap();
-        assert!(
-            claude_hooks.contains("\"SessionStart\""),
-            ".claude hooks must be the Claude schema"
-        );
-        let gemini_hooks = std::fs::read_to_string(dir.path().join(".gemini/hooks.json")).unwrap();
-        assert!(
-            gemini_hooks.contains("byoh-session-resume"),
-            ".gemini hooks must be the agy schema"
-        );
     }
 
     #[test]

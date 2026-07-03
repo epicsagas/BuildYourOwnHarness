@@ -47,15 +47,38 @@ pub fn catalog_vendor(
         ))
     })?;
 
+    // Trust gate: catalog entries reach this function from THREE sources — the
+    // README parse (already URL-gated), the remote bundle, and the local
+    // user-editable cache JSON. Validate here so every source is covered:
+    // only https://github.com URLs ever reach `git clone`.
+    if !crate::catalog::index::is_safe_github_url(&entry.github_url) {
+        return Err(crate::domain::ByohError::Schema(format!(
+            "catalog vendor: unsafe github_url '{}' for '{}' — only https://github.com sources are allowed",
+            entry.github_url, entry.id
+        )));
+    }
+
+    // Sanitize the catalog id (`owner/repo`) into a filesystem-safe skill id
+    // BEFORE it is used in any path (including the temp clone dir — on Windows
+    // a backslash in the id would escape temp_dir and the later remove_dir_all
+    // would delete the escaped location). `replace('/', "-")` alone still
+    // admits `..`; route through sanitize_skill_id for full rejection.
+    let raw = entry.id.replace('/', "-");
+    let skill_id = crate::deploy::sanitize_skill_id(&raw)
+        .map_err(|e| {
+            crate::domain::ByohError::Schema(format!(
+                "catalog vendor: unsafe plugin id '{}': {e}",
+                entry.id
+            ))
+        })?
+        .to_string();
+
     let fetched_at = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs().to_string())
         .unwrap_or_else(|_| "0".into());
 
-    let dest = std::env::temp_dir().join(format!(
-        "byoh-catalog-{}-{fetched_at}",
-        entry.id.replace('/', "-")
-    ));
+    let dest = std::env::temp_dir().join(format!("byoh-catalog-{skill_id}-{fetched_at}"));
 
     let _sha = fetch_git(&entry.github_url, "HEAD", None, &dest)?;
 
@@ -69,19 +92,6 @@ pub fn catalog_vendor(
             harvested_keywords.push(kw.clone());
         }
     }
-
-    // Sanitize the catalog id (`owner/repo`) into a filesystem-safe skill id.
-    // `replace('/', "-")` alone still admits `..`; route through sanitize_skill_id
-    // for full path-traversal / separator / charset rejection.
-    let raw = entry.id.replace('/', "-");
-    let skill_id = crate::deploy::sanitize_skill_id(&raw)
-        .map_err(|e| {
-            crate::domain::ByohError::Schema(format!(
-                "catalog vendor: unsafe plugin id '{}': {e}",
-                entry.id
-            ))
-        })?
-        .to_string();
     let vendor_result = vendor_add(
         &dest,
         resolved_genre,

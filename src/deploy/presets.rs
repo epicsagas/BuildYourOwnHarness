@@ -320,8 +320,10 @@ fn parse_frontmatter(raw: &str, fallback_id: &str) -> (String, String, String) {
 /// enrich skills in synthesis.
 fn vendored_or_raw(genre: Genre, skill_id: &str) -> Result<(String, bool)> {
     // Returns (body, is_vendored). is_vendored drives Ring assignment in inject.
-    // Priority: runtime override / disk read (dev + tests) → codegen'd embed
-    // (clean installed binary, build.rs) → compiled preset.
+    // Priority: runtime override / disk read (dev + tests; sha256-verified
+    // against the MANIFEST pin inside `vendored_body`) → codegen'd embed
+    // (clean installed binary, build.rs verifies the pin at embed time) →
+    // compiled preset.
     let root = crate::deploy::vendor::vendor_root();
     if let Some(body) = crate::deploy::vendor::vendored_body(&root, genre, skill_id) {
         return Ok((body, true));
@@ -336,11 +338,30 @@ pub fn inject_preset(bundle: &mut HarnessBundle, genre: Genre, skill_id: &str) -
     let (raw, is_vendored) = vendored_or_raw(genre, skill_id)?;
     let (name, description, body) = parse_frontmatter(&raw, skill_id);
 
+    // A vendored (external) body must never replace a safety-gate skill: an
+    // id-colliding community skill overwriting `critic`/`seesaw`/`stagnation`
+    // would rewrite the gate's own instructions.
+    if is_vendored && bundle.safety_gates.iter().any(|g| g == skill_id) {
+        return Err(crate::domain::ByohError::ValidationGateFailed {
+            gate: "preset_inject",
+            reason: format!(
+                "refusing to overwrite safety-gate skill '{skill_id}' with a vendored body"
+            ),
+        });
+    }
+
     if let Some(existing) = bundle.skills.iter_mut().find(|s| s.id == skill_id) {
-        // Augment: replace body/name/description, keep the existing ring.
+        // Augment: replace body/name/description. An EXTERNAL (vendored) body
+        // must also demote the skill to Ring 3 — otherwise vendoring a skill
+        // whose id collides with a base skill (`tdd`, `debug`, …) would land
+        // third-party content in Ring 1/2, bypassing the "external → Ring 3"
+        // invariant.
         existing.name = name;
         existing.description = description;
         existing.body_markdown = body;
+        if is_vendored {
+            existing.ring = Ring::Ring3;
+        }
     } else {
         // Clone: vendored (external, untrusted) skills land in Ring 3 (most
         // restricted); compiled presets stay in Ring 2 (quality).
@@ -503,23 +524,43 @@ mod tests {
         );
     }
 
+    /// Write a vendored body + a matching MANIFEST row (correct sha256 pin) —
+    /// mirrors what `vendor_add` produces, since `vendored_body` now refuses
+    /// any body without a verifiable pin.
+    fn write_pinned_vendored(root: &std::path::Path, genre: &str, id: &str, body: &str) {
+        use sha2::{Digest, Sha256};
+        let gdir = root.join("registry").join("vendored").join(genre);
+        std::fs::create_dir_all(&gdir).unwrap();
+        std::fs::write(gdir.join(format!("{id}.md")), body).unwrap();
+        let manifest = crate::deploy::VendorManifest {
+            entries: vec![crate::deploy::VendorEntry {
+                skill_id: id.into(),
+                genre: genre.into(),
+                source: "test".into(),
+                sha256: Sha256::digest(body.as_bytes())
+                    .iter()
+                    .map(|b| format!("{b:02x}"))
+                    .collect(),
+                fetched_at: "0".into(),
+                keywords: vec![],
+                license: "unknown".into(),
+            }],
+        };
+        crate::deploy::save_manifest(root, &manifest).unwrap();
+    }
+
     #[test]
     fn inject_prefers_vendored_body() {
         // Vendored override (thread-local → parallel-safe) should win over the
         // compiled preset for the same (genre, skill_id).
         use crate::deploy::vendor::set_vendor_root_override;
         let dir = tempfile::tempdir().unwrap();
-        let gdir = dir
-            .path()
-            .join("registry")
-            .join("vendored")
-            .join("developer");
-        std::fs::create_dir_all(&gdir).unwrap();
-        std::fs::write(
-            gdir.join("tdd.md"),
+        write_pinned_vendored(
+            dir.path(),
+            "developer",
+            "tdd",
             "---\nname: Vendored TDD\ndescription: override\n---\n# Vendored\n\nrich body",
-        )
-        .unwrap();
+        );
         set_vendor_root_override(Some(dir.path().to_path_buf()));
         let p = confirmed_developer_profile();
         let mut bundle = compile_profile(&p).unwrap();
@@ -531,6 +572,46 @@ mod tests {
             "got name={} body={}",
             tdd.name,
             tdd.body_markdown
+        );
+        // External body on an id-collision must be demoted to Ring 3.
+        assert_eq!(tdd.ring, crate::domain::bundle::Ring::Ring3);
+    }
+
+    #[test]
+    fn tampered_vendored_body_is_refused() {
+        // A body edited after vendoring no longer matches its MANIFEST pin —
+        // vendored_body must return None and injection falls back to the
+        // compiled preset (a pin that is never checked is not a pin).
+        use crate::deploy::vendor::set_vendor_root_override;
+        let dir = tempfile::tempdir().unwrap();
+        write_pinned_vendored(dir.path(), "developer", "tdd", "original body");
+        // Tamper post-vendor.
+        std::fs::write(
+            dir.path()
+                .join("registry/vendored/developer")
+                .join("tdd.md"),
+            "EVIL injected content",
+        )
+        .unwrap();
+        set_vendor_root_override(Some(dir.path().to_path_buf()));
+        let body = crate::deploy::vendored_body(dir.path(), Genre::Developer, "tdd");
+        set_vendor_root_override(None);
+        assert!(body.is_none(), "tampered body must be refused");
+    }
+
+    #[test]
+    fn vendored_body_never_replaces_safety_gate_skill() {
+        use crate::deploy::vendor::set_vendor_root_override;
+        let dir = tempfile::tempdir().unwrap();
+        write_pinned_vendored(dir.path(), "developer", "critic", "malicious gate rewrite");
+        set_vendor_root_override(Some(dir.path().to_path_buf()));
+        let p = confirmed_developer_profile();
+        let mut bundle = compile_profile(&p).unwrap();
+        let res = inject_preset(&mut bundle, Genre::Developer, "critic");
+        set_vendor_root_override(None);
+        assert!(
+            res.is_err(),
+            "vendored body must not overwrite a gate skill"
         );
     }
 }

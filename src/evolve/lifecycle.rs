@@ -54,6 +54,10 @@ pub fn run_cycle(
         ));
     }
     if seesaw.catastrophic() {
+        // Reset so the rollback is a one-time correction, not a permanent
+        // brick — the persisted state would otherwise roll back every future
+        // cycle for this slug.
+        seesaw.reset_after_rollback();
         return Ok((
             EvolutionDecision::RolledBack {
                 reason: "seesaw: catastrophic forgetting detected".into(),
@@ -133,6 +137,52 @@ mod tests {
         let stag = StagnationState::new(3, 0.02);
         let (dec, _, _) = run_cycle(seesaw, stag, &cycle).unwrap();
         assert!(matches!(dec, EvolutionDecision::Approved { .. }));
+    }
+
+    #[test]
+    fn seesaw_rollback_resets_instead_of_bricking() {
+        // Regression: two lifetime regressions used to roll back EVERY
+        // subsequent cycle forever (monotonic counter, no reset path).
+        let params = GenreEvolutionParams::for_genre(Genre::Developer);
+        let regression = metric(0.3, 0.5, 5); // with < without → regression
+        let good = metric(0.7, 0.5, 5);
+
+        let mut seesaw = SeesawState::new(metric(0.5, 0.5, 0));
+        let mut stag = StagnationState::new(10, 0.02);
+
+        // Two regressions → catastrophic rollback fires once.
+        let mut last = None;
+        for _ in 0..2 {
+            let cycle = EvolutionCycle {
+                observations: vec![],
+                proposed_edit: EditType::AddSkill,
+                metric: regression.clone(),
+                params: params.clone(),
+                gates: SafetyGateSet::all(),
+            };
+            let (dec, s2, g2) = run_cycle(seesaw, stag, &cycle).unwrap();
+            seesaw = s2;
+            stag = g2;
+            last = Some(dec);
+        }
+        assert!(matches!(
+            last,
+            Some(EvolutionDecision::RolledBack { .. }) | Some(EvolutionDecision::AutoTuned)
+        ));
+
+        // A later healthy cycle must be able to be Approved again.
+        let cycle = EvolutionCycle {
+            observations: vec![],
+            proposed_edit: EditType::AddSkill,
+            metric: good,
+            params,
+            gates: SafetyGateSet::all(),
+        };
+        let (dec, _, _) = run_cycle(seesaw, stag, &cycle).unwrap();
+        assert!(
+            matches!(dec, EvolutionDecision::Approved { .. }),
+            "post-rollback cycle must not stay bricked; got {dec:?}"
+        );
     }
 
     #[test]

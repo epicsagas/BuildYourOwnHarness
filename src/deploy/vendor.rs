@@ -232,14 +232,33 @@ fn resolve_skill_body(source: &Path, skill_id: &str) -> Result<String> {
     )))
 }
 
-/// Read a vendored skill body back from disk (runtime read; files are committed).
+/// Read a vendored skill body back from disk (runtime read; files are
+/// committed), **verifying its sha256 against the MANIFEST pin**. A body whose
+/// hash no longer matches the recorded pin (post-vendor tampering, manual
+/// edit without re-vendoring) is refused — a pin that is never checked is not
+/// a pin. Returns `None` when the file or its manifest row is missing or the
+/// hash mismatches (callers treat `None` as "not vendored").
 pub fn vendored_body(repo_root: &Path, genre: Genre, skill_id: &str) -> Option<String> {
-    fs::read_to_string(
+    let body = fs::read_to_string(
         vendored_dir(repo_root)
             .join(genre.as_str())
             .join(format!("{skill_id}.md")),
     )
-    .ok()
+    .ok()?;
+    let manifest = load_manifest(repo_root).ok()?;
+    let entry = manifest
+        .entries
+        .iter()
+        .find(|e| e.skill_id == skill_id && e.genre == genre.as_str())?;
+    if sha256_hex(body.as_bytes()) != entry.sha256 {
+        eprintln!(
+            "[byoh vendor] sha256 mismatch for vendored '{skill_id}' ({genre}) — \
+             refusing the tampered body; re-run `byoh vendor add` to re-pin",
+            genre = genre.as_str()
+        );
+        return None;
+    }
+    Some(body)
 }
 
 /// List all vendored skill records (from `MANIFEST.toml`).
@@ -396,6 +415,15 @@ pub fn fetch_git(
     expected_sha: Option<&str>,
     dest: &Path,
 ) -> Result<String> {
+    // Scheme gate: only https:// ever reaches `git clone`. This closes git's
+    // `ext::`/`ssh://`/`file://` transports as command-execution / local-read
+    // primitives when the URL comes from an untrusted place (catalog bundle,
+    // user-editable cache JSON).
+    if !url.starts_with("https://") {
+        return Err(ByohError::Schema(format!(
+            "fetch_git: refusing non-https git source '{url}'"
+        )));
+    }
     if !git_available() {
         return Err(ByohError::Schema(
             "git not found on PATH; install git or vendor from a local path".into(),
@@ -405,8 +433,10 @@ pub fn fetch_git(
         .to_str()
         .ok_or_else(|| ByohError::Schema("fetch_git: dest path is not UTF-8".into()))?;
 
+    // `--` terminates option parsing so a hostile URL can never smuggle a
+    // `--upload-pack=<cmd>`-style option into git.
     let clone = Command::new("git")
-        .args(["clone", "--depth", "1", url, dest_str])
+        .args(["clone", "--depth", "1", "--", url, dest_str])
         .status()
         .map_err(|e| ByohError::Schema(format!("git clone failed: {e}")))?;
     if !clone.success() {
@@ -434,7 +464,15 @@ pub fn fetch_git(
 
     if let Some(exp) = expected_sha {
         let exp = exp.trim();
-        if !sha.starts_with(exp) && !exp.starts_with(&sha) {
+        // A too-short prefix pins nothing (a 1-char "sha" matches 1/16 of all
+        // commits); require at least the conventional 7-char short sha.
+        if exp.len() < 7 {
+            return Err(ByohError::Schema(format!(
+                "--sha prefix too short ({} chars): pass at least 7",
+                exp.len()
+            )));
+        }
+        if !sha.starts_with(exp) {
             return Err(ByohError::Schema(format!(
                 "sha mismatch: expected {exp}, got {sha}"
             )));

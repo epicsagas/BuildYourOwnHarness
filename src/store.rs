@@ -50,19 +50,30 @@ pub fn sanitize_slug(slug: &str) -> Result<&str> {
     Ok(slug)
 }
 
-/// The BYOH home directory (`$BYOH_HOME`, default `.byoh`).
+/// The BYOH home directory (`$BYOH_HOME`, default `~/.byoh`).
 /// Profiles live under `<home>/profiles/`.
 ///
 /// Resolution order: thread-local test override (`set_home_override`) →
-/// `$BYOH_HOME` → `.byoh`. The override exists so tests can isolate the home
-/// directory **without mutating process-global env vars**, which became
-/// `unsafe` in the Rust 2024 edition (`std::env::set_var`) and are incompatible
-/// with this crate's `#![forbid(unsafe_code)]`.
+/// `$BYOH_HOME` → `$HOME/.byoh` (`%USERPROFILE%\.byoh` on Windows) →
+/// `.byoh` as a last resort when no home dir is resolvable. A user-global
+/// default means profiles and the catalog cache do not fragment per cwd —
+/// the MCP server is launched with an arbitrary cwd by the host.
+///
+/// The override exists so tests can isolate the home directory **without
+/// mutating process-global env vars**, which became `unsafe` in the Rust 2024
+/// edition (`std::env::set_var`) and are incompatible with this crate's
+/// `#![forbid(unsafe_code)]`.
 pub fn byoh_home() -> PathBuf {
     if let Some(p) = HOME_OVERRIDE.with(|c| c.borrow().clone()) {
         return p;
     }
-    PathBuf::from(std::env::var("BYOH_HOME").unwrap_or_else(|_| ".byoh".to_string()))
+    if let Ok(explicit) = std::env::var("BYOH_HOME") {
+        return PathBuf::from(explicit);
+    }
+    std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .map(|h| PathBuf::from(h).join(".byoh"))
+        .unwrap_or_else(|_| PathBuf::from(".byoh"))
 }
 
 thread_local! {
@@ -89,13 +100,19 @@ pub fn profiles_root_in(home: &Path) -> PathBuf {
 }
 
 /// Path to a profile YAML by slug: `<profiles_root>/<slug>.yaml`.
-pub fn profile_path(slug: &str) -> PathBuf {
-    profiles_root().join(format!("{slug}.yaml"))
+///
+/// This is the single choke point between a slug and the filesystem: every
+/// caller (CLI *and* MCP tools) gets `sanitize_slug` here, so a hostile slug
+/// (`"/tmp/evil"`, `"../../x"`) can never escape the profiles root via
+/// `Path::join`.
+pub fn profile_path(slug: &str) -> Result<PathBuf> {
+    let slug = sanitize_slug(slug)?;
+    Ok(profiles_root().join(format!("{slug}.yaml")))
 }
 
 /// Load a profile YAML by slug. Errors surface as `ByohError::Io` / `SerdeYaml`.
 pub fn load_profile(slug: &str) -> Result<UserProfile> {
-    let path = profile_path(slug);
+    let path = profile_path(slug)?;
     let body = std::fs::read_to_string(&path).map_err(|e| io_at(&path, e))?;
     Ok(serde_yaml::from_str(&body)?)
 }
@@ -104,6 +121,7 @@ pub fn load_profile(slug: &str) -> Result<UserProfile> {
 /// `spawn_blocking` worker threads where the thread-local home override is not
 /// visible (see [`profiles_root_in`]).
 pub fn load_profile_in(home: &Path, slug: &str) -> Result<UserProfile> {
+    let slug = sanitize_slug(slug)?;
     let path = profiles_root_in(home).join(format!("{slug}.yaml"));
     let body = std::fs::read_to_string(&path).map_err(|e| io_at(&path, e))?;
     Ok(serde_yaml::from_str(&body)?)
@@ -111,7 +129,19 @@ pub fn load_profile_in(home: &Path, slug: &str) -> Result<UserProfile> {
 
 /// Persist a profile (creates the parent directory). Errors: `SerdeYaml` / `Io`.
 pub fn write_profile(p: &UserProfile) -> Result<()> {
-    let path = profile_path(&p.slug);
+    let path = profile_path(&p.slug)?;
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(&path, serde_yaml::to_string(p)?)?;
+    Ok(())
+}
+
+/// Persist a profile under an explicit `home` directory (spawn_blocking-safe
+/// counterpart of [`write_profile`]; see [`profiles_root_in`]).
+pub fn write_profile_in(home: &Path, p: &UserProfile) -> Result<()> {
+    let slug = sanitize_slug(&p.slug)?;
+    let path = profiles_root_in(home).join(format!("{slug}.yaml"));
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -209,5 +239,35 @@ mod tests {
         let loaded = load_profile("round-trip").unwrap();
         assert_eq!(loaded.slug, "round-trip");
         set_home_override(None);
+    }
+
+    #[test]
+    fn store_rejects_hostile_slugs_at_the_choke_point() {
+        let dir = tempfile::tempdir().unwrap();
+        isolate_home(dir.path());
+        // Absolute path: Path::join would DISCARD the profiles root entirely.
+        assert!(load_profile("/tmp/evil").is_err());
+        assert!(load_profile_in(dir.path(), "../../escape").is_err());
+        let mut p = UserProfile::new_draft("ok", "en");
+        p.slug = "../outside".into();
+        assert!(write_profile(&p).is_err());
+        assert!(write_profile_in(dir.path(), &p).is_err());
+        assert!(profile_path("/abs/path").is_err());
+        set_home_override(None);
+    }
+
+    #[test]
+    fn byoh_home_defaults_to_user_home_not_cwd() {
+        set_home_override(None);
+        // Not asserting the exact path (env-dependent): assert the invariant —
+        // the default is NOT the bare cwd-relative ".byoh" when a home dir or
+        // BYOH_HOME is available (either env makes it absolute).
+        let home = byoh_home();
+        if std::env::var("BYOH_HOME").is_ok()
+            || std::env::var("HOME").is_ok()
+            || std::env::var("USERPROFILE").is_ok()
+        {
+            assert!(home.is_absolute() || std::env::var("BYOH_HOME").is_ok());
+        }
     }
 }

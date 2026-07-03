@@ -85,10 +85,9 @@ pub struct CriticVerdict {
 /// rule, deleting a skill to game a metric, or config that disables evaluation).
 pub fn critic_review(edit: &EditType, metric: &AbMetric, critic_weight: f64) -> CriticVerdict {
     let weight = critic_weight.max(0.0);
-    // Reward-hacking heuristics:
+    // Reward-hacking heuristics: deleting a skill to game a metric, or an
+    // implausible score jump on thin evidence.
     let hacking = matches!(edit, EditType::RemoveSkill)
-        || matches!(edit, EditType::AddGuardRule
-            if false)
         || (metric.samples_with > 0
             && metric.avg_score_with > 0.99
             && metric.avg_score_without < 0.5);
@@ -147,6 +146,15 @@ impl SeesawState {
     /// After >=2 regressions we treat it as catastrophic forgetting.
     pub fn catastrophic(&self) -> bool {
         self.regressions >= 2
+    }
+
+    /// Clear the regression counter after a catastrophic rollback has fired.
+    /// The rollback IS the corrective action — without this reset the counter
+    /// is monotonic and every later cycle for the slug rolls back forever
+    /// (evolution bricks permanently). Mirrors StagnationState, which already
+    /// zeroes its counter when its rollback fires.
+    pub fn reset_after_rollback(&mut self) {
+        self.regressions = 0;
     }
 }
 

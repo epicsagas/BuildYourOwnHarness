@@ -12,6 +12,7 @@
 //! path for shipped binaries.
 
 use serde::Deserialize;
+use sha2::{Digest, Sha256};
 use std::env;
 use std::fs;
 use std::path::PathBuf;
@@ -28,6 +29,15 @@ struct Entry {
     genre: String,
     #[serde(default)]
     keywords: Vec<String>,
+    /// sha256 pin recorded at vendor time. Verified here so a tampered .md can
+    /// never be embedded into the binary.
+    #[serde(default)]
+    sha256: String,
+}
+
+/// Reject ids that could traverse out of `registry/vendored/` when joined.
+fn is_safe_component(s: &str) -> bool {
+    !s.is_empty() && !s.contains(['/', '\\']) && s != "." && s != ".."
 }
 
 /// One vendored skill, resolved against the source tree (files must exist).
@@ -48,8 +58,19 @@ fn main() {
     let mut vendored: Vec<Vendored> = Vec::new();
     if manifest_path.is_file() {
         let raw = fs::read_to_string(&manifest_path).unwrap_or_default();
-        let manifest: Manifest = toml::from_str(&raw).unwrap_or(Manifest { entries: vec![] });
+        // A malformed MANIFEST must fail the build loudly — silently degrading
+        // to an empty catalog makes vendored skills vanish from the binary with
+        // no signal.
+        let manifest: Manifest = toml::from_str(&raw).unwrap_or_else(|e| {
+            panic!("registry/vendored/MANIFEST.toml is malformed: {e}");
+        });
         for e in manifest.entries {
+            assert!(
+                is_safe_component(&e.genre) && is_safe_component(&e.skill_id),
+                "vendored manifest entry has unsafe genre/skill_id: '{}'/'{}'",
+                e.genre,
+                e.skill_id
+            );
             let body_path = vendored_dir
                 .join(&e.genre)
                 .join(format!("{}.md", e.skill_id));
@@ -59,6 +80,25 @@ fn main() {
                     body_path.display()
                 );
                 continue;
+            }
+            // Enforce the sha256 pin at embed time: a body that no longer
+            // matches its vendor-time hash must never reach the binary.
+            let body = fs::read_to_string(&body_path).expect("read vendored body");
+            let actual = format!("{:x}", Sha256::digest(body.as_bytes()));
+            assert!(
+                e.sha256.is_empty() || actual == e.sha256,
+                "vendored '{}' ({}) sha256 mismatch: manifest pins {}, file is {} — \
+                 re-run `byoh vendor add` to re-pin or restore the original file",
+                e.skill_id,
+                e.genre,
+                e.sha256,
+                actual
+            );
+            if e.sha256.is_empty() {
+                println!(
+                    "cargo:warning=vendored '{}' has no sha256 pin in MANIFEST.toml (embedding unverified)",
+                    e.skill_id
+                );
             }
             // Register the body file as a rerun trigger.
             println!("cargo:rerun-if-changed={}", body_path.display());

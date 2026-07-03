@@ -1,34 +1,25 @@
 //! Rule-based interview adapter — S2 Suggest-Confirm loop.
 
-use std::collections::HashMap;
-
 use crate::domain::profile::{Axis, UserProfile};
 use crate::ports::interview::{InterviewPort, Question};
-use crate::ports::llm::{LlmPort, Suggestion};
 
-/// Drives S2 using an LLM port for suggestions. Axis coverage is tracked in
-/// `interview_meta.axis_completion`.
-pub struct RuleInterview<L: LlmPort> {
-    llm: L,
-}
+/// Rule-based S2 interview: three axis questions (domain / goal / genre).
+/// Axis coverage is tracked in `interview_meta.axis_completion`.
+#[derive(Debug, Default, Clone)]
+pub struct RuleInterview;
 
-impl<L: LlmPort> RuleInterview<L> {
-    pub fn new(llm: L) -> Self {
-        Self { llm }
+impl RuleInterview {
+    pub fn new() -> Self {
+        Self
     }
 }
 
-impl<L: LlmPort> InterviewPort for RuleInterview<L> {
+impl InterviewPort for RuleInterview {
     fn next_questions(&self, profile: &UserProfile) -> Vec<Question> {
         let lang = &profile.language;
-        let weak = profile.weak_candidates();
-        let suggestions = self.llm.suggest_for(&weak, lang);
-
-        let mut by_id: HashMap<String, Suggestion> = HashMap::new();
-        for s in suggestions {
-            by_id.insert(s.question_id.clone(), s);
-        }
-
+        // No auto-suggestions are attached: scan-derived candidates are keyed by
+        // weak-candidate index, not by question, so mapping them onto questions
+        // would write machine noise into the truth block (Suggest-don't-move).
         let mut qs = Vec::new();
 
         // Identity/domain questions target the Tacit axis.
@@ -42,7 +33,7 @@ impl<L: LlmPort> InterviewPort for RuleInterview<L> {
                     "What is your primary working domain?".into()
                 },
                 axis: Axis::Tacit,
-                suggestion: by_id.get("Q1").cloned(),
+                suggestion: None,
             });
         }
 
@@ -56,7 +47,7 @@ impl<L: LlmPort> InterviewPort for RuleInterview<L> {
                     "What is your single most important goal for the next 30 days?".into()
                 },
                 axis: Axis::Goals,
-                suggestion: by_id.get("Q2").cloned(),
+                suggestion: None,
             });
         }
 
@@ -78,7 +69,7 @@ impl<L: LlmPort> InterviewPort for RuleInterview<L> {
                     "Which genre best fits your work? (developer/creator/researcher/business)".into()
                 },
                 axis: Axis::Genre,
-                suggestion: by_id.get("Q3").cloned(),
+                suggestion: None,
             });
         }
 
@@ -106,15 +97,22 @@ impl<L: LlmPort> InterviewPort for RuleInterview<L> {
                 profile.set_axis(Axis::Goals, 0.8_f64.max(confidence));
             }
             "Q_genre" => {
-                if let Ok(g) = accepted_answer.parse::<crate::domain::genre::Genre>() {
+                // Only an answer that parses to a real genre completes the axis;
+                // an unparseable answer leaves the question open instead of
+                // "completing" the interview with no genre.
+                if let Ok(g) = accepted_answer
+                    .trim()
+                    .to_lowercase()
+                    .parse::<crate::domain::genre::Genre>()
+                {
                     profile.candidates.identity.genre =
                         Some(crate::domain::profile::GenreConfidence {
                             value: g,
                             confidence,
                             provenance: vec!["interview".into()],
                         });
+                    profile.set_axis(Axis::Genre, 0.9_f64.max(confidence));
                 }
-                profile.set_axis(Axis::Genre, 0.9_f64.max(confidence));
             }
             _ => {}
         }
@@ -130,14 +128,12 @@ impl<L: LlmPort> InterviewPort for RuleInterview<L> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::adapters::RuleLlm;
 
     #[test]
     fn interview_fills_truth_and_advances_axes() {
-        let llm = RuleLlm::new();
-        let iv = RuleInterview::new(llm);
+        let iv = RuleInterview::new();
         let mut p = UserProfile::new_draft("dev1", "en");
-        // seed a weak candidate so the LLM offers suggestions
+        // seed a weak candidate (scan-derived; must NOT leak into questions)
         p.candidates
             .identity
             .primary_expertise
@@ -151,8 +147,25 @@ mod tests {
         assert!(!qs.is_empty());
 
         for q in &qs {
-            iv.apply_answer(&mut p, q, "backend", 0.9);
+            let answer = if q.id == "Q_genre" {
+                "Developer"
+            } else {
+                "backend"
+            };
+            iv.apply_answer(&mut p, q, answer, 0.9);
         }
         assert!(iv.is_complete(&p));
+    }
+
+    #[test]
+    fn unparseable_genre_leaves_axis_incomplete() {
+        let iv = RuleInterview::new();
+        let mut p = UserProfile::new_draft("dev1", "en");
+        let qs = iv.next_questions(&p);
+        for q in &qs {
+            iv.apply_answer(&mut p, q, "not-a-genre", 0.9);
+        }
+        assert!(p.candidates.identity.genre.is_none());
+        assert!(!iv.is_complete(&p));
     }
 }

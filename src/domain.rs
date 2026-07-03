@@ -10,7 +10,6 @@ pub mod genre;
 pub mod profile;
 pub mod render_target;
 pub mod scope;
-pub mod state;
 pub mod synthesis;
 
 pub use bundle::{
@@ -24,4 +23,3 @@ pub use profile::{
     DraftProfile, GenreConfidence, InterviewMeta, ProfileStatus, ProviderPreference, TruthBlock,
     UserProfile,
 };
-pub use state::{Transition, lifecycle};

@@ -37,6 +37,57 @@ async fn genre_list_returns_four_genres() {
     let s = server();
     let res = s.genre_list();
     assert!(!res.is_error.unwrap_or(false));
+    // Assert the promise in the name, not just "didn't crash": all 4 genres.
+    let text = format!("{:?}", res.content);
+    for g in ["developer", "creator", "researcher", "business"] {
+        assert!(text.contains(g), "genre_list must include '{g}'");
+    }
+}
+
+#[serial]
+#[tokio::test]
+async fn hostile_slugs_are_rejected_over_mcp() {
+    // Regression (path traversal): `Path::join` with an absolute slug discards
+    // the profiles root entirely; `../` walks out of it. Every MCP profile
+    // tool must reject such slugs at the store choke point.
+    let s = server();
+    for slug in ["/tmp/evil", "../../escape", "a/b", "UPPER"] {
+        let created = s.profile_create(Parameters(ProfileCreateParams {
+            slug: slug.into(),
+            scan_paths: vec![],
+            language: Some("en".into()),
+        }));
+        assert!(
+            created.is_error.unwrap_or(false),
+            "profile_create must reject slug '{slug}'"
+        );
+        let read = s.profile_read(Parameters(ProfileReadParams { slug: slug.into() }));
+        assert!(
+            read.is_error.unwrap_or(false),
+            "profile_read must reject slug '{slug}'"
+        );
+    }
+}
+
+#[serial]
+#[tokio::test]
+async fn compile_requires_confirmed_profile() {
+    // The state machine must hold on the MCP surface, not just the CLI: a
+    // Draft profile must not compile/render/install.
+    let s = server();
+    let _ = s.profile_create(Parameters(ProfileCreateParams {
+        slug: "draftonly".into(),
+        scan_paths: vec![],
+        language: Some("en".into()),
+    }));
+    let compiled = s.compile(Parameters(CompileParams {
+        slug: "draftonly".into(),
+        run_static_gate: true,
+    }));
+    assert!(
+        compiled.is_error.unwrap_or(false),
+        "compile must refuse a Draft profile"
+    );
 }
 
 #[serial]
@@ -55,7 +106,8 @@ async fn agent_led_flow_create_confirm_compile_clone() {
         "profile_create should succeed"
     );
 
-    // S3 confirm (skip interview in this test — empty answers auto-accept).
+    // S3 confirm (skip the interview in this test — unanswered questions stay
+    // open, and confirm advances a Draft profile through Interviewed itself).
     let _ = s.profile_interview(Parameters(ProfileInterviewParams {
         slug: "devtest".into(),
         answers: HashMap::new(),

@@ -18,13 +18,13 @@ use rmcp::transport::stdio;
 use rmcp::{ServerHandler, ServiceExt};
 use serde_json::{Value, json};
 
-use crate::adapters::{FilesystemSource, RuleInterview, RuleLlm, StaticWizard};
+use crate::adapters::{FilesystemSource, RuleInterview, RuleLlm};
 use crate::application::ProfileOrchestrator;
 use crate::domain::bundle::HarnessBundle;
 use crate::domain::error::ByohError;
 use crate::domain::evidence::AbMetric;
 use crate::domain::genre::Genre;
-use crate::domain::profile::UserProfile;
+use crate::domain::profile::{ProfileStatus, UserProfile};
 use crate::evolve::EvolutionDecision;
 
 use super::params::*;
@@ -68,18 +68,29 @@ impl ByohServer {
 // ─── helpers ────────────────────────────────────────────────────────────────
 
 /// Build a rule-based orchestrator (no network, no model). Owned locally.
-fn orchestrator() -> (
-    FilesystemSource,
-    RuleLlm,
-    RuleInterview<RuleLlm>,
-    StaticWizard,
-) {
+fn orchestrator() -> (FilesystemSource, RuleLlm, RuleInterview) {
     (
         FilesystemSource::new(),
         RuleLlm::new(),
-        RuleInterview::new(RuleLlm::new()),
-        StaticWizard::new(),
+        RuleInterview::new(),
     )
+}
+
+/// Guard: the compile/render/install surface requires a Confirmed profile —
+/// the same state-machine rule the CLI enforces. Without this, an agent could
+/// compile and install a Draft profile and the 4-state machine would be
+/// decorative at the API boundary agents actually use.
+fn require_confirmed(profile: &UserProfile) -> Result<(), ByohError> {
+    if profile.status != ProfileStatus::Confirmed {
+        return Err(ByohError::ValidationGateFailed {
+            gate: "profile_status",
+            reason: format!(
+                "profile '{}' is {:?}, not Confirmed — call profile_confirm first",
+                profile.slug, profile.status
+            ),
+        });
+    }
+    Ok(())
 }
 
 fn parse_genre(s: &str) -> Result<Genre, ByohError> {
@@ -130,10 +141,11 @@ fn static_gate_json(r: &crate::compiler::StaticGateReport) -> Value {
 /// Project a `DryRunReport` (non-Serialize) into JSON.
 fn dry_run_json(r: &crate::compiler::DryRunReport) -> Value {
     json!({
-        "spec_ok": r.spec_ok,
-        "go_ok": r.go_ok,
-        "check_ok": r.check_ok,
+        "pipeline_ok": r.pipeline_ok,
+        "skills_ok": r.skills_ok,
+        "agents_ok": r.agents_ok,
         "tools_list_ok": r.tools_list_ok,
+        "errors": r.errors,
         "fallbacks": r.fallbacks,
         "passed": r.passed(),
     })
@@ -180,7 +192,7 @@ fn compact_status(profile: &UserProfile) -> Value {
 impl ByohServer {
     #[tool(description = "Read a BYOH user profile by slug. Returns the full profile as JSON.")]
     pub fn profile_read(&self, Parameters(p): Parameters<ProfileReadParams>) -> CallToolResult {
-        tool_result!(crate::store::load_profile(&p.slug))
+        tool_result!(crate::store::load_profile_in(&self.ctx.home, &p.slug))
     }
 
     #[tool(
@@ -190,15 +202,15 @@ impl ByohServer {
         let lang = p.language.as_deref().unwrap_or("ko");
         let mut profile = UserProfile::new_draft(&p.slug, lang);
         if !p.scan_paths.is_empty() {
-            let (src, llm, iv, wz) = orchestrator();
-            let orch = ProfileOrchestrator::new(&src, &llm, &iv, &wz);
+            let (src, llm, iv) = orchestrator();
+            let orch = ProfileOrchestrator::new(&src, &llm, &iv);
             let path_refs: Vec<&std::path::Path> =
                 p.scan_paths.iter().map(|s| s.as_str().as_ref()).collect();
             if let Err(e) = orch.stage1_scan(&mut profile, &path_refs) {
                 return err_result(e);
             }
         }
-        match crate::store::write_profile(&profile) {
+        match crate::store::write_profile_in(&self.ctx.home, &profile) {
             Ok(()) => ok_value(compact_status(&profile)),
             Err(e) => err_result(e),
         }
@@ -211,8 +223,12 @@ impl ByohServer {
         &self,
         Parameters(p): Parameters<ProfileScanParams>,
     ) -> CallToolResult {
-        // Move owned data into the blocking task (no borrowed refs).
-        let res = tokio::task::spawn_blocking(move || profile_scan_sync(&p.slug, &p.paths)).await;
+        // Move owned data into the blocking task (no borrowed refs). The home is
+        // captured on THIS thread so the worker never consults the thread-local
+        // override it cannot see.
+        let home = self.ctx.home.clone();
+        let res =
+            tokio::task::spawn_blocking(move || profile_scan_sync(&home, &p.slug, &p.paths)).await;
         match res {
             Ok(r) => r,
             Err(join_err) => err_result(crate::domain::error::ByohError::Other(format!(
@@ -222,21 +238,25 @@ impl ByohServer {
     }
 
     #[tool(
-        description = "Run the S2 interview step. Empty answers auto-accept rule-based suggestions. Returns the updated profile + any surfaced council questions."
+        description = "Run the S2 interview step. Only explicit answers are applied; unanswered questions stay open for the next call (ask the user, then call again). Returns the updated status + any surfaced council questions."
     )]
     pub fn profile_interview(
         &self,
         Parameters(p): Parameters<ProfileInterviewParams>,
     ) -> CallToolResult {
-        let mut profile = match crate::store::load_profile(&p.slug) {
+        let mut profile = match crate::store::load_profile_in(&self.ctx.home, &p.slug) {
             Ok(p) => p,
             Err(e) => return err_result(e),
         };
-        let (src, llm, iv, wz) = orchestrator();
-        let orch = ProfileOrchestrator::new(&src, &llm, &iv, &wz);
+        let (src, llm, iv) = orchestrator();
+        let orch = ProfileOrchestrator::new(&src, &llm, &iv);
         match orch.stage2_interview(&mut profile, &p.answers) {
             Ok(council) => {
-                let _ = crate::store::write_profile(&profile);
+                // A failed persist must be an error, not a silent success —
+                // otherwise the next profile_confirm operates on stale state.
+                if let Err(e) = crate::store::write_profile_in(&self.ctx.home, &profile) {
+                    return err_result(e);
+                }
                 // Enrich with catalog suggestions so the LLM can recommend plugins
                 // mid-interview without a separate tool call.
                 let tags = crate::application::synthesis::profile_tags(&profile);
@@ -279,14 +299,21 @@ impl ByohServer {
             Ok(g) => g,
             Err(e) => return err_result(e),
         };
-        let mut profile = match crate::store::load_profile(&p.slug) {
+        let mut profile = match crate::store::load_profile_in(&self.ctx.home, &p.slug) {
             Ok(p) => p,
             Err(e) => return err_result(e),
         };
-        let (src, llm, iv, wz) = orchestrator();
-        let orch = ProfileOrchestrator::new(&src, &llm, &iv, &wz);
+        // Allow the minimal create → confirm path (Draft → Interviewed is a
+        // formality when the caller already knows genre/goal), matching the CLI.
+        if profile.status == ProfileStatus::Draft {
+            if let Err(e) = profile.advance(ProfileStatus::Interviewed) {
+                return err_result(e);
+            }
+        }
+        let (src, llm, iv) = orchestrator();
+        let orch = ProfileOrchestrator::new(&src, &llm, &iv);
         match orch.stage3_confirm(&mut profile, genre, p.goal_30d.as_deref()) {
-            Ok(()) => match crate::store::write_profile(&profile) {
+            Ok(()) => match crate::store::write_profile_in(&self.ctx.home, &profile) {
                 Ok(()) => ok_value(compact_status(&profile)),
                 Err(e) => err_result(e),
             },
@@ -316,10 +343,13 @@ impl ByohServer {
         description = "Compile a confirmed profile into a HarnessBundle (4-Ring). Optionally run the static gate. Returns the bundle (and gate report)."
     )]
     pub fn compile(&self, Parameters(p): Parameters<CompileParams>) -> CallToolResult {
-        let profile = match crate::store::load_profile(&p.slug) {
+        let profile = match crate::store::load_profile_in(&self.ctx.home, &p.slug) {
             Ok(p) => p,
             Err(e) => return err_result(e),
         };
+        if let Err(e) = require_confirmed(&profile) {
+            return err_result(e);
+        }
         match crate::compiler::compile_profile(&profile) {
             Ok(bundle) => {
                 if p.run_static_gate {
@@ -403,10 +433,13 @@ impl ByohServer {
             Ok(g) => g,
             Err(e) => return err_result(e),
         };
-        let profile = match crate::store::load_profile(&p.slug) {
+        let profile = match crate::store::load_profile_in(&self.ctx.home, &p.slug) {
             Ok(p) => p,
             Err(e) => return err_result(e),
         };
+        if let Err(e) = require_confirmed(&profile) {
+            return err_result(e);
+        }
         let mut bundle: HarnessBundle = match crate::compiler::compile_profile(&profile) {
             Ok(b) => b,
             Err(e) => return err_result(e),
@@ -556,6 +589,9 @@ fn render_plugin_blocking(home: &std::path::Path, p: &RenderPluginParams) -> Cal
         Ok(pr) => pr,
         Err(e) => return err_result(e),
     };
+    if let Err(e) = require_confirmed(&profile) {
+        return err_result(e);
+    }
     let (bundle, _plan) = match crate::application::synthesize(&profile) {
         Ok(b) => b,
         Err(e) => return err_result(e),
@@ -587,6 +623,9 @@ fn install_plugin_blocking(
         Ok(pr) => pr,
         Err(e) => return err_result(e),
     };
+    if let Err(e) = require_confirmed(&profile) {
+        return err_result(e);
+    }
     let (bundle, _plan) = match crate::application::synthesize(&profile) {
         Ok(b) => b,
         Err(e) => return err_result(e),
@@ -669,17 +708,18 @@ fn install_plugin_blocking(
 }
 
 /// Synchronous body of `profile_scan`. Owned inputs so it can move into a
-/// `spawn_blocking` task.
-fn profile_scan_sync(slug: &str, paths: &[String]) -> CallToolResult {
-    let mut profile = match crate::store::load_profile(slug) {
+/// `spawn_blocking` task; `home` is resolved by the caller on the runtime
+/// thread (worker threads can't see the thread-local home override).
+fn profile_scan_sync(home: &std::path::Path, slug: &str, paths: &[String]) -> CallToolResult {
+    let mut profile = match crate::store::load_profile_in(home, slug) {
         Ok(p) => p,
         Err(e) => return err_result(e),
     };
-    let (src, llm, iv, wz) = orchestrator();
-    let orch = ProfileOrchestrator::new(&src, &llm, &iv, &wz);
+    let (src, llm, iv) = orchestrator();
+    let orch = ProfileOrchestrator::new(&src, &llm, &iv);
     let path_refs: Vec<&std::path::Path> = paths.iter().map(|s| s.as_str().as_ref()).collect();
     match orch.stage1_scan(&mut profile, &path_refs) {
-        Ok(()) => match crate::store::write_profile(&profile) {
+        Ok(()) => match crate::store::write_profile_in(home, &profile) {
             Ok(()) => ok_value(compact_status(&profile)),
             Err(e) => err_result(e),
         },
@@ -693,6 +733,9 @@ fn compile_dry_run_sync(home: &std::path::Path, slug: &str) -> CallToolResult {
         Ok(p) => p,
         Err(e) => return err_result(e),
     };
+    if let Err(e) = require_confirmed(&profile) {
+        return err_result(e);
+    }
     let bundle = match crate::compiler::compile_profile(&profile) {
         Ok(b) => b,
         Err(e) => return err_result(e),

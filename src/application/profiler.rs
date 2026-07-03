@@ -7,29 +7,25 @@ use crate::domain::profile::{DerivedFact, GenreConfidence, ProfileStatus, UserPr
 use crate::ports::interview::InterviewPort;
 use crate::ports::llm::LlmPort;
 use crate::ports::source::ProfileSource;
-use crate::ports::wizard::WizardPort;
 
 /// Wires the three engines behind a single facade.
-pub struct ProfileOrchestrator<'a, S, L, I, W> {
+pub struct ProfileOrchestrator<'a, S, L, I> {
     pub source: &'a S,
     pub llm: &'a L,
     pub interview: &'a I,
-    pub wizard: &'a W,
 }
 
-impl<'a, S, L, I, W> ProfileOrchestrator<'a, S, L, I, W>
+impl<'a, S, L, I> ProfileOrchestrator<'a, S, L, I>
 where
     S: ProfileSource,
     L: LlmPort,
     I: InterviewPort,
-    W: WizardPort,
 {
-    pub fn new(source: &'a S, llm: &'a L, interview: &'a I, wizard: &'a W) -> Self {
+    pub fn new(source: &'a S, llm: &'a L, interview: &'a I) -> Self {
         Self {
             source,
             llm,
             interview,
-            wizard,
         }
     }
 
@@ -63,7 +59,11 @@ where
     }
 
     /// S2 interview (Suggest-don't-move + optional Council on ambiguous genre).
-    /// `answers` maps question id → user answer; missing ⇒ suggestion accepted.
+    ///
+    /// `answers` maps question id → explicit user answer. Only explicit answers
+    /// are applied — nothing is auto-accepted on the user's behalf. Unanswered
+    /// questions simply remain open for the next call, so partial answers (the
+    /// natural agent-led flow: one question per turn) always terminate.
     pub fn stage2_interview(
         &self,
         profile: &mut UserProfile,
@@ -89,38 +89,30 @@ where
             }
         }
 
+        // Each iteration must apply at least one previously-unprocessed answer,
+        // so the loop is bounded by `answers.len()` — no infinite spin when the
+        // caller answers a strict subset of the open questions.
+        let mut processed: std::collections::HashSet<String> = std::collections::HashSet::new();
         loop {
             let qs = self.interview.next_questions(profile);
             if qs.is_empty() {
                 break;
             }
+            let mut progressed = false;
             for q in &qs {
-                let (answer, conf) = answers.get(&q.id).cloned().unwrap_or_else(|| {
-                    (
-                        q.suggestion
-                            .as_ref()
-                            .map(|s| s.suggested_answer.clone())
-                            .unwrap_or_default(),
-                        q.suggestion.as_ref().map(|s| s.confidence).unwrap_or(0.6),
-                    )
-                });
-                if answer.trim().is_empty() {
+                if processed.contains(&q.id) {
                     continue;
                 }
-                self.interview.apply_answer(profile, q, &answer, conf);
+                if let Some((answer, conf)) = answers.get(&q.id) {
+                    if answer.trim().is_empty() {
+                        continue;
+                    }
+                    self.interview.apply_answer(profile, q, answer, *conf);
+                    processed.insert(q.id.clone());
+                    progressed = true;
+                }
             }
-            if self.interview.is_complete(profile) {
-                break;
-            }
-            // Avoid infinite loop: if no answers provided and still incomplete, stop.
-            if answers.is_empty()
-                && qs.iter().all(|q| {
-                    q.suggestion
-                        .as_ref()
-                        .map(|s| s.suggested_answer.is_empty())
-                        .unwrap_or(true)
-                })
-            {
+            if self.interview.is_complete(profile) || !progressed {
                 break;
             }
         }
@@ -167,15 +159,20 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::adapters::{FilesystemSource, RuleInterview, RuleLlm, StaticWizard};
+    use crate::adapters::{FilesystemSource, RuleInterview, RuleLlm};
+
+    fn orch_parts() -> (FilesystemSource, RuleLlm, RuleInterview) {
+        (
+            FilesystemSource::new(),
+            RuleLlm::new(),
+            RuleInterview::new(),
+        )
+    }
 
     #[test]
     fn full_m0_pipeline_reaches_confirmed() {
-        let src = FilesystemSource::new();
-        let llm = RuleLlm::new();
-        let iv = RuleInterview::new(RuleLlm::new());
-        let wz = StaticWizard::new();
-        let orch = ProfileOrchestrator::new(&src, &llm, &iv, &wz);
+        let (src, llm, iv) = orch_parts();
+        let orch = ProfileOrchestrator::new(&src, &llm, &iv);
 
         let mut p = UserProfile::new_draft("dev1", "en");
         let mut answers = std::collections::HashMap::new();
@@ -190,5 +187,42 @@ mod tests {
             p.candidates.identity.genre.as_ref().unwrap().value,
             Genre::Developer
         );
+    }
+
+    #[test]
+    fn partial_answers_terminate_and_leave_questions_open() {
+        let (src, llm, iv) = orch_parts();
+        let orch = ProfileOrchestrator::new(&src, &llm, &iv);
+
+        let mut p = UserProfile::new_draft("dev1", "en");
+        // Answer exactly one of the three open questions — the pre-fix code
+        // spun forever here (loop guard only fired on an empty answers map).
+        let mut answers = std::collections::HashMap::new();
+        answers.insert("Q_domain".into(), ("backend".into(), 0.9));
+
+        orch.stage2_interview(&mut p, &answers).unwrap();
+        assert_eq!(p.truth.identity.domain.as_deref(), Some("backend"));
+        // Goal/genre stay open for the next call.
+        assert!(p.truth.goals.goal_30d.is_none());
+        assert!(!iv.is_complete(&p));
+    }
+
+    #[test]
+    fn unanswered_questions_are_not_auto_accepted() {
+        let (src, llm, iv) = orch_parts();
+        let orch = ProfileOrchestrator::new(&src, &llm, &iv);
+
+        let mut p = UserProfile::new_draft("dev1", "en");
+        // Seed a weak scan candidate; pre-fix it leaked into truth.goals.
+        p.candidates.identity.primary_expertise.push(DerivedFact {
+            value: "code:rust".into(),
+            confidence: 0.4,
+            provenance: vec!["scan".into()],
+        });
+
+        orch.stage2_interview(&mut p, &std::collections::HashMap::new())
+            .unwrap();
+        assert!(p.truth.identity.domain.is_none());
+        assert!(p.truth.goals.goal_30d.is_none());
     }
 }

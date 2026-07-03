@@ -52,30 +52,34 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # Misc
 indexmap = { version = "2", features = ["serde"] }
 
-# HTTP client for awesomeclaudeplugins.com sitemap crawl (`byoh catalog index`).
+# HTTP client for `byoh catalog index` (quemsah top-100 README + the prebuilt
+# remote bundle).
 ureq = { version = "2", features = ["tls"] }
 
 # gzip decode for the prebuilt remote catalog bundle (`catalog.json.gz`).
 flate2 = "1"
 
-# MCP server (PR #3) — expose BYOH capabilities as a stdio MCP server (`byoh serve`).
-# OPTIONAL: only pulled in via the `mcp` feature so default builds stay light
-# (no async runtime). rmcp = official Rust MCP SDK; schemars = its JSON-schema dep.
+# MCP server — expose BYOH capabilities as a stdio MCP server (`byoh serve`).
+# Behind the `mcp` feature (ON by default; see [features]). Build with
+# --no-default-features for a light CLI-only binary (no async runtime).
+# rmcp = official Rust MCP SDK; schemars = its JSON-schema dep.
 rmcp = { version = "1.8", optional = true, features = ["server", "macros", "transport-io"] }
 tokio = { version = "1", optional = true, features = ["full"] }
 schemars = { version = "1", optional = true }
 
 [build-dependencies]
-# build.rs: parse registry/vendored/MANIFEST.toml to codegen the vendored catalog.
+# build.rs: parse registry/vendored/MANIFEST.toml to codegen the vendored
+# catalog, verifying each body against its sha256 pin before embedding.
 serde = { version = "1", features = ["derive"] }
 toml = "0.8"
+sha2 = "0.10"
 
 [dev-dependencies]
 tempfile = "3"
 pretty_assertions = "1"
-# mcp_tools integration tests mutate process-global env vars (BYOH_HOME /
-# BYOH_DIST_DIR); serial_test forces those tests to run one at a time so
-# parallel cargo-test threads don't clobber each other's env.
+# mcp_tools integration tests isolate state via thread-local overrides
+# (store::set_home_override); serial_test keeps them on one thread so the
+# overrides (and any cwd-sensitive assertions) don't interleave.
 serial_test = "3"
 
 [features]
@@ -86,7 +90,7 @@ default = ["mcp"]
 
 # Expose BYOH capabilities as a stdio MCP server (`byoh serve`).
 # Pulls in the tokio runtime + rmcp SDK + schemars for tool-param schemas.
-# Default builds stay light (no async runtime) — this is opt-in, inverting
-# control so an LLM agent drives BYOH via MCP tools instead of the CLI.
+# ON by default (see above); disable with --no-default-features for a light
+# CLI-only binary.
 mcp = ["dep:rmcp", "dep:tokio", "dep:schemars"]
 

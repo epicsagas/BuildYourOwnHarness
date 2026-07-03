@@ -32,7 +32,8 @@ pub enum Command {
         #[command(subcommand)]
         action: ProfileAction,
     },
-    /// Compile a confirmed profile into a harness bundle.
+    /// Compile a confirmed profile into a harness bundle. The static gate and
+    /// the read-only dry-run gate always run; a failed gate aborts the compile.
     Compile {
         /// Profile slug.
         slug: String,
@@ -42,9 +43,6 @@ pub enum Command {
         /// Output dir for the bundle.
         #[arg(long, default_value = "./bundle")]
         out: PathBuf,
-        /// Run the dry-run gate after compiling.
-        #[arg(long, default_value_t = true)]
-        dry_run: bool,
     },
     /// Run the doctor: verify dependency tools are installed.
     Doctor,
@@ -72,35 +70,12 @@ pub enum Command {
         #[arg(long, default_value_t = false)]
         force: bool,
     },
-    /// Run an installed harness by slug (common entry point).
-    Run { slug: String },
     /// Vendor a community skill into registry/vendored/ (offline; RFC
     /// community-skill-fetch). Vendored files are committed to the repo.
     Vendor {
         #[command(subcommand)]
         action: VendorAction,
     },
-    /// Run one evolution cycle under the 3 safety gates (Critic/Seesaw/Stagnation).
-    Evolve {
-        slug: String,
-        /// Genre: developer | creator | researcher | business.
-        #[arg(long, default_value = "developer")]
-        genre: String,
-        /// Proposed edit: AddSkill|ModifyInstinct|ModifyConfig|AddGuardRule|ModifyPrompt|RemoveSkill.
-        #[arg(long, default_value = "AddSkill")]
-        edit_type: String,
-        /// A/B metric: avg score WITH the evolved edit.
-        #[arg(long, default_value_t = 0.0)]
-        score_with: f64,
-        /// A/B metric: avg score WITHOUT the edit (baseline).
-        #[arg(long, default_value_t = 0.0)]
-        score_without: f64,
-        /// Sample count for each arm.
-        #[arg(long, default_value_t = 1)]
-        samples: u32,
-    },
-    /// Hook dispatcher (called by Ring 0 hooks).
-    Hook { name: String },
     /// Render a synthesized harness into a deployable plugin tree.
     /// The output dir is `git init`-ready: push it and others can use the plugin.
     Render {
@@ -122,15 +97,6 @@ pub enum Command {
     /// Requires the `mcp` cargo feature.
     #[cfg(feature = "mcp")]
     Serve,
-    /// Serve one rendered harness's own `mcp_tools` over stdio MCP. Not for
-    /// humans to run directly — a harness's generated `mcp_config.json` points
-    /// its `command`/`args` at this subcommand so the host (Claude/Codex/agy)
-    /// launches it. Requires the `mcp` cargo feature.
-    #[cfg(feature = "mcp")]
-    HarnessServe {
-        /// Profile slug whose compiled bundle's `mcp_tools` to serve.
-        slug: String,
-    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -224,8 +190,6 @@ pub enum ProfileAction {
         #[arg(long, num_args = 0..,)]
         paths: Vec<PathBuf>,
     },
-    /// Run the interview + wizard interactively (M0 path).
-    Interview { slug: String },
     /// Confirm the genre/goal via the wizard.
     Confirm {
         slug: String,

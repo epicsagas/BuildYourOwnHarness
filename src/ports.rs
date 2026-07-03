@@ -8,10 +8,8 @@ pub mod command;
 pub mod interview;
 pub mod llm;
 pub mod source;
-pub mod wizard;
 
 pub use command::CommandPort;
 pub use interview::{InterviewPort, Question};
 pub use llm::{CouncilVoice, LlmPort, Suggestion};
 pub use source::{ProfileSource, ScanHit};
-pub use wizard::{WizardOption, WizardPort};

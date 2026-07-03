@@ -15,7 +15,6 @@
 //! - [`evolve`]  — Ring 3 evolution + 3 safety gates
 //! - [`templates`] — genre template library (base inheritance + overrides)
 //! - [`deploy`]  — registry + bootstrappers + provider matching + i18n
-//! - [`obs`]     — file-based state + 45-min crash recovery
 //! - [`i18n`]    — B17 ko/en message catalog
 //! - [`security`]— secret masking (PAN / OC keys)
 //! - [`cli`]     — clap command tree
@@ -34,7 +33,6 @@ pub mod evolve;
 pub mod i18n;
 #[cfg(feature = "mcp")]
 pub mod mcp;
-pub mod obs;
 pub mod ports;
 pub mod security;
 pub mod store;

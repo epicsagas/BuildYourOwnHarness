@@ -122,13 +122,21 @@ pub fn parse_quemsah_readme(md: &str) -> crate::Result<Vec<CatalogEntry>> {
 /// loaded over a good local cache).
 pub fn parse_remote_bundle(bytes: &[u8]) -> crate::Result<CatalogCache> {
     let decoder = flate2::read::GzDecoder::new(bytes);
-    let cache: CatalogCache = serde_json::from_reader(decoder)
+    let mut cache: CatalogCache = serde_json::from_reader(decoder)
         .map_err(|e| ByohError::Schema(format!("bundle parse: {e}")))?;
     if cache.schema_version != CATALOG_SCHEMA_VERSION {
         return Err(ByohError::Schema(format!(
             "bundle schema version {} unsupported (expected {})",
             cache.schema_version, CATALOG_SCHEMA_VERSION
         )));
+    }
+    // Same SSRF gate as the README parse path: a tampered bundle must not be
+    // able to steer a later `git clone` at a non-GitHub target.
+    let before = cache.entries.len();
+    cache.entries.retain(|e| is_safe_github_url(&e.github_url));
+    let dropped = before - cache.entries.len();
+    if dropped > 0 {
+        eprintln!("[byoh catalog] bundle: dropped {dropped} entries with unsafe github_url");
     }
     Ok(cache)
 }
@@ -143,12 +151,24 @@ fn bundle_url() -> String {
 }
 
 /// Pure core of [`bundle_url`]: given an optional env value, return the
-/// override when non-empty (after trim), else the default. Separated so the
+/// override when non-empty (after trim) AND https, else the default. A plain
+/// `http://` mirror would let an on-path attacker swap the (unsigned) bundle,
+/// so non-https overrides are refused with a notice. Separated so the
 /// resolution logic is unit-testable without mutating process env (Edition
 /// 2024 makes `set_var` `unsafe`, which this crate forbids).
 fn bundle_url_from(env_value: Option<String>) -> String {
     match env_value {
-        Some(v) if !v.trim().is_empty() => v,
+        Some(v) if !v.trim().is_empty() => {
+            let v = v.trim().to_string();
+            if v.starts_with("https://") {
+                v
+            } else {
+                eprintln!(
+                    "[byoh catalog] BYOH_BUNDLE_URL must be https:// — ignoring '{v}' and using the default"
+                );
+                REMOTE_BUNDLE_URL.to_string()
+            }
+        }
         _ => REMOTE_BUNDLE_URL.to_string(),
     }
 }
@@ -401,14 +421,47 @@ mod tests {
 
     #[test]
     fn bundle_url_resolves_override_or_default() {
-        // Non-empty override wins.
+        // Non-empty HTTPS override wins.
+        assert_eq!(
+            bundle_url_from(Some("https://mirror.example/test.gz".into())),
+            "https://mirror.example/test.gz"
+        );
+        // Plain-http override is refused (unsigned bundle over cleartext) —
+        // falls back to the default.
         assert_eq!(
             bundle_url_from(Some("http://localhost:9999/test.gz".into())),
-            "http://localhost:9999/test.gz"
+            REMOTE_BUNDLE_URL
         );
         // Whitespace-only falls back to default.
         assert_eq!(bundle_url_from(Some("   ".into())), REMOTE_BUNDLE_URL);
         // Absent env falls back to default.
         assert_eq!(bundle_url_from(None), REMOTE_BUNDLE_URL);
+    }
+
+    #[test]
+    fn remote_bundle_drops_unsafe_github_urls() {
+        use flate2::Compression;
+        use flate2::write::GzEncoder;
+        use std::io::Write;
+        // A tampered bundle steering git at a non-GitHub target must be filtered.
+        let cache = serde_json::json!({
+            "schema_version": CATALOG_SCHEMA_VERSION,
+            "built_at": 1,
+            "entries": [
+                {"id": "good/repo", "name": "good", "description": "",
+                 "keywords": [], "github_url": "https://github.com/good/repo",
+                 "stars": null, "license": "unknown", "byoh_genre": null, "fetched_at": 0},
+                {"id": "evil/repo", "name": "evil", "description": "",
+                 "keywords": [], "github_url": "ext::sh -c whoami",
+                 "stars": null, "license": "unknown", "byoh_genre": null, "fetched_at": 0}
+            ]
+        });
+        let mut enc = GzEncoder::new(Vec::new(), Compression::default());
+        enc.write_all(cache.to_string().as_bytes()).unwrap();
+        let bytes = enc.finish().unwrap();
+
+        let parsed = parse_remote_bundle(&bytes).unwrap();
+        assert_eq!(parsed.entries.len(), 1);
+        assert_eq!(parsed.entries[0].id, "good/repo");
     }
 }

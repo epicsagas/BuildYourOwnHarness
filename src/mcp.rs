@@ -5,6 +5,5 @@
 //! Gated behind the `mcp` cargo feature so default builds stay light (no
 //! async runtime).
 
-pub mod harness_server;
 pub mod params;
 pub mod server;

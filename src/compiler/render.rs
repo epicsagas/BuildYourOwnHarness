@@ -128,6 +128,10 @@ fn skill_doc(id: &str, _ring: Ring, genre: Genre) -> (String, String, String) {
     (name, description, body)
 }
 
+/// Bundle hooks are a declarative Ring-0 spec: they document which lifecycle
+/// events the harness cares about and what each hook reads. BYOH ships no hook
+/// engine, so `command` carries the spec id (not an executable) and the
+/// renderer never wires hooks into host plugin trees.
 fn render_hook(id: &str) -> HookSpec {
     let event = match id {
         "session_start_resume" => "SessionStart",
@@ -139,7 +143,7 @@ fn render_hook(id: &str) -> HookSpec {
     };
     HookSpec {
         event: event.to_string(),
-        command: format!("byoh hook {id}"),
+        command: format!("spec:{id}"),
         reads: crate::domain::bundle::HOOK_REQUIRED_FIELDS
             .iter()
             .map(|s| s.to_string())

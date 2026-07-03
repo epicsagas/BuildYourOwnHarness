@@ -49,8 +49,4 @@ pub trait LlmPort {
     /// Generate a clarifying question from each council voice for an ambiguous
     /// genre (B12). Returns one question per voice — independent context.
     fn council_questions(&self, context: &str, language: &str) -> Vec<(CouncilVoice, String)>;
-
-    /// Verdict voice for the compile gate (ARCH §5.4): does this bundle threaten
-    /// the user's goal? Returns `true` if it looks safe per this voice.
-    fn council_verdict(&self, voice: CouncilVoice, goal: &str, bundle_summary: &str) -> bool;
 }

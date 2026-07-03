@@ -2,16 +2,15 @@
 
 use std::path::PathBuf;
 
-use byoh::adapters::{FilesystemSource, RuleInterview, RuleLlm, StaticWizard, StdCommand};
+use byoh::adapters::{FilesystemSource, RuleInterview, RuleLlm, StdCommand};
 use byoh::application::ProfileOrchestrator;
 use byoh::catalog::search::{SearchOptions, catalog_search};
 use byoh::cli::{CatalogAction, Cli, Command, ProfileAction};
 use byoh::compiler::{compile_profile, dry_run, static_gate};
-use byoh::deploy::registry::Registry;
 use byoh::domain::genre::Genre;
 use byoh::domain::profile::{ProfileStatus, UserProfile};
 use byoh::i18n::{Msg, t};
-use byoh::ports::{CommandPort, InterviewPort};
+use byoh::ports::CommandPort;
 use clap::Parser;
 
 fn main() -> anyhow::Result<()> {
@@ -30,8 +29,7 @@ fn main() -> anyhow::Result<()> {
             slug,
             profiles_dir,
             out,
-            dry_run,
-        } => run_compile(&slug, profiles_dir.as_deref(), &out, dry_run, &lang)?,
+        } => run_compile(&slug, profiles_dir.as_deref(), &out, &lang)?,
         Command::Doctor => run_doctor(&lang)?,
         Command::Install {
             slug,
@@ -40,30 +38,11 @@ fn main() -> anyhow::Result<()> {
             scope,
             force,
         } => run_install(&slug, &target, host, scope, force, &lang)?,
-        Command::Run { slug } => run_run(&slug, &lang)?,
-        Command::Evolve {
-            slug,
-            genre,
-            edit_type,
-            score_with,
-            score_without,
-            samples,
-        } => run_evolve(
-            &slug,
-            &genre,
-            &edit_type,
-            score_with,
-            score_without,
-            samples,
-        )?,
-        Command::Hook { name } => run_hook(&name, &lang)?,
         Command::Render { slug, target, out } => run_render(&slug, &target, &out)?,
         Command::Vendor { action } => run_vendor(action, &lang)?,
         Command::Catalog { action } => run_catalog(action)?,
         #[cfg(feature = "mcp")]
         Command::Serve => run_serve(&lang)?,
-        #[cfg(feature = "mcp")]
-        Command::HarnessServe { slug } => run_harness_serve(&slug)?,
     }
     Ok(())
 }
@@ -364,22 +343,8 @@ fn run_serve(lang: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Start the stdio MCP server for one rendered harness's own `mcp_tools`.
-/// Loads the confirmed profile by slug, compiles it, and serves the resulting
-/// bundle's tool list — this is what a harness's `mcp_config.json` launches.
-#[cfg(feature = "mcp")]
-fn run_harness_serve(slug: &str) -> anyhow::Result<()> {
-    let slug = byoh::store::sanitize_slug(slug)?;
-    let profile = byoh::store::load_profile(slug)?;
-    let bundle = compile_profile(&profile)?;
-    let rt = tokio::runtime::Runtime::new()?;
-    rt.block_on(byoh::mcp::harness_server::HarnessServer::new(bundle).serve_stdio())
-        .map_err(anyhow::Error::msg)?;
-    Ok(())
-}
-
-fn profile_path(slug: &str) -> PathBuf {
-    byoh::store::profile_path(slug)
+fn profile_path(slug: &str) -> anyhow::Result<PathBuf> {
+    Ok(byoh::store::profile_path(slug)?)
 }
 
 fn run_profile(action: ProfileAction, lang: &str) -> anyhow::Result<()> {
@@ -391,40 +356,21 @@ fn run_profile(action: ProfileAction, lang: &str) -> anyhow::Result<()> {
             if !paths.is_empty() {
                 let src = FilesystemSource::new();
                 let llm = RuleLlm::new();
-                let iv = RuleInterview::new(RuleLlm::new());
-                let wz = StaticWizard::new();
-                let orch = ProfileOrchestrator::new(&src, &llm, &iv, &wz);
+                let iv = RuleInterview::new();
+                let orch = ProfileOrchestrator::new(&src, &llm, &iv);
                 let path_refs: Vec<&std::path::Path> = paths.iter().map(|p| p.as_path()).collect();
                 let mut loaded = load_profile(&slug)?;
                 orch.stage1_scan(&mut loaded, &path_refs)?;
                 write_profile(&loaded)?;
             }
             println!("{}", t(Msg::Welcome, lang));
-            println!("created draft profile: {}", profile_path(&slug).display());
-        }
-        ProfileAction::Interview { slug } => {
-            let llm = RuleLlm::new();
-            let iv = RuleInterview::new(RuleLlm::new());
-            let mut p = load_profile(&slug)?;
-            let _ = iv.next_questions(&p);
-            // Non-interactive default: accept suggestions, then mark interviewed.
-            let answers = std::collections::HashMap::new();
-            let wz = StaticWizard::new();
-            let src = FilesystemSource::new();
-            let orch = ProfileOrchestrator::new(&src, &llm, &iv, &wz);
-            orch.stage2_interview(&mut p, &answers)?;
-            write_profile(&p)?;
-            println!(
-                "interview complete (suggestions applied); status: {}",
-                p.status
-            );
+            println!("created draft profile: {}", profile_path(&slug)?.display());
         }
         ProfileAction::Confirm { slug, genre, goal } => {
             let llm = RuleLlm::new();
-            let iv = RuleInterview::new(RuleLlm::new());
-            let wz = StaticWizard::new();
+            let iv = RuleInterview::new();
             let src = FilesystemSource::new();
-            let orch = ProfileOrchestrator::new(&src, &llm, &iv, &wz);
+            let orch = ProfileOrchestrator::new(&src, &llm, &iv);
             let g: Genre = genre.parse()?;
             let mut p = load_profile(&slug)?;
             // CLI confirm may run straight after `init` (Draft). stage3_confirm
@@ -449,13 +395,12 @@ fn run_compile(
     slug: &str,
     profiles_dir: Option<&std::path::Path>,
     out: &std::path::Path,
-    do_dry_run: bool,
     lang: &str,
 ) -> anyhow::Result<()> {
     let slug = byoh::store::sanitize_slug(slug)?;
     let path = match profiles_dir {
         Some(dir) => dir.join(format!("{slug}.yaml")),
-        None => profile_path(slug),
+        None => profile_path(slug)?,
     };
     let body = std::fs::read_to_string(&path)
         .map_err(|e| anyhow::anyhow!("reading profile {}: {e}", path.display()))?;
@@ -474,29 +419,22 @@ fn run_compile(
         anyhow::bail!("static gate failed: {}", report.errors.join("; "));
     }
 
-    // Dry-run gate.
-    if do_dry_run {
-        let cmd = StdCommand::new();
-        let dr = dry_run(&bundle, &cmd)?;
-        if dr.passed() {
-            println!("{}", t(Msg::DryRunPassed, lang));
-        } else {
-            println!("{}", t(Msg::DryRunFailed, lang));
-        }
-        for fb in &dr.fallbacks {
-            eprintln!("[byoh] {fb}");
-        }
+    // Dry-run gate (always on — it is cheap and read-only).
+    let cmd = StdCommand::new();
+    let dr = dry_run(&bundle, &cmd)?;
+    if dr.passed() {
+        println!("{}", t(Msg::DryRunPassed, lang));
+    } else {
+        anyhow::bail!("{}", t(Msg::DryRunFailed, lang));
+    }
+    for fb in &dr.fallbacks {
+        eprintln!("[byoh] {fb}");
     }
 
     // Materialize the bundle on disk.
     std::fs::create_dir_all(out)?;
     materialize_bundle(&bundle, out)?;
     println!("bundle written to {}", out.display());
-
-    // Register.
-    let mut reg = Registry::new();
-    let entry = reg.register(&bundle);
-    println!("registered: {}", entry.id);
     Ok(())
 }
 
@@ -504,10 +442,11 @@ fn materialize_bundle(
     bundle: &byoh::domain::bundle::HarnessBundle,
     out: &std::path::Path,
 ) -> anyhow::Result<()> {
-    use byoh::domain::bundle::Ring;
     std::fs::create_dir_all(out)?;
     let cfg = toml::to_string(&bundle.config())?;
-    std::fs::write(out.join("config").with_file_name("harness.toml"), cfg)?;
+    let config_dir = out.join("config");
+    std::fs::create_dir_all(&config_dir)?;
+    std::fs::write(config_dir.join("harness.toml"), cfg)?;
 
     for skill in &bundle.skills {
         let ring_dir = out.join("skills").join(skill.ring.as_str());
@@ -516,9 +455,6 @@ fn materialize_bundle(
             ring_dir.join(format!("{}.md", skill.id)),
             &skill.body_markdown,
         )?;
-    }
-    for hook in &bundle.hooks {
-        let _ = hook; // hooks.json aggregated below
     }
     let hooks_json = serde_json::to_string_pretty(&serde_json::json!({
         "hooks": bundle.hooks.iter().map(|h| serde_json::json!({
@@ -548,8 +484,6 @@ fn materialize_bundle(
         "improvement_threshold": bundle.improvement_threshold,
     }))?;
     std::fs::write(out.join("evolution_policy.toml"), policy)?;
-
-    let _ = Ring::all(); // touch to avoid dead-code on Ring import
     Ok(())
 }
 
@@ -673,83 +607,6 @@ fn activate_all(
             Err(e) => println!("[byoh] {}: error: {e}", t.as_str()),
         }
     }
-}
-
-/// Resolve and report what an installed harness would run — BYOH renders/installs
-/// plugins; the host tool (Claude Code / agy / Codex) is what actually executes.
-fn run_run(slug: &str, _lang: &str) -> anyhow::Result<()> {
-    let slug = byoh::store::sanitize_slug(slug)?;
-    let manifest = byoh::deploy::InstallLocations::from_env()
-        .dist
-        .join(format!("byoh-{slug}"));
-    println!("[byoh] run '{slug}': BYOH installs plugins; the host tool executes them.");
-    println!("[byoh] installed plugin (dist): {}", manifest.display());
-    println!(
-        "[byoh] open your host (Claude Code / agy / Codex) in a project with this plugin to use it."
-    );
-    Ok(())
-}
-
-/// Run one evolution cycle, persisting seesaw/stagnation state across runs, and
-/// report the HONEST decision. Exits non-zero on Rejected / RolledBack so the
-/// 3 safety gates are not silently masked.
-fn run_evolve(
-    slug: &str,
-    genre: &str,
-    edit_type: &str,
-    score_with: f64,
-    score_without: f64,
-    samples: u32,
-) -> anyhow::Result<()> {
-    use byoh::application::evolve_run::{decision_is_negative, decision_label, parse_edit_type};
-    let genre: Genre = genre.parse()?;
-    let edit = parse_edit_type(edit_type)?;
-    let metric = byoh::domain::evidence::AbMetric {
-        avg_score_with: score_with,
-        avg_score_without: score_without,
-        samples_with: samples,
-        samples_without: samples,
-    };
-    let (decision, state) =
-        byoh::application::evolve_one_cycle(&byoh::store::byoh_home(), slug, genre, edit, metric)?;
-    let label = decision_label(&decision);
-    println!("[byoh] evolve '{slug}' cycle #{}: {label}", state.cycle_n);
-    match &decision {
-        byoh::evolve::EvolutionDecision::Approved { critic } => {
-            println!("[byoh]   critic: {critic:?}");
-        }
-        byoh::evolve::EvolutionDecision::Rejected { reason }
-        | byoh::evolve::EvolutionDecision::RolledBack { reason } => {
-            println!("[byoh]   reason: {reason}");
-        }
-        byoh::evolve::EvolutionDecision::AutoTuned => {}
-    }
-    if decision_is_negative(&decision) {
-        // Honest non-zero exit: a gate rejected/rolled back the edit.
-        std::process::exit(1);
-    }
-    Ok(())
-}
-
-/// Ring 0 hook dispatcher. Recognizes the known lifecycle hooks; an unknown
-/// hook name is an explicit error (not a silent no-op).
-fn run_hook(name: &str, _lang: &str) -> anyhow::Result<()> {
-    const KNOWN: &[&str] = &[
-        "session_start",
-        "pre_tool_use",
-        "post_tool_use",
-        "pre_compact",
-        "session_end",
-    ];
-    if !KNOWN.contains(&name) {
-        anyhow::bail!("unknown hook '{name}' (known: {})", KNOWN.join(", "));
-    }
-    // BYOH itself has no runtime side effects to run here — the rendered plugin's
-    // hooks.json wires real commands for the host. Report recognition honestly.
-    println!(
-        "[byoh] hook '{name}' recognized (no BYOH-side action; host runs the plugin's hooks.json)"
-    );
-    Ok(())
 }
 
 fn truncate_str(s: &str, max: usize) -> String {

@@ -18,8 +18,8 @@ impl StaticGateReport {
     }
 }
 
-/// Run all static checks. Returns Err on the first hard violation so the
-/// compiler can abort (R8/AC7).
+/// Run all static checks and report every violation (the report never
+/// hard-errors; callers decide whether to abort on `!passed()`).
 pub fn static_gate(bundle: &HarnessBundle) -> crate::domain::Result<StaticGateReport> {
     let mut report = StaticGateReport {
         mcp_schema_ok: true,
@@ -29,19 +29,12 @@ pub fn static_gate(bundle: &HarnessBundle) -> crate::domain::Result<StaticGateRe
     };
 
     // (1) MCP schema conformance: each tool needs name/description/inputSchema.type
+    // (is_well_formed covers all three, including the schema "type" key).
     for tool in &bundle.mcp_tools {
         if !tool.is_well_formed() {
             report.mcp_schema_ok = false;
             report.errors.push(format!(
                 "mcp tool '{}' missing name/description/inputSchema.type",
-                tool.name
-            ));
-        }
-        // inputSchema must be a JSON Schema object with "type".
-        if tool.input_schema.get("type").is_none() {
-            report.mcp_schema_ok = false;
-            report.errors.push(format!(
-                "mcp tool '{}' inputSchema missing 'type'",
                 tool.name
             ));
         }
@@ -67,19 +60,6 @@ pub fn static_gate(bundle: &HarnessBundle) -> crate::domain::Result<StaticGateRe
     }
 
     Ok(report)
-}
-
-/// Convenience: returns Err on failure (for callers that want to hard-abort).
-pub fn static_gate_or_abort(bundle: &HarnessBundle) -> crate::domain::Result<StaticGateReport> {
-    let r = static_gate(bundle)?;
-    if r.passed() {
-        Ok(r)
-    } else {
-        Err(crate::domain::ByohError::ValidationGateFailed {
-            gate: "static",
-            reason: r.errors.join("; "),
-        })
-    }
 }
 
 #[cfg(test)]
