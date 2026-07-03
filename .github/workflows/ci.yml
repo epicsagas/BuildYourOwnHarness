@@ -47,6 +47,11 @@ jobs:
       - name: cargo check
         run: cargo check --all-targets
 
+      # 3b. check the light (CLI-only) configuration too — the non-mcp cfg arms
+      #     rot silently otherwise.
+      - name: cargo check (no default features)
+        run: cargo check --no-default-features
+
       # 4. test — unit + e2e + MCP integration.
       - name: cargo test
         run: cargo test --all-targets
