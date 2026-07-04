@@ -164,7 +164,15 @@ mod tests {
     #[test]
     fn dryrun_passes_with_fallback_for_missing_deps() {
         // AC8: with deps absent, dry-run still PASSes via graceful fallback.
-        let b = bundle();
+        // Bundles are dependency-free by default, so inject one declared dep to
+        // exercise the fallback path.
+        let mut b = bundle();
+        b.config
+            .depends_on
+            .push(crate::domain::bundle::DependencyPin {
+                id: "alcove".into(),
+                min_version: "0.1.0".into(),
+            });
         let r = dry_run(&b, &AllMissing).unwrap();
         assert!(r.passed(), "{:?}", r);
         assert!(
