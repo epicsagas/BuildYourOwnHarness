@@ -14,27 +14,27 @@
 
 </div>
 
-ほとんどの AI セットアップは、固定のツールセットを渡して「あとは頑張って」と投げっぱなしにします。BYOH はその発想を裏返します。あなたにインタビューし、実際に何をしているのかを学んで、あなたのワークフローに最初からフィットするパーソナライズされたエージェントハーネス（スキル・メモリ・パイプライン）を生成します。
+ほとんどの AI セットアップは、固定のツールセットを渡して「あとは頑張って」と投げっぱなしにします。BYOH はその発想を裏返します。あなたにインタビューし、実際に何をしているのかを学んで、スキル・エージェント・目標パイプラインを備えた、最初からワークフローにフィットするパーソナライズ済みのエージェントハーネスを生成します。
 
 ## こんな方に
 
-- **開発者** — 自分のスタック・テストスタイル・リリースのペースを最初から把握しているエージェントが欲しい
-- **研究者** — 文献レビュー・引用追跡・統合が一つに繋がったパイプラインが必要
+- **開発者** — 自分のスタック・テストスタイル・デリバリーのペースを最初から把握しているエージェントが欲しい
+- **研究者** — 文献レビュー・引用追跡・統合が一つに繋がったものが必要
 - **クリエイター** — 自分の文体やプロジェクト構造に合った執筆パートナーが欲しい
 - **ビジネスアナリスト** — 生のチャットではなく、意思決定フレームワークとレポートパイプラインが必要
 
-「AI が自分の文脈をちゃんとわかってくれたらな」と思ったことがあるなら、それが BYOH の仕事です。
+「自分の AI が自分のコンテキストをちゃんと把握してくれたらな」と思ったことがあるなら、それこそ BYOH の役目です。
 
 ## 60秒でわかる仕組み
 
-BYOH は、あなたがコマンドを打つのではなく、AI エージェントに駆動させるために作られています。プラグインをインストールしたら、あとはただ話しかけるだけ。会話そのものがインタビューであり、ウィザードであり、ビルドです。
+BYOH は、あなたがコマンドを打つのではなく、AI エージェントに駆動させるために作られています。プラグインをインストールしたら、あとはただ話しかけるだけ。会話そのものが*インタビュー*であり、ウィザードであり、ビルドです。
 
 ```
-1. Install the plugin      # Claude Code / Codex / agy — バイナリを自動インストール
-2. "Build me a harness"    # エージェントがリポジトリをスキャンして結果をコンパイル
+1. Install the plugin      # Claude Code / Codex / agy — auto-installs the binary
+2. "Build me a harness"    # your agent scans your repo and compiles the result
 ```
 
-次のセッションから、ホストがハーネスを自動的に読み込みます — エージェント・スキル・メモリ・パイプラインがすべてあなただけに調整された状態で。
+次のセッションでは、ホストがハーネスを自動的に読み込みます — あなたに合わせて調整されたエージェント・スキル・目標パイプラインが揃います。
 
 ## プラグインをインストール（推奨）
 
@@ -60,32 +60,32 @@ codex plugin add byoh@epicsagas
 
 ### 他の MCP 対応ホストをお使いですか？
 
-BYOH は MCP を話すので、Cursor、Zed、Continue などでも動作します。[バイナリ](#installation)を一度インストールして、ホストからサーバーに接続してください:
+BYOH は MCP を話すので、Cursor、Zed、Continue などでも動作します。[バイナリ](#installation)を一度インストールし、ホストからサーバーを参照してください:
 
 ```bash
-byoh serve   # stdio MCP サーバー
+byoh serve   # stdio MCP server
 ```
 
 ```json
 { "mcpServers": { "byoh": { "command": "byoh", "args": ["serve"] } } }
 ```
 
-> **Note:** 現在リポジトリは非公開です。上記のパスを使用してください。公開後は共通の `epicsagas/plugins` マーケットプレースにも表示されます。
+> **Note:** 現在リポジトリは非公開です。上記のパスを使用してください。公開されると共通の `epicsagas/plugins` マーケットプレースに表示されます。
 
 ## エージェント駆動モード — メインの道
 
-ホストを接続したら、コマンドを打つ必要はありません — ただ話しかけるだけです。エージェントが BYOH の MCP ツールを直接呼び出し、会話そのものがインタビュー・ビルド・進化サイクルになります:
+ホストを接続したら、コマンドを打つ必要はありません — ただ話しかけるだけです。エージェントが BYOH の MCP ツールを直接呼び出し、会話そのものが*インタビュー*であり、ビルドであり、進化（evolve）サイクルになります:
 
-> **あなた:** *今月リリースする決済 API のバックエンド Go 開発者です。ハーネスを作って。*
+> **あなた:** *今月決済 API を出荷するバックエンドの Go 開発者です。ハーネスを構築してください。*
 >
-> **エージェント:** *(`profile_scan` でリポジトリをスキャン、`profile_interview` でいくつかの的を絞った質問、ジャンルを `developer` に固定)* → `HarnessBundle` をコンパイル → エージェント・スキル・メモリ・セキュアリリースパイプラインを Claude Code にインストール。完了 — 次のセッションでは、エージェントはもうあなたのスタックを熟知しています。
+> **エージェント:** *（`profile_scan` でリポジトリをスキャンし、`profile_interview` で的を絞った質問をいくつか投げ、ジャンルを `developer` に固定）* → `HarnessBundle` をコンパイル → エージェント・スキル・secure-ship の目標パイプラインを Claude Code にインストール。完了 — 次のセッションでは、エージェントはすでにあなたのスタックを話しています。
 
 同じフローを、推奨されるツールの呼び出し順で示すと:
 
 ```
 profile_create → profile_scan → profile_interview → profile_confirm
            → compile → compile_dry_run → render_plugin → install_plugin
-           → (任意) registry_clone_skill → (後で) evolve_cycle
+           → (optional) registry_clone_skill → (later) evolve_cycle
 ```
 
 利用可能なツール: `profile_read`, `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `genre_list`, `compile`, `compile_dry_run`, `render_plugin`, `install_plugin`, `evolve_cycle`, `registry_clone_skill`, `catalog_search`, `catalog_vendor`.
@@ -94,82 +94,84 @@ profile_create → profile_scan → profile_interview → profile_confirm
 
 ## プラグインカタログ
 
-カタログは [`quemsah/awesome-claude-plugins`](https://github.com/quemsah/awesome-claude-plugins) の README から作ります — コミュニティ管理の、上位 100 個の Claude プラグインリポジトリをスター順に並べたリストです。BYOH は事前ビルド済みバンドル（毎週月曜 03:17 UTC に更新）を提供するので `byoh catalog index` が数秒で終わり、`--no-bundle` を渡せば上流リストを直接パースします。
+カタログは [`quemsah/awesome-claude-plugins`](https://github.com/quemsah/awesome-claude-plugins) の README から構築しています — コミュニティが管理する、上位 100 個の Claude プラグインリポジトリをスター順に並べたリストです。BYOH は事前ビルド済みバンドル（**毎週**月曜 03:17 UTC に再構築）を同梱しているため `byoh catalog index` は数秒で終わります。`--no-bundle` を渡せば上流のリストを直接パースします。
 
 ```bash
-# 初回1回のみのインデックス — 事前ビルド済みバンドルを数秒でダウンロード
+# One-time index — downloads a prebuilt bundle in seconds
 byoh catalog index
 
-# インデックス後はオフラインで検索 — ネットワーク不要
+# Search offline — no network needed after indexing
 byoh catalog search "memory" --genre developer --limit 5
 
-# ハーネスにプラグインを追加
-# license・keywords・genre はクローンしたリポジトリから自動検出
+# Add a plugin to your harness
+# license, keywords, and genre are auto-detected from the cloned repo
 byoh catalog vendor obra/superpowers --genre developer
 ```
 
-LLM エージェント（`catalog_search` / `catalog_vendor` MCP ツール経由）がこのフロー全体を自律的に実行できます — *"add a memory plugin to my harness"* — し、もちろん CLI から直接駆動することも可能です。
+LLM エージェント（`catalog_search` / `catalog_vendor` MCP ツール経由）はこのフロー全体を自律的に実行できます — *"add a memory plugin to my harness"* — し、もちろん CLI から直接駆動することも可能です。
+
+いくつかのコンパニオンツールは、**参照資料**（依存関係ではなく）として検索結果にシードされています。BYOH 自身の実行レイヤーのツール — [alcove](https://github.com/epicsagas/alcove)（ドキュメントサーバー）、[obsidian-forge](https://github.com/epicsagas/obsidian-forge)（ボールト自動化）、[epic-harness](https://github.com/epicsagas/epic-harness)（フック/スキルランタイム） — は文脈に応じて現れ（"doc server" / "search backend" のクエリで alcove が見つかります）、関連時にエージェントが推奨できるようになっています。本当に欲しい場合にのみ vendor してください。いずれにせよバンドルは依存関係なしで出荷されます。
 
 ## パワーユーザー: CLI（任意）
 
-上記のフローはすべてターミナルからも実行できます。CLI は**補助的な存在**です — スクリプト・CI・チャットせずに進めたい場合に便利ですが、エージェント駆動こそが本来の使い方です。
+上記のフローはすべてターミナルからも実行できます。CLI は**補助的**です — スクリプト・CI・チャットせずに進めたい場合に便利ですが、エージェント駆動のパスが本来の想定です。
 
 ### 最初のハーネス — CLI から
 
 ```bash
-byoh profile init me --paths ./src ./docs   # プロジェクトを自動スキャン
-byoh profile interview me                   # 約5分の会話
-byoh profile confirm me --genre developer   # ジャンルを確定
+byoh profile init me --paths ./src ./docs   # auto-scans your project
+byoh profile confirm me --genre developer   # lock in your genre (+ optional --goal)
 
-byoh compile me --no-dry-run                # HarnessBundle を書き出す（dry-run がデフォルト）
-byoh render me --target claude              # or: codex | agy | all（デフォルト: all）
-byoh install me --scope local               # dist/ にレンダ後、このプロジェクトの .claude/ のみに有効化
-byoh install me --scope global              # ...または ~/.claude + ~/.codex + ~/.gemini（旧 --host）
-byoh install me --scope publish             # ...または LICENSE + .gitignore を追加し git 手順を出力
-
-byoh run me                                 # ハーネスを有効化した状態で起動
-byoh evolve me                              # セッションフィードバックに基づいてハーネスを改善
+byoh compile me                             # gates (static + dry-run) always run; writes the HarnessBundle
+byoh render me --target claude              # or: codex | agy | all (default: all)
+byoh install me --scope local               # render to dist/, activate into this project's .claude/ only
+byoh install me --scope global              # ...or ~/.claude + ~/.codex + ~/.gemini (was --host)
+byoh install me --scope publish             # ...or add LICENSE + .gitignore and print git instructions
 ```
 
-BYOH は役割・専門レベル・ツール・30日目標について質問します。インタビューは適応します — 研究者は開発者とは異なる質問を受けます。`evolve` は迂回できない 3 ゲートサイクル（Critic / Seesaw / Stagnation）を実行するので、進化は安全で監査可能です。
+インタビュー自体はエージェント駆動です（`profile_interview` MCP ツール）。会話がインタビューであるため、対話型の CLI インタビューは存在しません。進化（`evolve_cycle` MCP ツール）は 3 つのゲート（Critic / Seesaw / Stagnation）からなるサイクルを実行し、決してバイパスできません — したがって進化は安全で監査可能です。
 
 ## 内部の仕組み
 
-BYOH の合成エンジンは、プロファイルのタグをスキルレジストリと照合し、依存関係を解決した順序のパイプラインに並べ、対応するすべてのホストのネイティブ形式にレンダリングされる、git にそのままコミットできるアーティファクト ── `HarnessBundle` を生成します。
+BYOH の合成エンジンは、プロファイルのタグをスキルレジストリと照合し、依存関係を解決したパイプラインに並べ、サポートされている任意のホストのネイティブ形式にレンダリングされる git 対応のアーティファクト ── `HarnessBundle` を出力します。
 
-- **4 リングセキュリティモデル** — 組み込みスキル（Ring 1）からコミュニティ/非信頼スキル（Ring 4）まで、段階的に検証が厳格になる
-- **3 ゲート進化** — 毎回の `evolve` サイクルは Critic（品質）・Seesaw（回帰）・Stagnation（停滞）のゲートをすべて通過。迂回不可
-- **ゴール指向のパイプライン** — 30日目標（製品リリース・研究レポート・セキュアリリース…）を宣言すると、それに合うスキルラダーを自動で重ね合わせる
+- **4 リングセキュリティモデル** — ライフサイクル仕様（Ring 0）と組み込みのパイプラインスキル（Ring 1）から、コミュニティ/非信頼スキル（Ring 3）まで、それぞれ段階的に厳格になる検証。vendor されたスキルは sha256 でピン留めされ、読み取り + 組み込み時に検証される
+- **3 ゲート進化** — すべての `evolve` サイクルは Critic（品質）・Seesaw（回帰）・Stagnation（停滞）のゲートを通過する。バイパス不可
+- **ゴール指向のパイプライン** — 30 日の目標（プロダクトローンチ・研究レポート・secure ship など）を宣言すると、それに合うスキルラダーを自動で重ね合わせる
 
-アーキテクチャ: ヘキサゴナル — `domain / ports / adapters / application / compiler / evolve / templates / deploy / i18n / obs / security / cli`. 完全なガイドは `AGENTS.md` を参照してください。
+アーキテクチャ: ヘキサゴナル — `domain / ports / adapters / application / compiler / evolve / templates / deploy / catalog / mcp / i18n / security / cli`。完全なガイドは `AGENTS.md` を参照してください。
 
 ## 完全な CLI リファレンス
 
+CLI は意図的に小さく保っています: 機械向けのエントリポイント（`serve`、CI での `catalog index`、メンテナー向け `vendor`）に、コアビルドフローのスクリプト可能なミラーを加えた構成です。インタビューと進化は MCP のみ（エージェント駆動）です。
+
 ```bash
-# プロファイル
-byoh profile init <slug> [--paths ...]      # 非破壊的なプロジェクトスキャン
-byoh profile interview <slug>               # ガイド付きインタビュー
-byoh profile confirm <slug> --genre <g>     # プロファイルを確認・固定
+# Profile
+byoh profile init <slug> [--paths ...]      # non-destructive project scan
+byoh profile confirm <slug> --genre <g> [--goal <text>]  # confirm and lock profile
+byoh profile show <slug>                    # print the profile YAML
 
-# ビルド
-byoh compile <slug> [--no-dry-run]          # dry-run がデフォルト、バンドルを書くには --no-dry-run
-byoh render <slug> [--target <host>]        # claude | codex | agy | all（デフォルト: all）
-byoh install <slug> [--target <host>] [--scope local|global|publish] [--host] [--force]  # dist/ ツリー; --scope がインストール先を決定（local=このプロジェクト、global=HOME、publish=+LICENSE/.gitignore+git 手順）。--host は --scope global のレガシー。
+# Build (static gate + read-only dry-run gate always run)
+byoh compile <slug> [--out <dir>]           # write the HarnessBundle
+byoh render <slug> [--target <host>]        # claude | codex | agy | all (default: all)
+byoh install <slug> [--target <host>] [--scope local|global|publish] [--host] [--force]  # dist/ tree; --scope decides where it goes (local=this project, global=HOME, publish=+LICENSE/.gitignore+git steps). --host is legacy for --scope global.
 
-# 実行 & 進化
-byoh run <slug>
-byoh evolve <slug>
-
-# コミュニティスキル
+# Community skills (maintainer/build-time; sha256-pinned and verified at read + embed time)
 byoh vendor add <src> --genre <g> --id <id> [--keywords k1,k2] [--trust] [--sha <s>]
 byoh vendor list
 byoh vendor remove <id> --genre <g>
 
-# カタログ
+# Catalog
 byoh catalog index [--no-bundle] [--limit N]
 byoh catalog search "<query>" [--genre <g>] [--tags k1,k2] [--limit N]
 byoh catalog vendor <owner/repo> [--genre <g>] [--keywords k1,k2]
+
+# Diagnostics / server
+byoh doctor                                 # check execution-layer tools
+byoh serve                                  # stdio MCP server (agent-led mode)
 ```
+
+プロファイルとカタログのキャッシュはデフォルトで `~/.byoh` に置かれます（`BYOH_HOME` で上書き可能）。
 
 ## Installation
 
@@ -194,7 +196,7 @@ cargo install byoh --git https://github.com/epicsagas/BuildYourOwnHarness
 ```
 
 ```bash
-byoh --version   # 確認
+byoh --version   # verify
 ```
 
 ## ビルド & 開発
@@ -202,8 +204,8 @@ byoh --version   # 確認
 ```bash
 cargo build --release
 cargo clippy --all-targets -- -D warnings
-cargo test                        # ユニット + e2e
-cvp                               # 並列: check → clippy → test → fmt → build
+cargo test                        # unit + e2e
+cvp                               # parallel: check → clippy → test → fmt → build
 ```
 
 `mcp` フィーチャー（stdio MCP サーバー）はデフォルトでオンです。BYOH は組み込みのナレッジベースを同梱しません — 検索には、生成したハーネスを [alcove](https://github.com/epicsagas/alcove) のようなドキュメントサーバーに向けてください。
@@ -212,11 +214,11 @@ cvp                               # 並列: check → clippy → test → fmt �
 
 BYOH はいくつかのコミュニティの取り組みの上に成り立っています:
 
-- **プラグインカタログ** — [`quemsah/awesome-claude-plugins`](https://github.com/quemsah/awesome-claude-plugins) から取得。上位 100 個の Claude プラグインリポジトリのスター順コミュニティリスト。これがなければカタログは存在しません。
-- **companion ツール** — [alcove](https://github.com/epicsagas/alcove)(ドキュメントサーバー/RAG)、[Episteme](https://github.com/epicsagas/Episteme)(ナレッジグラフ)、[obsidian-forge](https://github.com/epicsagas/obsidian-forge)(ボルト自動化)と連携するよう設計。
-- **OSS スタック** — [clap](https://docs.rs/clap)、[serde](https://serde.rs)、[ureq](https://docs.rs/ureq) と Rust エコシステム上に構築。
+- **プラグインカタログ** — [`quemsah/awesome-claude-plugins`](https://github.com/quemsah/awesome-claude-plugins) から取得。上位 100 個の Claude プラグインリポジトリのスター順コミュニティリストです。これがなければカタログは存在しませんでした。
+- **コンパニオンツール** — [alcove](https://github.com/epicsagas/alcove)（ドキュメントサーバー / RAG）、[Episteme](https://github.com/epicsagas/Episteme)（ナレッジグラフ）、[obsidian-forge](https://github.com/epicsagas/obsidian-forge)（ボールト自動化）と相互運用するよう設計されています。
+- **OSS スタック** — [clap](https://docs.rs/clap)、[serde](https://serde.rs)、[ureq](https://docs.rs/ureq)、そして Rust エコシステムの上に構築されています。
 
-カタログ項目と取り込んだコミュニティスキルはそれぞれのライセンスに従います（取り込み時に自動検出）。BYOH 自体は Apache-2.0 です。
+カタログの項目と vendor されたコミュニティスキルはそれぞれ独自のライセンスを維持します（vendor 時に自動検出）。BYOH 自体は Apache-2.0 です。
 
 ## ライセンス
 

@@ -108,6 +108,8 @@ byoh catalog vendor obra/superpowers --genre developer
 
 The LLM agent (via `catalog_search` / `catalog_vendor` MCP tools) can do this entire flow autonomously — *"add a memory plugin to my harness"* — or you can drive it directly from the CLI.
 
+A few companion tools are seeded into search results as **reference material** (not dependencies): BYOH's own execution-layer tools — [alcove](https://github.com/epicsagas/alcove) (doc server), [obsidian-forge](https://github.com/epicsagas/obsidian-forge) (vault automation), [epic-harness](https://github.com/epicsagas/epic-harness) (hook/skill runtime) — surface contextually (a "doc server" / "search backend" query finds alcove) so an agent can recommend them when relevant. Vendor one only if you actually want it; bundles ship dependency-free either way.
+
 ## Power users: the CLI (optional)
 
 Every flow above is also reachable from the terminal. The CLI is **auxiliary** — useful for scripting, CI, or when you'd rather not chat — but the agent-led path is the intended one.

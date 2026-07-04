@@ -6,39 +6,39 @@
 
 # BuildYourOwnHarness (BYOH)
 
-### Seu agente de IA, feito para você
+### Seu agente de IA, construído em torno de você
 
-*Não um template genérico — um harness compilado de acordo com seu papel, expertise e objetivos.*
+*Não é um template genérico — é um harness compilado a partir do seu papel, especialidade e objetivos.*
 
-<img src="../../../assets/features.png" width="100%" alt="Build Your Own Harness">
+<img src="assets/features.png" width="100%" alt="Build Your Own Harness">
 
 </div>
 
-A maioria das ferramentas de IA entrega um conjunto fixo de funções e diz "se vira". O BYOH vira esse jogo: ele entrevista você, aprende como você realmente trabalha e gera um harness de agente personalizado — habilidades, memória, pipelines — que já funciona para o seu fluxo de trabalho desde o início.
+A maioria das configurações de IA entrega um conjunto fixo de ferramentas e diz "boa sorte". O BYOH inverte isso: ele entrevista você, aprende o que você realmente faz e gera um harness de agente personalizado — skills, agentes, pipelines de objetivos — que se encaixa no seu fluxo de trabalho desde o início.
 
-## Para quem é?
+## Para quem é isto?
 
-- **Desenvolvedores** que querem um agente que já conhece sua stack, estilo de testes e cadência de entrega
-- **Pesquisadores** que precisam de revisão bibliográfica, rastreamento de citações e síntese integrados
-- **Criadores** que querem um parceiro de escrita alinhado com sua voz e estrutura de projeto
-- **Analistas de negócio** que precisam de frameworks de decisão e pipelines de relatórios — não de um chat genérico
+- **Desenvolvedores** que querem um agente que já conheça sua stack, estilo de teste e cadência de entrega
+- **Pesquisadores** que precisam de revisão de literatura, rastreamento de citações e síntese integrados
+- **Criadores** que querem um parceiro de escrita que combine com sua voz e estrutura de projeto
+- **Analistas de negócios** que precisam de frameworks de decisão e pipelines de relatórios, não um chat genérico
 
-Se você já pensou "queria que minha IA entendesse meu contexto de verdade" — é exatamente isso que o BYOH faz.
+Se você já pensou "quem dera a minha IA realmente conhecesse o meu contexto" — é isso que o BYOH faz.
 
 ## Como funciona em 60 segundos
 
-O BYOH foi feito para ser conduzido pelo seu agente de IA — não por você digitando comandos. Instale o plugin e basta conversar. A conversa *é* a entrevista, o wizard e o build.
+O BYOH foi projetado para ser conduzido pelo seu agente de IA — não por você digitando comandos. Instale o plugin e apenas converse. A conversa *é* a entrevista, o wizard e o build.
 
 ```
 1. Instale o plugin        # Claude Code / Codex / agy — auto-instala o binário
-2. "Build me a harness"    # seu agente escaneia seu repo e compila o resultado
+2. "Construa um harness"   # seu agente examina seu repo e compila o resultado
 ```
 
-Na próxima sessão, seu host carrega o harness automaticamente — agentes, habilidades, memória e pipelines ajustados para você.
+Na próxima sessão, seu host carrega o harness automaticamente — agentes, skills e pipelines de objetivos ajustados para você.
 
-## Instale o plugin (recomendado)
+## Instalar o plugin (recomendado)
 
-Usa **Claude Code, Codex ou agy**? Instale o plugin. Ele agrupa o servidor MCP e **auto-instala o binário no primeiro carregamento** — sem Rust toolchain, sem configuração manual:
+Usando **Claude Code, Codex ou agy**? Instale o plugin. Ele empacota o servidor MCP e **auto-instala o binário no primeiro carregamento** — sem toolchain Rust, sem configuração manual:
 
 **Claude Code:**
 ```bash
@@ -58,7 +58,7 @@ codex plugin marketplace add /path/to/BuildYourOwnHarness
 codex plugin add byoh@epicsagas
 ```
 
-### Usa outro host compatível com MCP?
+### Usando qualquer outro host compatível com MCP?
 
 O BYOH fala MCP, então Cursor, Zed, Continue e afins também funcionam. Instale o [binário](#installation) uma vez e aponte seu host para o servidor:
 
@@ -70,31 +70,31 @@ byoh serve   # servidor MCP stdio
 { "mcpServers": { "byoh": { "command": "byoh", "args": ["serve"] } } }
 ```
 
-> **Nota:** O repositório é atualmente privado. Use os caminhos acima. Quando for público, aparecerá no marketplace compartilhado `epicsagas/plugins`.
+> **Nota:** O repo é atualmente privado. Use os caminhos acima. Quando se tornar público, ele aparecerá no marketplace compartilhado `epicsagas/plugins`.
 
-## Modo conduzido pelo agente — o caminho principal
+## Modo conduzido por agente — o caminho principal
 
-Depois que seu host está conectado, você não digita comandos — você apenas conversa. Seu agente chama diretamente as ferramentas MCP do BYOH, e a conversa *é* a entrevista, o build e o ciclo de evolução:
+Depois que seu host está conectado, você não digita comandos — apenas conversa. Seu agente chama as ferramentas MCP do BYOH diretamente, e a conversa *é* a entrevista, o build e o ciclo de evolve:
 
-> **Você:** *Sou um desenvolvedor backend em Go entregando uma API de pagamentos este mês. Monte um harness para mim.*
+> **Você:** *Sou um desenvolvedor Go de backend entregando uma API de pagamentos este mês. Construa um harness para mim.*
 >
-> **Agente:** *(escaneia seu repo via `profile_scan`, faz algumas perguntas direcionadas via `profile_interview`, trava o gênero em `developer`)* → compila um `HarnessBundle` → instala agentes, habilidades, memória e um pipeline de entrega segura no Claude Code. Pronto — na próxima sessão, seu agente já fala a sua stack.
+> **Agente:** *(examina seu repo via `profile_scan`, faz algumas perguntas direcionadas via `profile_interview`, trava o gênero como `developer`)* → compila um `HarnessBundle` → instala agentes, skills e um pipeline de objetivos de secure-ship no Claude Code. Pronto — na próxima sessão, seu agente já fala a sua stack.
 
-Esse mesmo fluxo, na ordem sugerida de ferramentas:
+O mesmo fluxo, na ordem sugerida de ferramentas:
 
 ```
 profile_create → profile_scan → profile_interview → profile_confirm
            → compile → compile_dry_run → render_plugin → install_plugin
-           → (opcional) registry_clone_skill → (mais tarde) evolve_cycle
+           → (opcional) registry_clone_skill → (depois) evolve_cycle
 ```
 
 Ferramentas disponíveis: `profile_read`, `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `genre_list`, `compile`, `compile_dry_run`, `render_plugin`, `install_plugin`, `evolve_cycle`, `registry_clone_skill`, `catalog_search`, `catalog_vendor`.
 
-Quer que o agente te conduza por tudo isso? Basta dizer *"build my harness"* — o agente `byoh-guide`, que vem embutido, orquestra o fluxo inteiro.
+Quer que o agente te guie pelo processo? Basta dizer *"construa meu harness"* — o agente `byoh-guide`, incluído no bundle, orquestra todo o fluxo.
 
 ## Catálogo de plugins
 
-O catálogo é construído a partir do README de [`quemsah/awesome-claude-plugins`](https://github.com/quemsah/awesome-claude-plugins) — uma lista da comunidade, ordenada por estrelas, dos 100 principais repositórios de plugins do Claude. O BYOH distribui um bundle pré-compilado (reconstruído **semanalmente**, toda segunda-feira 03:17 UTC) para que `byoh catalog index` resolva em segundos; passe `--no-bundle` para analisar a lista upstream diretamente.
+O catálogo é construído a partir do README de [`quemsah/awesome-claude-plugins`](https://github.com/quemsah/awesome-claude-plugins) — uma lista mantida pela comunidade, ordenada por estrelas, com os 100 principais repositórios de plugins do Claude. O BYOH distribui um bundle pré-construído (reconstruído **semanalmente**, toda segunda-feira às 03:17 UTC) para que `byoh catalog index` resolva em segundos; passe `--no-bundle` para analisar a lista upstream diretamente.
 
 ```bash
 # Indexação única — baixa um bundle pré-construído em segundos
@@ -103,79 +103,81 @@ byoh catalog index
 # Busca offline — sem rede necessária após a indexação
 byoh catalog search "memory" --genre developer --limit 5
 
-# Adicionar um plugin ao seu harness
-# licença, keywords e genre são detectados automaticamente do repositório clonado
+# Adiciona um plugin ao seu harness
+# licença, palavras-chave e gênero são detectados automaticamente do repo clonado
 byoh catalog vendor obra/superpowers --genre developer
 ```
 
-O agente LLM (via ferramentas MCP `catalog_search` / `catalog_vendor`) pode fazer esse fluxo inteiro de forma autônoma — *"adiciona um plugin de memória ao meu harness"* — ou você pode conduzir diretamente pela CLI.
+O agente LLM (via ferramentas MCP `catalog_search` / `catalog_vendor`) pode executar todo esse fluxo de forma autônoma — *"adicione um plugin de memória ao meu harness"* — ou você pode conduzi-lo diretamente pelo CLI.
 
-## Usuários avançados: a CLI (opcional)
+Algumas ferramentas complementares são inseridas nos resultados de busca como **material de referência** (não dependências): as próprias ferramentas de camada de execução do BYOH — [alcove](https://github.com/epicsagas/alcove) (servidor de docs), [obsidian-forge](https://github.com/epicsagas/obsidian-forge) (automação de vault), [epic-harness](https://github.com/epicsagas/epic-harness) (runtime de hook/skill) — aparecem contextualmente (uma consulta por "doc server" / "search backend" encontra o alcove) para que um agente possa recomendá-las quando relevante. Faça vendor de uma apenas se você realmente quiser; de qualquer forma, os bundles são distribuídos sem dependências.
 
-Todos os fluxos acima também são acessíveis pelo terminal. A CLI é **auxiliar** — útil para scripts, CI ou quando você prefere evitar o chat — mas o caminho conduzido pelo agente é o caminho pretendido.
+## Power users: o CLI (opcional)
 
-### Seu primeiro harness — pela CLI
+Todos os fluxos acima também são acessíveis pelo terminal. O CLI é **auxiliar** — útil para scripts, CI ou quando você prefere não conversar — mas o caminho conduzido por agente é o pretendido.
+
+### Seu primeiro harness — pelo CLI
 
 ```bash
-byoh profile init me --paths ./src ./docs   # análise automática do projeto
-byoh profile interview me                   # conversa de ~5 min
-byoh profile confirm me --genre developer   # confirmar seu gênero
+byoh profile init me --paths ./src ./docs   # examina seu projeto automaticamente
+byoh profile confirm me --genre developer   # trava seu gênero (+ opcional --goal)
 
-byoh compile me --no-dry-run                # valida + escreve o HarnessBundle (dry-run é o padrão)
+byoh compile me                             # gates (estático + dry-run) sempre rodam; escreve o HarnessBundle
 byoh render me --target claude              # ou: codex | agy | all (padrão: all)
-byoh install me --scope local               # renderiza para dist/ e ativa apenas no .claude/ deste projeto
-byoh install me --scope global              # ...ou ~/.claude + ~/.codex + ~/.gemini (antes --host)
-byoh install me --scope publish             # ...ou adiciona LICENSE + .gitignore e imprime as instruções do git
-
-byoh run me                                 # iniciar com o harness ativo
-byoh evolve me                              # melhorar o harness com base no feedback das sessões
+byoh install me --scope local               # renderiza para dist/, ativa apenas no .claude/ deste projeto
+byoh install me --scope global              # ...ou ~/.claude + ~/.codex + ~/.gemini (antigo --host)
+byoh install me --scope publish             # ...ou adiciona LICENSE + .gitignore e exibe instruções do git
 ```
 
-O BYOH pergunta sobre seu papel, nível de expertise, ferramentas e objetivo de 30 dias. A entrevista se adapta — um pesquisador recebe perguntas diferentes de um desenvolvedor. `evolve` executa um ciclo com 3 gates (Critic / Seesaw / Stagnation) que nunca podem ser ignorados — a evolução é segura e auditável.
+A própria entrevista é conduzida pelo agente (a ferramenta MCP `profile_interview`) — a conversa é a entrevista, então não há entrevista interativa no CLI. A evolução (ferramenta MCP `evolve_cycle`) executa um ciclo de 3 gates (Critic / Seesaw / Stagnation) que nunca pode ser bypassado — portanto a evolução é segura e auditável.
 
-## Como funciona por dentro
+## Como funciona por baixo dos panos
 
-O motor de síntese do BYOH combina suas tags de perfil com o registro de habilidades, as ordena em um pipeline com dependências resolvidas e emite um `HarnessBundle` — um artefato pronto para git que renderiza no formato nativo de cada host suportado.
+O motor de síntese do BYOH faz a correspondência das tags do seu perfil com o registro de skills, ordena-as em um pipeline resolvido por dependências e emite um `HarnessBundle` — um artefato pronto para git que é renderizado no formato nativo de qualquer host suportado.
 
-- **Modelo de segurança com 4 anéis** — habilidades embutidas (anel 1) até habilidades da comunidade/não confiáveis (anel 4), com validação crescente em cada nível
-- **Evolução com 3 gates** — cada ciclo `evolve` passa pelos gates Critic (qualidade), Seesaw (regressão) e Stagnation (estagnação); sem possibilidade de bypass
-- **Pipelines por objetivo** — declarar um objetivo de 30 dias (lançamento de produto, relatório de pesquisa, entrega segura…) sobrepõe automaticamente uma escala progressiva de habilidades correspondente
+- **Modelo de segurança de 4 anéis** — spec de ciclo de vida (Ring 0) e skills de pipeline embutidas (Ring 1) até skills da comunidade/não confiáveis (Ring 3), cada uma com validação crescente; skills com vendor têm sha256 fixado e verificado no momento de leitura + embed
+- **Evolução de 3 gates** — cada ciclo de `evolve` passa pelos gates Critic (qualidade), Seesaw (regressão) e Stagnation (platô); sem bypass
+- **Pipelines orientados a objetivos** — declarar um objetivo de 30 dias (lançamento de produto, relatório de pesquisa, secure ship…) sobrepõe automaticamente uma escada de skills correspondente
 
-Arquitetura hexagonal: `domain / ports / adapters / application / compiler / evolve / templates / deploy / i18n / obs / security / cli`. Veja `AGENTS.md` para o guia completo.
+Arquitetura: hexagonal — `domain / ports / adapters / application / compiler / evolve / templates / deploy / catalog / mcp / i18n / security / cli`. Veja `AGENTS.md` para o guia completo.
 
-## Referência completa da CLI
+## Referência completa do CLI
+
+O CLI é intencionalmente enxuto: entry points de máquina (`serve`, `catalog index` em CI, `vendor` para mantenedores) mais um espelho scriptável do fluxo central de build. Entrevista e evolução são exclusivas do MCP (conduzidas por agente).
 
 ```bash
-# Perfil
-byoh profile init <slug> [--paths ...]      # scan não-destrutivo do projeto
-byoh profile interview <slug>               # entrevista guiada
-byoh profile confirm <slug> --genre <g>     # confirmar e bloquear o perfil
+# Profile
+byoh profile init <slug> [--paths ...]      # scan não destrutivo do projeto
+byoh profile confirm <slug> --genre <g> [--goal <text>]  # confirma e trava o perfil
+byoh profile show <slug>                    # exibe o YAML do perfil
 
-# Build
-byoh compile <slug> [--no-dry-run]          # dry-run é o padrão; --no-dry-run para escrever o bundle
+# Build (gate estático + gate dry-run somente leitura sempre rodam)
+byoh compile <slug> [--out <dir>]           # escreve o HarnessBundle
 byoh render <slug> [--target <host>]        # claude | codex | agy | all (padrão: all)
-byoh install <slug> [--target <host>] [--scope local|global|publish] [--host] [--force]  # árvore em dist/; --scope define o destino (local=este projeto, global=HOME, publish=+LICENSE/.gitignore+passos do git). --host é o equivalente obsoleto de --scope global.
+byoh install <slug> [--target <host>] [--scope local|global|publish] [--host] [--force]  # árvore em dist/; --scope decide o destino (local=este projeto, global=HOME, publish=+LICENSE/.gitignore+passos git). --host é o legado para --scope global.
 
-# Executar e evoluir
-byoh run <slug>
-byoh evolve <slug>
-
-# Habilidades da comunidade
+# Skills da comunidade (mantenedor/build-time; sha256 fixado e verificado no momento de leitura + embed)
 byoh vendor add <src> --genre <g> --id <id> [--keywords k1,k2] [--trust] [--sha <s>]
 byoh vendor list
 byoh vendor remove <id> --genre <g>
 
 # Catálogo
 byoh catalog index [--no-bundle] [--limit N]
-byoh catalog search "<consulta>" [--genre <g>] [--tags k1,k2] [--limit N]
+byoh catalog search "<query>" [--genre <g>] [--tags k1,k2] [--limit N]
 byoh catalog vendor <owner/repo> [--genre <g>] [--keywords k1,k2]
+
+# Diagnóstico / servidor
+byoh doctor                                 # verifica ferramentas da camada de execução
+byoh serve                                  # servidor MCP stdio (modo conduzido por agente)
 ```
 
-## Installation
+Perfis e o cache do catálogo ficam em `~/.byoh` por padrão (sobrescreva com `BYOH_HOME`).
 
-Necessário apenas se você **não** estiver usando o plugin (que auto-instala o binário) ou se quiser o BYOH em um host MCP sem plugin.
+## Instalação
 
-### Binário (sem necessidade de Rust toolchain)
+Necessária apenas se você **não** estiver usando o plugin (que auto-instala o binário) ou se quiser o BYOH em um host MCP sem plugin.
+
+### Binário (sem toolchain Rust necessária)
 
 **macOS / Linux:**
 ```bash
@@ -194,29 +196,29 @@ cargo install byoh --git https://github.com/epicsagas/BuildYourOwnHarness
 ```
 
 ```bash
-byoh --version   # verificar instalação
+byoh --version   # verifique
 ```
 
-## Build e desenvolvimento
+## Build & desenvolvimento
 
 ```bash
 cargo build --release
 cargo clippy --all-targets -- -D warnings
-cargo test                        # testes unitários + e2e
+cargo test                        # unit + e2e
 cvp                               # paralelo: check → clippy → test → fmt → build
 ```
 
-A feature `mcp` (servidor MCP stdio) vem ativada por padrão. O BYOH não inclui nenhum acervo de conhecimento embutido — para recuperação, aponte seu harness gerado para um servidor de documentos como o [alcove](https://github.com/epicsagas/alcove).
+A feature `mcp` (servidor MCP stdio) vem ativada por padrão. O BYOH não distribui nenhuma base de conhecimento embutida — para recuperação, aponte seu harness gerado para um servidor de docs como o [alcove](https://github.com/epicsagas/alcove).
 
 ## Agradecimentos
 
-O BYOH apoia-se em vários esforços da comunidade:
+O BYOH está apoiado sobre vários esforços da comunidade:
 
-- **Catálogo de plugins** — originado de [`quemsah/awesome-claude-plugins`](https://github.com/quemsah/awesome-claude-plugins), uma lista da comunidade ordenada por estrelas dos 100 principais repositórios de plugins do Claude. Sem ela, o catálogo não existiria.
-- **Ferramentas complementares** — projetado para interoperar com [alcove](https://github.com/epicsagas/alcove) (servidor de docs / RAG), [Episteme](https://github.com/epicsagas/Episteme) (grafo de conhecimento) e [obsidian-forge](https://github.com/epicsagas/obsidian-forge) (automação de vaults).
-- **Stack open source** — construído sobre [clap](https://docs.rs/clap), [serde](https://serde.rs), [ureq](https://docs.rs/ureq) e o ecossistema Rust.
+- **Catálogo de plugins** — originado de [`quemsah/awesome-claude-plugins`](https://github.com/quemsah/awesome-claude-plugins), uma lista comunitária ordenada por estrelas com os 100 principais repositórios de plugins do Claude. Sem ele, o catálogo não existiria.
+- **Ferramentas complementares** — projetadas para interoperar com [alcove](https://github.com/epicsagas/alcove) (servidor de docs / RAG), [Episteme](https://github.com/epicsagas/Episteme) (knowledge graph) e [obsidian-forge](https://github.com/epicsagas/obsidian-forge) (automação de vault).
+- **Stack open-source** — construído sobre [clap](https://docs.rs/clap), [serde](https://serde.rs), [ureq](https://docs.rs/ureq) e o ecossistema Rust.
 
-Entradas do catálogo e habilidades da comunidade incorporadas mantêm suas próprias licenças (detectadas automaticamente ao incorporar). O próprio BYOH é Apache-2.0.
+Entradas do catálogo e skills da comunidade com vendor mantêm suas próprias licenças (detectadas automaticamente no momento do vendor). O BYOH em si é Apache-2.0.
 
 ## Licença
 

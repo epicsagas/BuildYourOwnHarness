@@ -35,8 +35,8 @@ src/
 ├── compiler/        compile_profile, static_gate (3 contracts), dry_run (real, failable checks)
 ├── evolve/          Critic / Seesaw / Stagnation gates + lifecycle + persisted state
 ├── templates/       genre template library (base inheritance + overrides)
-├── deploy/          presets, agent_presets, vendor (sha256-pinned), install, registry, bootstrap
-├── catalog/         quemsah top-100 index / search / vendor-from-catalog
+├── deploy/          presets, agent_presets, vendor (sha256-pinned), install, provider
+├── catalog/         quemsah top-100 index / search / vendor-from-catalog + curated companion-tool seeds
 ├── mcp/             stdio MCP server (`byoh serve`) — 14 tools, the primary interface
 ├── store.rs         profile persistence; sanitize_slug choke point; BYOH_HOME (~/.byoh)
 ├── security.rs      secret masking — applied to every rendered markdown artifact
@@ -49,6 +49,11 @@ src/
 - **Slug/id sanitization at the choke point.** `store::profile_path/load/write`
   validate slugs; MCP and CLI both go through them. Vendored ids go through
   `sanitize_skill_id` before any path join.
+- **Bundles are dependency-free by default.** `config.depends_on` starts empty —
+  the compiler never hardcodes the epiccounty companion stack. Those tools
+  surface as curated seeds in `catalog_search` (reference material) and as
+  "e.g." hints in MCP tool descriptions; the user opts in via `catalog vendor`
+  / `vendor add`.
 - **Rendered plugins are static.** `render_plugin` emits skills/agents/manifests
   (+ `.claude-plugin/marketplace.json`) only — never an MCP server config or
   hook commands, which would require a `byoh` binary + this machine's profile on

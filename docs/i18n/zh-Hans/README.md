@@ -1,187 +1,191 @@
+> 本文是 [README.md](../../../README.md) 的简体中文译文。英文版本为权威原文。
+
 <div align="center">
 
 **[English](../../../README.md)** | [한국어](../ko/README.md) | [日本語](../ja/README.md) | **简体中文** | [Español](../es/README.md) | [Deutsch](../de/README.md) | [Français](../fr/README.md) | [Português](../pt/README.md) | [Русский](../ru/README.md) | [العربية](../ar/README.md)
 
 # BuildYourOwnHarness (BYOH)
 
-### 专属于你的 AI 智能体
+### 专为你打造的 AI agent
 
-*不是通用模板，而是根据你的角色、专业和目标编译出的定制化工作台。*
+*不是通用模板——而是根据你的角色、专长和目标编译出的 harness。*
 
-<img src="../../../assets/features.png" width="100%" alt="Build Your Own Harness">
+<img src="assets/features.png" width="100%" alt="Build Your Own Harness">
 
 </div>
 
-大多数 AI 配置给你一套固定功能，然后说"自己摸索吧"。BYOH 反其道而行：BYOH 会先访谈你，**搞清楚你实际在做什么**，然后生成专属的智能体工作台——技能、记忆、流水线——开箱即用，无需手动调教。
+大多数 AI 配置只是塞给你一套固定工具，再说一句"祝你好运"。BYOH 反其道而行：它先访谈你，了解你实际在做什么，再生成一个个性化的 agent harness——skills、agents、goal pipelines——开箱即用，贴合你的工作流。
 
-## 适合哪些人
+## 它面向谁？
 
-- **开发者** —— 想要一个已经了解自己技术栈、测试风格和交付节奏的智能体
-- **研究者** —— 需要将文献检索、引用追踪和综合分析串联在一起的完整流水线
-- **创作者** —— 想要一个匹配自己写作风格和项目结构的创作伙伴
-- **业务分析师** —— 需要决策框架和报告流水线，而不是裸聊天
+- **开发者**：希望 agent 已经熟悉自己的技术栈、测试风格和交付节奏
+- **研究者**：需要把文献综述、引用追踪和综合写作串到一起
+- **创作者**：想要一个契合自己文风和项目结构的写作搭档
+- **业务分析师**：需要决策框架和汇报流水线，而不是单纯聊天
 
-如果你曾想过"要是 AI 真的了解我的上下文就好了"——这正是 BYOH 要解决的问题。
+如果你曾想过"真希望我的 AI 能真正懂我的上下文"——这正是 BYOH 做的事。
 
-## 60 秒上手
+## 60 秒看懂它怎么工作
 
-BYOH 的设计初衷就是由**你的 AI 智能体**来驱动——不是让你敲命令。安装插件，然后直接对话即可。对话本身就是访谈、向导和构建过程。
+BYOH 的设计是由你的 AI agent 来驱动——而不是靠你敲命令。装好 plugin，然后直接开口聊。对话本身就是访谈、向导和构建全过程。
 
 ```
-1. Install the plugin      # Claude Code / Codex / agy —— 自动安装二进制
-2. "Build me a harness"    # 你的智能体扫描仓库并编译出结果
+1. Install the plugin      # Claude Code / Codex / agy — auto-installs the binary
+2. "Build me a harness"    # your agent scans your repo and compiles the result
 ```
 
-下次会话时，你的主机会自动加载这套工作台——智能体、技能、记忆和流水线全部按你的工作方式调校到位。
+下一次会话时，你的 host 会自动加载 harness——agents、skills 和 goal pipelines 都已为你调好。
 
-## 安装插件（推荐）
+## 安装 plugin（推荐）
 
-使用的是 **Claude Code、Codex 或 agy**？安装插件即可。它打包了 MCP 服务器，并**在首次加载时自动安装二进制**——无需 Rust 工具链，无需手动配置：
+使用 **Claude Code、Codex 或 agy**？直接安装 plugin。它打包了 MCP server，并**在首次加载时自动安装 binary**——无需 Rust 工具链，无需手动配置：
 
-**Claude Code：**
+**Claude Code:**
 ```bash
 claude plugin marketplace add epicsagas/BuildYourOwnHarness
 claude plugin install byoh@epicsagas
 ```
 
-**agy（Antigravity）：**
+**agy (Antigravity):**
 ```bash
 agy plugin install /path/to/BuildYourOwnHarness
 agy plugin enable byoh
 ```
 
-**Codex：**
+**Codex:**
 ```bash
 codex plugin marketplace add /path/to/BuildYourOwnHarness
 codex plugin add byoh@epicsagas
 ```
 
-### 使用其他兼容 MCP 的主机？
+### 使用其他兼容 MCP 的 host？
 
-BYOH 说 MCP 协议，因此 Cursor、Zed、Continue 等也能用。安装一次[二进制](#安装)，然后把主机指向服务器即可：
+BYOH 说 MCP，所以 Cursor、Zed、Continue 等也能用。先装一次 [binary](#installation)，再把 host 指向这个 server：
 
 ```bash
-byoh serve   # stdio MCP 服务器
+byoh serve   # stdio MCP server
 ```
 
 ```json
 { "mcpServers": { "byoh": { "command": "byoh", "args": ["serve"] } } }
 ```
 
-> **注意：** 仓库目前为私有。请使用上面的路径。公开后将出现在 `epicsagas/plugins` 共享市场中。
+> **注：** 该仓库目前为私有。请使用上述路径。公开后它会出现在共享的 `epicsagas/plugins` marketplace 中。
 
-## 智能体主导模式 —— 主路径
+## Agent 主导模式——主路径
 
-主机连接好之后，你不需要输命令——只需开口对话。你的智能体会直接调用 BYOH 的 MCP 工具，对话本身就是访谈、构建和进化循环：
+host 连上之后，你不需要敲命令——直接聊天就行。你的 agent 会直接调用 BYOH 的 MCP tools，而对话本身就是访谈、构建和 evolve 循环：
 
-> **你：** *我是一名后端 Go 开发者，这个月要交付一个支付 API。给我搭一套工作台。*
+> **你：** *我是一名后端 Go 开发者，本月要交付一个 payments API。帮我构建一个 harness。*
 >
-> **智能体：** *(通过 `profile_scan` 扫描你的仓库，通过 `profile_interview` 提几个有针对性的问题，把角色锁定为 `developer`)* → 编译出一个 `HarnessBundle` → 把智能体、技能、记忆以及一套安全交付流水线安装到 Claude Code 中。完成——下次会话时，你的智能体就已经**能熟练驾驭你的技术栈了**。
+> **Agent：** *（通过 `profile_scan` 扫描你的仓库，再用 `profile_interview` 问几个有针对性的问题，将 genre 锁定为 `developer`）* → 编译出一个 `HarnessBundle` → 把 agents、skills 和一条 secure-ship goal pipeline 装进 Claude Code。搞定——下一次会话时，你的 agent 已经会说你的技术栈了。
 
-同样的流程，按建议的工具调用顺序排列：
+同一套流程，按建议的 tool 顺序：
 
 ```
 profile_create → profile_scan → profile_interview → profile_confirm
            → compile → compile_dry_run → render_plugin → install_plugin
-           → (可选) registry_clone_skill → (之后) evolve_cycle
+           → (optional) registry_clone_skill → (later) evolve_cycle
 ```
 
-可用工具：`profile_read`、`profile_create`、`profile_scan`、`profile_interview`、`profile_confirm`、`genre_list`、`compile`、`compile_dry_run`、`render_plugin`、`install_plugin`、`evolve_cycle`、`registry_clone_skill`、`catalog_search`、`catalog_vendor`。
+可用 tools：`profile_read`、`profile_create`、`profile_scan`、`profile_interview`、`profile_confirm`、`genre_list`、`compile`、`compile_dry_run`、`render_plugin`、`install_plugin`、`evolve_cycle`、`registry_clone_skill`、`catalog_search`、`catalog_vendor`。
 
-想让智能体**手把手带你**走完整个流程吗？只需说一句 *"build my harness"*——内置的 `byoh-guide` 智能体会编排整个流程。
+想让 agent 带你走完整套流程？只要说一句 *"build my harness"*——内置的 `byoh-guide` agent 会编排整个过程。
 
-## 插件目录
+## Plugin 目录
 
-目录基于 [`quemsah/awesome-claude-plugins`](https://github.com/quemsah/awesome-claude-plugins) 的 README 构建——这是一份社区维护的、按 Stars 排序的 Top 100 Claude 插件仓库列表。BYOH 提供预构建 bundle（**每周一 03:17 UTC 更新**），所以 `byoh catalog index` 几秒就完成；传 `--no-bundle` 可直接解析上游列表。
+该目录基于 [`quemsah/awesome-claude-plugins`](https://github.com/quemsah/awesome-claude-plugins) 的 README 构建——那是一份由社区维护、按 star 排名、涵盖 Top 100 Claude plugin 仓库的清单。BYOH 内置一份预构建 bundle（**每周**重建，周一 03:17 UTC），所以 `byoh catalog index` 几秒内就能完成；传入 `--no-bundle` 可直接解析上游清单。
 
 ```bash
-# 一次性索引——几秒钟下载预构建包
+# One-time index — downloads a prebuilt bundle in seconds
 byoh catalog index
 
-# 索引后完全离线搜索，无需网络
+# Search offline — no network needed after indexing
 byoh catalog search "memory" --genre developer --limit 5
 
-# 将插件添加到工作台
-# 自动从克隆仓库中提取 license、keywords 和 genre
+# Add a plugin to your harness
+# license, keywords, and genre are auto-detected from the cloned repo
 byoh catalog vendor obra/superpowers --genre developer
 ```
 
-LLM 智能体（通过 `catalog_search` / `catalog_vendor` MCP 工具）可以自主完成整个流程——*"给我的工作台加个 memory 插件"*——你也可以直接用 CLI 驱动。
+LLM agent（通过 `catalog_search` / `catalog_vendor` MCP tools）可以自主完成整套流程——*"给我的 harness 加一个 memory plugin"*——你也可以直接在 CLI 上手动操作。
+
+少数 companion tools 会作为**参考资料**（而非依赖）注入到搜索结果中：BYOH 自身的执行层工具——[alcove](https://github.com/epicsagas/alcove)（doc server）、[obsidian-forge](https://github.com/epicsagas/obsidian-forge)（vault 自动化）、[epic-harness](https://github.com/epicsagas/epic-harness)（hook/skill runtime）——会在相关场景中浮现（一次"doc server" / "search backend"查询会找到 alcove），便于 agent 在合适时机推荐。只有你确实需要时才去 vendor 它；无论怎样，bundle 始终不携带依赖。
 
 ## 进阶用户：CLI（可选）
 
-上述每一个流程都可以从终端完成。CLI 是**辅助性的**——适合脚本化、CI 场景，或者当你不想聊天时使用——但智能体主导的路径才是**推荐的正道**。
+上面每一条流程也都能在终端上完成。CLI 是**辅助性**的——适合脚本、CI，或你不想聊天的时候——但 agent 主导的路径才是设计初衷。
 
-### 用 CLI 构建你的第一个工作台
+### 你的第一个 harness——从 CLI 开始
 
 ```bash
-byoh profile init me --paths ./src ./docs   # 自动扫描项目
-byoh profile interview me                   # 约 5 分钟的问答
-byoh profile confirm me --genre developer   # 锁定角色
+byoh profile init me --paths ./src ./docs   # auto-scans your project
+byoh profile confirm me --genre developer   # lock in your genre (+ optional --goal)
 
-byoh compile me --no-dry-run                # 校验 + 写出 HarnessBundle（dry-run 为默认）
-byoh render me --target claude              # 或: codex | agy | all（默认: all）
-byoh install me --scope local               # 渲染到 dist/，仅激活到此项目的 .claude/
-byoh install me --scope global              # ...或 ~/.claude + ~/.codex + ~/.gemini（原 --host）
-byoh install me --scope publish             # ...或添加 LICENSE + .gitignore 并输出 git 说明
-
-byoh run me                                 # 以你的工作台启动
-byoh evolve me                              # 根据会话反馈改进工作台
+byoh compile me                             # gates (static + dry-run) always run; writes the HarnessBundle
+byoh render me --target claude              # or: codex | agy | all (default: all)
+byoh install me --scope local               # render to dist/, activate into this project's .claude/ only
+byoh install me --scope global              # ...or ~/.claude + ~/.codex + ~/.gemini (was --host)
+byoh install me --scope publish             # ...or add LICENSE + .gitignore and print git instructions
 ```
 
-BYOH 会询问你的职责、专业水平、使用工具和 30 天目标。问卷会自动适配——研究者和开发者收到的问题不同。`evolve` 执行三重门控循环（Critic / Seesaw / Stagnation），无法绕过——进化过程安全且可审计。
+访谈本身由 agent 主导（`profile_interview` MCP tool）——对话即访谈，因此不存在交互式 CLI 访谈。Evolution（`evolve_cycle` MCP tool）运行一套 3-gate 循环（Critic / Seesaw / Stagnation），且永远无法绕过——所以 evolution 是安全、可审计的。
 
-## 底层原理
+## 底层如何工作
 
-BYOH 的合成引擎将你的档案标签与技能注册表匹配，按依赖关系排序成流水线，输出 `HarnessBundle`——一个可以渲染为任意支持主机原生格式的 git 制品。
+BYOH 的 synthesis engine 把你的 profile 标签匹配到 skill registry，按依赖关系排成一条 pipeline，并输出一个 `HarnessBundle`——一个 git 就绪的产物，可渲染为任意受支持 host 的原生格式。
 
-- **四环安全模型** —— 从内置技能（Ring 1）到社区/未信任技能（Ring 4），逐级加强验证
-- **三重门控进化** —— 每次 `evolve` 必须通过 Critic（质量）、Seesaw（回归）、Stagnation（平台期）三道关卡，无法绕过
-- **目标导向流水线** —— 声明 30 天目标（产品发布、研究报告、安全交付……）后自动叠加对应技能阶梯
+- **4-ring 安全模型**——从 lifecycle spec（Ring 0）和内置 pipeline skills（Ring 1）一直到 community/untrusted skills（Ring 3），每一层都配有递进的校验；vendored skills 以 sha256 固定，并在读取 + embed 时校验
+- **3-gate evolution**——每个 `evolve` 循环都要过 Critic（质量）、Seesaw（回归）和 Stagnation（停滞）三道闸门；无法绕过
+- **面向目标的 pipelines**——声明一个 30 天目标（产品上线、研究报告、安全交付……）会自动叠加一条匹配的 skill ladder
 
-架构：六边形架构——`domain / ports / adapters / application / compiler / evolve / templates / deploy / i18n / obs / security / cli`。完整架构指南见 `AGENTS.md`。
+架构：六边形——`domain / ports / adapters / application / compiler / evolve / templates / deploy / catalog / mcp / i18n / security / cli`。完整指南见 `AGENTS.md`。
 
 ## 完整 CLI 参考
 
+CLI 刻意保持精简：机器入口（`serve`、CI 中的 `catalog index`、面向维护者的 `vendor`）加上核心构建流程的可脚本化镜像。Interview 和 evolution 仅限 MCP（agent 主导）。
+
 ```bash
-# 档案管理
-byoh profile init <slug> [--paths ...]       # 非破坏性项目扫描
-byoh profile interview <slug>                # 引导式问答
-byoh profile confirm <slug> --genre <g>      # 确认并锁定档案
+# Profile
+byoh profile init <slug> [--paths ...]      # non-destructive project scan
+byoh profile confirm <slug> --genre <g> [--goal <text>]  # confirm and lock profile
+byoh profile show <slug>                    # print the profile YAML
 
-# 构建
-byoh compile <slug> [--no-dry-run]          # dry-run 为默认，写 bundle 需 --no-dry-run
-byoh render <slug> [--target <host>]        # claude | codex | agy | all（默认: all）
-byoh install <slug> [--target <host>] [--scope local|global|publish] [--host] [--force]  # dist/ 树; --scope 决定安装位置（local=此项目, global=HOME, publish=+LICENSE/.gitignore+git 步骤）。--host 是 --scope global 的旧版。
+# Build (static gate + read-only dry-run gate always run)
+byoh compile <slug> [--out <dir>]           # write the HarnessBundle
+byoh render <slug> [--target <host>]        # claude | codex | agy | all (default: all)
+byoh install <slug> [--target <host>] [--scope local|global|publish] [--host] [--force]  # dist/ tree; --scope decides where it goes (local=this project, global=HOME, publish=+LICENSE/.gitignore+git steps). --host is legacy for --scope global.
 
-# 运行与进化
-byoh run <slug>
-byoh evolve <slug>
-
-# 社区技能
+# Community skills (maintainer/build-time; sha256-pinned and verified at read + embed time)
 byoh vendor add <src> --genre <g> --id <id> [--keywords k1,k2] [--trust] [--sha <s>]
 byoh vendor list
 byoh vendor remove <id> --genre <g>
 
-# 目录
+# Catalog
 byoh catalog index [--no-bundle] [--limit N]
 byoh catalog search "<query>" [--genre <g>] [--tags k1,k2] [--limit N]
 byoh catalog vendor <owner/repo> [--genre <g>] [--keywords k1,k2]
+
+# Diagnostics / server
+byoh doctor                                 # check execution-layer tools
+byoh serve                                  # stdio MCP server (agent-led mode)
 ```
+
+profile 和 catalog 缓存默认存放在 `~/.byoh` 下（可用 `BYOH_HOME` 覆盖）。
 
 ## 安装
 
-仅当你**不**使用插件（插件会自动安装二进制），或者想在非插件 MCP 主机上使用 BYOH 时才需要。
+仅当你**不**使用 plugin（plugin 会自动安装 binary），或想把 BYOH 接到非 plugin 的 MCP host 上时才需要。
 
-### 二进制安装（无需 Rust 工具链）
+### Binary（无需 Rust 工具链）
 
-**macOS / Linux：**
+**macOS / Linux:**
 ```bash
 curl --proto '=https' --tlsv1.2 -LsSf \
   https://github.com/epicsagas/BuildYourOwnHarness/releases/latest/download/install.sh | sh
 ```
 
-**Windows（PowerShell）：**
+**Windows (PowerShell):**
 ```powershell
 irm https://github.com/epicsagas/BuildYourOwnHarness/releases/latest/download/install.ps1 | iex
 ```
@@ -192,7 +196,7 @@ cargo install byoh --git https://github.com/epicsagas/BuildYourOwnHarness
 ```
 
 ```bash
-byoh --version   # 验证安装
+byoh --version   # verify
 ```
 
 ## 构建与开发
@@ -200,22 +204,22 @@ byoh --version   # 验证安装
 ```bash
 cargo build --release
 cargo clippy --all-targets -- -D warnings
-cargo test                        # 单元测试 + 端到端测试
-cvp                               # 并行执行：check → clippy → test → fmt → build
+cargo test                        # unit + e2e
+cvp                               # parallel: check → clippy → test → fmt → build
 ```
 
-`mcp` feature（stdio MCP 服务器）默认开启。BYOH 不内置任何知识库——如需检索能力，请把生成的工作台指向一个文档服务器，例如 [alcove](https://github.com/epicsagas/alcove)。
+`mcp` feature（stdio MCP server）默认开启。BYOH 不内嵌任何知识库——若需检索能力，请把你生成的 harness 指向一个 doc server，例如 [alcove](https://github.com/epicsagas/alcove)。
 
 ## 致谢
 
-BYOH 站在多个社区项目的肩膀上：
+BYOH 站在若干社区项目的肩膀上：
 
-- **插件目录** — 取自 [`quemsah/awesome-claude-plugins`](https://github.com/quemsah/awesome-claude-plugins)，一份按 Stars 排序的 Top 100 Claude 插件仓库社区列表。没有它就没有目录。
-- **配套工具** — 设计为与 [alcove](https://github.com/epicsagas/alcove)（文档服务器 / RAG）、[Episteme](https://github.com/epicsagas/Episteme)（知识图谱）、[obsidian-forge](https://github.com/epicsagas/obsidian-forge)（库自动化）协同。
-- **开源技术栈** — 基于 [clap](https://docs.rs/clap)、[serde](https://serde.rs)、[ureq](https://docs.rs/ureq) 和 Rust 生态构建。
+- **Plugin 目录**——源自 [`quemsah/awesome-claude-plugins`](https://github.com/quemsah/awesome-claude-plugins)，一份按 star 排名、涵盖 Top 100 Claude plugin 仓库的社区清单。没有它就没有这个目录。
+- **Companion tools**——设计与 [alcove](https://github.com/epicsagas/alcove)（doc server / RAG）、[Episteme](https://github.com/epicsagas/Episteme)（knowledge graph）以及 [obsidian-forge](https://github.com/epicsagas/obsidian-forge)（vault 自动化）互通互联。
+- **开源技术栈**——构建于 [clap](https://docs.rs/clap)、[serde](https://serde.rs)、[ureq](https://docs.rs/ureq) 以及 Rust 生态之上。
 
-目录条目和引入的社区技能各自遵循其许可证（引入时自动检测）。BYOH 本身是 Apache-2.0。
+Catalog 条目和 vendored community skills 保留各自原有的 license（在 vendor 时自动检测）。BYOH 本身采用 Apache-2.0。
 
-## 许可证
+## License
 
-Apache-2.0.
+Apache-2.0。

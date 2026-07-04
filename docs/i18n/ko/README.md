@@ -110,6 +110,8 @@ byoh catalog vendor obra/superpowers --genre developer
 
 LLM 에이전트가(`catalog_search` / `catalog_vendor` MCP 도구로) 이 흐름 전체를 자율으로 처리할 수도 있습니다 — *"내 하네스에 메모리 플러그인 추가해줘"* — 물론 CLI에서 직접 실행할 수도 있습니다.
 
+몇 가지 컴패니언 도구가 **참고 자료**(의존성이 아님)로 검색 결과에 시드됩니다: BYOH 자신의 실행 계층 도구 — [alcove](https://github.com/epicsagas/alcove)(문서 서버), [obsidian-forge](https://github.com/epicsagas/obsidian-forge)(볼트 자동화), [epic-harness](https://github.com/epicsagas/epic-harness)(훅/스킬 런타임) — 가 문맥에 맞춰 노출됩니다("doc server" / "search backend" 쿼리로 alcove 발견) 에이전트가 관련 있을 때 추천할 수 있도록요. 실제로 원할 때만 vendor하세요; 번들은 어느 쪽이든 의존성 없이 배포됩니다.
+
 ## 파워 유저: CLI (선택)
 
 위에서 설명한 모든 흐름은 터미널에서도 접근할 수 있습니다. CLI는 **보조 수단**입니다 — 스크립팅, CI, 혹은 대화가 귀찮을 때 유용하지만, 에이전트 주도 경로가 기본 설계입니다.

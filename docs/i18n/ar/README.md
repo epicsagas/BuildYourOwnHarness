@@ -6,39 +6,39 @@
 
 # BuildYourOwnHarness (BYOH)
 
-### وكيل الذكاء الاصطناعي الخاص بك، مصمّم على مقاسك
+### وكيلك الذكي، مبنيٌّ حولك
 
-*ليس قالبًا جاهزًا — بل هارنس (harness) مُجمَّع وفق دورك وخبرتك وأهدافك.*
+*ليس قالبًا عامًا — بل harness مُجمَّع من دورك وخبرتك وأهدافك.*
 
 <img src="../../../assets/features.png" width="100%" alt="Build Your Own Harness">
 
 </div>
 
-معظم أدوات الذكاء الاصطناعي تمنحك مجموعة ثابتة من الأدوات وتقول لك "حظًا موفقًا." يقلب BYOH هذه القاعدة: يقابلك، يتعلّم ما تفعله فعلًا، ثم يولّد الهارنس وكيلًا مخصّصًا — مهارات وذاكرة وخطوط معالجة — يناسب طريقة عملك من اللحظة الأولى.
+معظم إعدادات الذكاء الاصطناعي تسلّمك مجموعة ثابتة من الأدوات وتقول لك «حظًا موفقًا». يدفع BYOH هذا النهج رأسًا على عقب: يستجوبك، يتعلّم ما تفعلله فعلًا، ثم يولّد لك harness وكيل مخصّص — مهارات (skills) ووكلاء (agents) وخطوط أنابيب أهداف (goal pipelines) — يناسب سير عملك منذ اللحظة الأولى.
 
 ## لمن هذا المشروع؟
 
-- **المطورون** الذين يريدون وكيلًا يعرف مسبقًا بنيتهم التقنية وأسلوب الاختبار ودورة التسليم
-- **الباحثون** الذين يحتاجون إلى مراجعة الأدبيات وتتبع الاستشهادات والتوليف في خط معالجة واحد متكامل
-- **المبدعون** الذين يريدون شريك كتابة يتناسب مع أسلوبهم وهيكل مشروعهم
-- **محللو الأعمال** الذين يحتاجون أطر قرار وخطوط تقارير حقيقية، لا مجرد محادثة خام
+- **المطوّرون** الذين يريدون وكيلًا يعرف مسبقًا حزمتهم التقنية (stack) ونمط اختباراتهم وإيقاق تسليمهم
+- **الباحثون** الذين يحتاجون إلى مراجعة للأدبيات وتتبّع الاستشهادات والتوليف بينها في تكامل واحد
+- **المبدعون** الذين يريدون شريكًا في الكتابة يطابق أسلوبهم وهيكل مشاريعهم
+- **محلّلو الأعمال** الذين يحتاجون أطر قرار وخطوط أنابيب تقارير، لا دردشة خامدة
 
-إن خطر ببالك يومًا "ليت ذكائي الاصطناعي يعرف سياقي فعلًا" — فهذا بالضبط ما يقدّمه BYOH.
+إن سبق لك أن قلت: «ليت ذكائي الاصطناعي يعرف سياقي فعلًا» — فهذا بالضبط ما يفعله BYOH.
 
 ## كيف يعمل في 60 ثانية
 
-صُمِّم BYOH ليُقاد بواسطة وكيل الذكاء الاصطناعي لديك — لا بكتابتك للأوامر. ثبّت الإضافة، ثم تحدّث فقط. المحادثة *هي* المقابلة ومعالج الإعداد والبناء.
+صُمِّم BYOH ليُقاد بواسطة وكيلك الذكي — لا بكتابتك للأوامر. ثبّت الـ plugin، ثم تحدّث فحسب. المحادثة *هي* المقابلة، والمعالج (wizard)، والبناء.
 
 ```
-1. Install the plugin      # Claude Code / Codex / agy — يُثبّت البرنامج الثنائي تلقائيًا
-2. "Build me a harness"    # وكيلك يفحص مستودعك ويُجمّع النتيجة
+1. Install the plugin      # Claude Code / Codex / agy — auto-installs the binary
+2. "Build me a harness"    # your agent scans your repo and compiles the result
 ```
 
-في الجلسة التالية يحمّل مضيفك الهارنس تلقائيًا — وكلاء ومهارات وذاكرة وخطوط معالجة، كلها مضبوطة لك.
+في الجلسة التالية، يحمّل المضيف (host) الـ harness تلقائيًا — وكلاء ومهارات وخطوط أنابيب أهداف معدّة خصيصًا لك.
 
-## ثبّت الإضافة (موصى به)
+## تثبيت الـ plugin (موصى به)
 
-هل تستخدم **Claude Code أو Codex أو agy**؟ ثبّت الإضافة. فهي تجمع خادم MCP **وتُثبّت البرنامج الثنائي تلقائيًا عند أول تحميل** — فلا حاجة لسلسلة أدوات Rust ولا لإعداد يدوي:
+هل تستخدم **Claude Code أو Codex أو agy**؟ ثبّت الـ plugin. فهو يجمّع خادم MCP و**يثبّت الـ binary تلقائيًا عند أول تحميل** — دون الحاجة إلى سلسلة أدوات Rust أو إعداد يدوي:
 
 **Claude Code:**
 ```bash
@@ -58,124 +58,126 @@ codex plugin marketplace add /path/to/BuildYourOwnHarness
 codex plugin add byoh@epicsagas
 ```
 
-### هل تستخدم خادمًا آخر متوافقًا مع MCP؟
+### هل تستخدم مضيفًا آخر متوافقًا مع MCP؟
 
-يتحدّث BYOH لغة MCP، لذا يعمل مع Cursor وZed وContinue وغيرها. ثبّت [الملف الثنائي](#التثبيت) مرة واحدة، ثم وجّه خادمك نحو الخادم:
+يتحدّث BYOH لغة MCP، لذلك يعمل Cursor وZed وContinue وغيرها أيضًا. ثبّت الـ [binary](#installation) مرة واحدة، ثم وجّه مضيفك إلى الخادم:
 
 ```bash
-byoh serve   # خادم MCP عبر stdio
+byoh serve   # stdio MCP server
 ```
 
 ```json
 { "mcpServers": { "byoh": { "command": "byoh", "args": ["serve"] } } }
 ```
 
-> **ملاحظة:** المستودع خاص حاليًا. استخدم المسارات أعلاه. عند الإتاحة للعموم سيظهر في سوق `epicsagas/plugins` المشترك.
+> **ملاحظة:** المستودع خاص حاليًا. استخدم المسارات أعلاه. بمجرد أن يصبح عامًا، سيظهر في سوق `epicsagas/plugins` المشترك.
 
-## وضع قيادة الوكيل — المسار الرئيسي
+## الوضع المُقاد بالوكيل (Agent-led) — المسار الأساسي
 
-بمجرد أن يتصل مضيفك، أنت لا تكتب الأوامر — أنت تتحدّث فقط. يستدعي وكيلك أدوات BYOH MCP مباشرةً، والمحادثة *هي* المقابلة والبناء ودورة التطور:
+بمجرد اتصال مضيفك، أنت لا تكتب أوامر — بل تتحدّث فحسب. يستدعي وكيلك أدوات MCP الخاصة بـ BYOH مباشرة، والمحادثة *هي* المقابلة والبناء ودورة التطوير (evolve):
 
-> **أنت:** *أنا مطوّر Go خلفيّ أُطلق واجهة برمجية للمدفوعات هذا الشهر. ابنِ لي هارنس.*
+> **أنت:** *أنا مطوّر Go خلفيّة (backend) أُطلق واجهة برمجة مدفوعات هذا الشهر. ابنِ لي harness.*
 >
-> **الوكيل:** *(يفحص مستودعك عبر `profile_scan`، ويطرح أسئلة موجّهة عبر `profile_interview`، ثم يُثبّت التصنيف على `developer`)*، ثم يُجمّع `HarnessBundle`، ثم يُثبّت وكلاء ومهارات وذاكرة وخط شحن آمن في Claude Code. انتهى — في الجلسة التالية، وكيلك يتقن حِزَمتك التقنية.
+> **الوكيل:** *(يبحث مستودعك عبر `profile_scan`، يطرح أسئلة موجّهة قليلة عبر `profile_interview`، يُثبّت الـ genre على `developer`)* ← يُجمّع `HarnessBundle` ← يثبّت وكلاء ومهارات وخط أنابيب هدف secure-ship في Claude Code. تم — في الجلسة التالية، وكيلك يتحدّث لغة حزمتك التقنية فعلًا.
 
-التدفق نفسه، بالترتيب المقترح للأدوات:
+نفس التدفّق، بالترتيب المقترح للأدوات:
 
 ```
 profile_create → profile_scan → profile_interview → profile_confirm
            → compile → compile_dry_run → render_plugin → install_plugin
-           → (اختياري) registry_clone_skill → (لاحقًا) evolve_cycle
+           → (optional) registry_clone_skill → (later) evolve_cycle
 ```
 
 الأدوات المتاحة: `profile_read`, `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `genre_list`, `compile`, `compile_dry_run`, `render_plugin`, `install_plugin`, `evolve_cycle`, `registry_clone_skill`, `catalog_search`, `catalog_vendor`.
 
-هل تريد أن يأخذك الوكيل خطوة بخطوة؟ فقط قُل *"build my harness"* — فوكيل `byoh-guide` المُدمج ينسّق التدفق كاملًا.
+هل تريد أن يقودك الوكيل خلال ذلك؟ فقط قُل *"build my harness"* — وكيل `byoh-guide` المُضمَّن ينسّق التدفّق كله.
 
-## كتالوج الإضافات
+## فهرس الـ plugins (catalog)
 
-يُبنى الكتالوج من README لمستودع [`quemsah/awesome-claude-plugins`](https://github.com/quemsah/awesome-claude-plugins) — قائمة مجتمعية مرتّبة حسب النجوم لأفضل 100 مستودع لإضافات Claude. يوفّر BYOH حزمة جاهزة (تُعاد بنيتها **أسبوعيًا**، كل اثنين 03:17 بالتوقيت العالمي) بحيث يُنهي `byoh catalog index` عمله في ثوانٍ؛ مرّر `--no-bundle` لتحليل القائمة الأصلية مباشرةً.
+يُبنى الفهرس من README لمستودع [`quemsah/awesome-claude-plugins`](https://github.com/quemsah/awesome-claude-plugins) — قائمة مجتمعية مرتّبة بحسب النجوم لأفضل 100 مستودع plugin لـ Claude. يأتي BYOH مع حزمة جاهزة (تُعاد بناؤها **أسبوعيًا**، كل اثنين الساعة 03:17 UTC) بحيث ينتهي `byoh catalog index` في ثوانٍ؛ مرّر `--no-bundle` لتحليل القائمة المنبعية مباشرةً.
 
 ```bash
-# فهرسة مرة واحدة — تنزيل حزمة جاهزة في ثوانٍ
+# One-time index — downloads a prebuilt bundle in seconds
 byoh catalog index
 
-# بحث دون اتصال — لا حاجة للشبكة بعد الفهرسة
+# Search offline — no network needed after indexing
 byoh catalog search "memory" --genre developer --limit 5
 
-# إضافة إضافة إلى هارنسك
-# الترخيص والكلمات المفتاحية والتصنيف تُكتشف تلقائيًا من المستودع المستنسخ
+# Add a plugin to your harness
+# license, keywords, and genre are auto-detected from the cloned repo
 byoh catalog vendor obra/superpowers --genre developer
 ```
 
-يستطيع وكيل LLM (عبر أدوات MCP: `catalog_search` / `catalog_vendor`) تنفيذ هذا التدفق كاملًا باستقلالية — فقط *"add a memory plugin to my harness"* — أو يمكنك توجيهه مباشرةً من CLI.
+وكيل الـ LLM (عبر أدوات MCP `catalog_search` / `catalog_vendor`) يستطيع تنفيذ هذه التدفّق كله بشكل ذاتي — *"add a memory plugin to my harness"* — أو يمكنك قيادته مباشرةً من الـ CLI.
+
+بضع أدوات مرافقة تُغرَس في نتائج البحث كـ **مرجع** (لا كتبعيات): أدوات BYOH الخاصة بطبقة التنفيذ — [alcove](https://github.com/epicsagas/alcove) (خادم وثائق)، [obsidian-forge](https://github.com/epicsagas/obsidian-forge) (أتمتة الخزائن)، [epic-harness](https://github.com/epicsagas/epic-harness) (تشغيل hook/skill) — تظهر سياقيًا (استعلام عن «خادم وثائق» / «backend بحث» يجد alcove) بحيث يستطيع الوكيل توصيتها عند الحاجة. أضِف واحدًا (vendor) فقط إن كنت تريده فعلًا؛ الحزم تُشحن بلا تبعيات على أي حال.
 
 ## المستخدمون المتقدّمون: الـ CLI (اختياري)
 
-كل تدفّق مما سبق متاح أيضًا من الطرفية. الـ CLI **مساعد فقط** — مفيد للسكربتات وCI أو حين لا ترغب في المحادثة — لكن مسار قيادة الوكيل هو المسار المقصود.
+كل تدفّق أعلاه قابل للوصول أيضًا من الطرفية. الـ CLI **مساعد** — مفيد للبرمجة النصية أو CI أو حين لا تفضّل الدردشة — لكن المسار المُقاد بالوكيل هو المسار المقصود.
 
-### أول هارنس لك — من CLI
+### أول harness لك — من الـ CLI
 
 ```bash
-byoh profile init me --paths ./src ./docs   # فحص تلقائي لمشروعك
-byoh profile interview me                   # محادثة ~5 دقائق
-byoh profile confirm me --genre developer   # تثبيت تصنيفك
+byoh profile init me --paths ./src ./docs   # auto-scans your project
+byoh profile confirm me --genre developer   # lock in your genre (+ optional --goal)
 
-byoh compile me --no-dry-run                # يتحقق + يكتب HarnessBundle (dry-run هو الافتراضي)
-byoh render me --target claude              # أو: codex | agy | all (الافتراضي: all)
-byoh install me --scope local               # يُصيّر إلى dist/ ويُفعّله فقط في .claude/ لهذا المشروع
-byoh install me --scope global              # ...أو ‎~/.claude + ~/.codex + ~/.gemini (سابقاً --host)
-byoh install me --scope publish             # ...أو يُضيف LICENSE + .gitignore ويطبع تعليمات git
-
-byoh run me                                 # التشغيل مع تفعيل هارنسك
-byoh evolve me                              # تحسين الهارنس بناءً على تغذية الجلسة الراجعة
+byoh compile me                             # gates (static + dry-run) always run; writes the HarnessBundle
+byoh render me --target claude              # or: codex | agy | all (default: all)
+byoh install me --scope local               # render to dist/, activate into this project's .claude/ only
+byoh install me --scope global              # ...or ~/.claude + ~/.codex + ~/.gemini (was --host)
+byoh install me --scope publish             # ...or add LICENSE + .gitignore and print git instructions
 ```
 
-يسألك BYOH عن دورك ومستوى خبرتك وأدواتك وهدفك لمدة 30 يومًا. تتكيّف المقابلة — فالباحث يحصل على أسئلة مختلفة عن المطور. يُشغّل `evolve` دورة من ثلاث بوابات (Critic / Seesaw / Stagnation) لا يمكن تجاوزها أبدًا — فالتطور آمن وقابل للمراجعة.
+المقابلة نفسها مُقادة بالوكيل (أداة MCP `profile_interview`) — المحادثة هي المقابلة، لذا لا توجد مقابلة تفاعلية في الـ CLI. التطوير (`evolve_cycle` أداة MCP) يشغّل دورة بثلاث بوابات (Critic / Seesaw / Stagnation) لا يمكن تجاوزها أبدًا — وبذلك يكون التطوير آمنًا وقابلًا للتدقيق.
 
-## كيف يعمل من الداخل
+## كيف يعمل تحت الغطاء
 
-يطابق محرك التوليف في BYOH وسوم ملفك الشخصي مع سجل المهارات، ويرتّبها في خط معالجة محلول التبعيات، ثم يُصدر `HarnessBundle` — قطعة جاهزة لـ git تُصيَّر بالصيغة الأصلية لأي خادم مدعوم.
+محرّك التوليف في BYOH يطابق وسوم ملفّك الشخصي مع سجل المهارات، يرتّبها في خط أنابيب محلول التبعيات، ويُنتج `HarnessBundle` — قطعة (artifact) جاهزة لـ git تُعرَض إلى التنسيق الأصلي لأي مضيف مدعوم.
 
-- **نموذج أمان رباعي الحلقات** — من المهارات المدمجة (Ring 1) إلى مهارات المجتمع/غير الموثوقة (Ring 4)، مع تصاعد التحقّق في كل حلقة
-- **تطور ثلاثي البوابات** — كل دورة `evolve` تمر ببوابات Critic (الجودة) و Seesaw (الانحدار) و Stagnation (الركود)؛ لا تجاوز ممكن
-- **خطوط معالجة موجّهة بالأهداف** — بمجرد تحديد هدف 30 يومًا (إطلاق منتج، تقرير بحثي، شحن آمن…) تُطبَّق سلم المهارات المناسب تلقائيًا
+- **نموذج أمان من 4 حلقات** — مواصفات دورة الحياة (Ring 0) ومهارات خط الأنابيب المدمجة (Ring 1) مرورًا بالمهارات المجتمعية/غير الموثوقة (Ring 3)، لكلٍّ منها تحقّق متصاعد؛ المهارات المُورَّدة (vendored) مُثبَّتة بـ sha256 ومُتحقَّق منها عند القراءة + الإدراج
+- **تطوير بثلاث بوابات** — كل دورة `evolve` تمرّ ببوابات Critic (الجودة)، وSeesaw (التراجع)، وStagnation (الهضبة)؛ لا تجاوز
+- **خطوط أنابيب موجَّهة بالأهداف** — إعلان هدف ثلاثين يومًا (إطلاق منتج، تقرير بحثي، تسليم آمن…) يُطبِّق تلقائيًا سلّم مهارات مطابقًا
 
-البنية: سداسية — `domain / ports / adapters / application / compiler / evolve / templates / deploy / i18n / obs / security / cli`. الدليل الكامل في `AGENTS.md`.
+البنية: سداسية — `domain / ports / adapters / application / compiler / evolve / templates / deploy / catalog / mcp / i18n / security / cli`. راجع `AGENTS.md` للدليل الكامل.
 
 ## مرجع CLI الكامل
 
+الـ CLI صغير عمدًا: نقاط دخول آلية (`serve`، و`catalog index` في CI، و`vendor` للمشرفين) بالإضافة إلى مرآة قابلة للبرمجة لتدفّق البناء الأساسي. المقابلة والتطوير حصران لـ MCP (مُقادان بالوكيل).
+
 ```bash
-# الملف الشخصي
-byoh profile init <slug> [--paths ...]      # فحص المشروع دون تعديل
-byoh profile interview <slug>               # مقابلة موجّهة
-byoh profile confirm <slug> --genre <g>     # تأكيد الملف الشخصي وتثبيته
+# Profile
+byoh profile init <slug> [--paths ...]      # non-destructive project scan
+byoh profile confirm <slug> --genre <g> [--goal <text>]  # confirm and lock profile
+byoh profile show <slug>                    # print the profile YAML
 
-# البناء
-byoh compile <slug> [--no-dry-run]          # dry-run افتراضي؛ استخدم --no-dry-run لكتابة الحزمة
-byoh render <slug> [--target <host>]        # claude | codex | agy | all (الافتراضي: all)
-byoh install <slug> [--target <host>] [--scope local|global|publish] [--host] [--force]  # شجرة dist/؛ --scope يُحدد الوجهة (local=هذا المشروع، global=HOME، publish=+LICENSE/.gitignore+خطوات git). --host هو الاسم القديم لـ --scope global.
+# Build (static gate + read-only dry-run gate always run)
+byoh compile <slug> [--out <dir>]           # write the HarnessBundle
+byoh render <slug> [--target <host>]        # claude | codex | agy | all (default: all)
+byoh install <slug> [--target <host>] [--scope local|global|publish] [--host] [--force]  # dist/ tree; --scope decides where it goes (local=this project, global=HOME, publish=+LICENSE/.gitignore+git steps). --host is legacy for --scope global.
 
-# التشغيل والتطور
-byoh run <slug>
-byoh evolve <slug>
-
-# مهارات المجتمع
+# Community skills (maintainer/build-time; sha256-pinned and verified at read + embed time)
 byoh vendor add <src> --genre <g> --id <id> [--keywords k1,k2] [--trust] [--sha <s>]
 byoh vendor list
 byoh vendor remove <id> --genre <g>
 
-# الكتالوج
+# Catalog
 byoh catalog index [--no-bundle] [--limit N]
 byoh catalog search "<query>" [--genre <g>] [--tags k1,k2] [--limit N]
 byoh catalog vendor <owner/repo> [--genre <g>] [--keywords k1,k2]
+
+# Diagnostics / server
+byoh doctor                                 # check execution-layer tools
+byoh serve                                  # stdio MCP server (agent-led mode)
 ```
+
+الملفات الشخصية وذاكرة الفهرس توجد تحت `~/.byoh` افتراضيًا (تجاوزها بـ `BYOH_HOME`).
 
 ## التثبيت
 
-مطلوب فقط إذا كنت **لا** تستخدم الإضافة (التي تُثبّت البرنامج الثنائي تلقائيًا) أو إذا أردت BYOH على خادم MCP لا يدعم الإضافات.
+مطلوب فقط إن كنت **لا** تستخدم الـ plugin (الذي يثبّت الـ binary تلقائيًا) أو أردت BYOH على مضيف MCP لا يعتمد الـ plugins.
 
-### الملف الثنائي (لا يتطلب سلسلة أدوات Rust)
+### الـ binary (دون الحاجة إلى سلسلة أدوات Rust)
 
 **macOS / Linux:**
 ```bash
@@ -194,7 +196,7 @@ cargo install byoh --git https://github.com/epicsagas/BuildYourOwnHarness
 ```
 
 ```bash
-byoh --version   # تحقق
+byoh --version   # verify
 ```
 
 ## البناء والتطوير
@@ -202,21 +204,21 @@ byoh --version   # تحقق
 ```bash
 cargo build --release
 cargo clippy --all-targets -- -D warnings
-cargo test                        # وحدات + e2e
-cvp                               # متوازي: check → clippy → test → fmt → build
+cargo test                        # unit + e2e
+cvp                               # parallel: check → clippy → test → fmt → build
 ```
 
-ميزة `mcp` (خادم MCP عبر stdio) مُفعّلة افتراضيًا. لا يُضمّن BYOH قاعدة معرفة مدمجة — للاسترجاع، وجّه هارنسك المولّد نحو خادم وثائق مثل [alcove](https://github.com/epicsagas/alcove).
+ميزة `mcp` (خادم MCP عبر stdio) مفعّلة افتراضيًا. لا يُشحن BYOH قاعدة معرفة مُضمَّنة — للاسترجاع، وجّه harness المُولَّد لديك إلى خادم وثائق مثل [alcove](https://github.com/epicsagas/alcove).
 
 ## شكر وتقدير
 
-يقف BYOH على أكتاف جهود مجتمعية عديدة:
+يقف BYOH على أكتاف جهود مجتمعية عدة:
 
-- **كتالوج الإضافات** — مصدره [`quemsah/awesome-claude-plugins`](https://github.com/quemsah/awesome-claude-plugins)، قائمة مجتمعية مرتّبة حسب النجوم لأفضل 100 مستودع لإضافات Claude. بدونه، لما وُجد الكتالوج.
-- **أدوات مرافقة** — مصمّم للعمل مع [alcove](https://github.com/epicsagas/alcove) (خادم وثائق/RAG) و[Episteme](https://github.com/epicsagas/Episteme) (رسم معرفي) و[obsidian-forge](https://github.com/epicsagas/obsidian-forge) (أتمتة المخازن).
-- **حزمة مفتوحة المصدر** — مبني على [clap](https://docs.rs/clap) و[serde](https://serde.rs) و[ureq](https://docs.rs/ureq) ومنظومة Rust.
+- **فهرس الـ plugins** — مصدره [`quemsah/awesome-claude-plugins`](https://github.com/quemsah/awesome-claude-plugins)، قائمة مجتمعية مرتّبة بحسب النجوم لأفضل 100 مستودع plugin لـ Claude. لولاه، لما وُجد الفهرس.
+- **الأدوات المرافقة** — مصمّمة لتتعاون مع [alcove](https://github.com/epicsagas/alcove) (خادم وثائق / RAG)، و[Episteme](https://github.com/epicsagas/Episteme) (رسم معرفي)، و[obsidian-forge](https://github.com/epicsagas/obsidian-forge) (أتمتة الخزائن).
+- **حزمة مفتوحة المصدر** — مبنية على [clap](https://docs.rs/clap)، و[serde](https://serde.rs)، و[ureq](https://docs.rs/ureq)، ومنظومة Rust.
 
-تحتفظ مدخلات الكتالوج والمهارات المجتمعية المُدمجة برخصها الخاصة (تُكتشف تلقائيًا عند الدمج). BYOH نفسه تحت Apache-2.0.
+عناصر الفهرس والمهارات المجتمعية المُورَّدة تحتفظ برخصها الخاصة (تُكتشَف تلقائيًا وقت الـ vendor). BYOH نفسه تحت رخصة Apache-2.0.
 
 ## الرخصة
 
