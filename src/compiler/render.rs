@@ -110,9 +110,11 @@ fn render_skill(id: &str, ring: Ring, genre: Genre) -> SkillSpec {
 fn skill_doc(id: &str, _ring: Ring, genre: Genre) -> (String, String, String) {
     let name = id.to_string();
     let description = format!("{id} skill for the {genre} genre harness.");
+    // Body only — no frontmatter. The plugin renderer (render_plugin::skill_md)
+    // owns frontmatter emission from the spec's name/description; baking it in
+    // here too produced duplicated `---` blocks in the published SKILL.md.
     let body = format!(
-        "---\nname: {id}\ndescription: {description}\n---\n\n\
-         ## Process\nThe {id} skill executes its {genre} pipeline step.\n\n\
+        "## Process\nThe {id} skill executes its {genre} pipeline step.\n\n\
          ## Anti-Rationalization\nDo not skip steps; evidence required.\n\n\
          ## Evidence\nOutputs are persisted as files for inspection.\n\n\
          ## Red Flags\n- Empty output\n- Skipped validation\n"
@@ -239,7 +241,10 @@ mod tests {
         let p = confirmed();
         let b = compile_profile(&p).unwrap();
         let spec = b.skills.iter().find(|s| s.id == "spec").unwrap();
-        assert!(spec.body_markdown.contains("name: spec"));
+        // Body carries the section content but NOT frontmatter — the plugin
+        // renderer emits `---`/name/description from name+description fields.
+        assert_eq!(spec.name, "spec");
+        assert!(!spec.body_markdown.contains("---"));
         assert!(spec.body_markdown.contains("## Process"));
         assert!(spec.body_markdown.contains("## Red Flags"));
     }
