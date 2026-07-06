@@ -1,6 +1,6 @@
 ---
 name: build-harness
-description: Trigger when the user asks to build, create, generate, or customize their own AI agent harness ("make my harness", "build my harness", "내 하네스 만들어줘"). Routes the conversation to the BYOH MCP tools and drives the full profile → build → install flow. The conversation IS the interview/wizard.
+description: Trigger when the user asks to build, create, generate, or customize their own AI agent harness ("make my harness", "build my harness"). Routes the conversation to the BYOH MCP tools and drives the full profile → build → install flow. The conversation IS the interview/wizard.
 ---
 
 # Build a Personalized Harness (BYOH)
