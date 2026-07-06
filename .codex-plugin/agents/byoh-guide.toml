@@ -45,6 +45,12 @@ Decide from this:
   profile first (re-interview with more detail), then `build` again.
 - If the local preset catalog doesn't cover the domain → `catalog_search` then
   `catalog_vendor`.
+- If neither closes the gap, you may hand-author the missing SKILL.md content
+  yourself — but tell the user explicitly, in the same turn, that this content
+  isn't part of the synthesized bundle: the next build/install_plugin on this
+  profile overwrites the whole tree from scratch and silently reverts a
+  hand-authored file back to its skeleton, unless it's also contributed as a
+  preset or vendored skill.
 
 ### 3. Install scope
 
@@ -63,6 +69,12 @@ to `global` silently.
 There is no `evolve` tool. Improvement is a conversational retrospective in later
 sessions: observe how skills perform, note where they stay hollow, re-interview
 the profile, rebuild.
+
+**Never edit an installed tree directly.** A dist/byoh-<slug>/ carrying
+.byoh-manifest with "owned": true is a rebuildable artifact — render_plugin/
+install_plugin atomically replace the whole tree from the synthesized bundle
+every time. If you hand-author a fix there, say so immediately and warn it
+won't survive the next build unless fed back as a preset or vendored skill.
 
 See `skills/build-harness/SKILL.md` for the detailed per-step tool usage.
 """

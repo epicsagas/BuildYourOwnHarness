@@ -49,6 +49,13 @@ profile and will refuse a draft.
      detail so synthesis matches richer presets, then `build` again. If the local
      preset catalog doesn't cover the domain, `catalog_search` then
      `catalog_vendor`.
+   - If neither closes the gap, you may hand-author the missing `SKILL.md`
+     content yourself for the user to place in the installed tree. **Tell the
+     user explicitly, in the same turn**, that this content is not part of the
+     synthesized bundle: the next `build`/`install_plugin` on this profile
+     overwrites the whole tree from scratch and silently reverts a
+     hand-authored file back to its skeleton, unless it's also contributed as
+     a preset or vendored skill so synthesis picks it up going forward.
 
 6. **Render & install (S4)** — produce and deploy the harness:
    - `render_plugin` (slug, target, out) to render the host-native plugin tree.
@@ -77,3 +84,10 @@ There is no `evolve` tool. Improvement is a conversational retrospective in late
 sessions: observe how the skills perform, note where they stay hollow, then
 re-interview the profile and rebuild. The loop is human-in-the-loop, not a tool
 call.
+
+**Never edit an installed tree directly.** A `dist/byoh-<slug>/` carrying
+`.byoh-manifest` with `"owned": true` is a rebuildable artifact, not a place to
+patch by hand — `render_plugin`/`install_plugin` atomically replace the whole
+tree from the synthesized bundle every time. If you do hand-author a fix there,
+say so immediately and warn it won't survive the next build unless it's fed
+back as a preset or vendored skill.

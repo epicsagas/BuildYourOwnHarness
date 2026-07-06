@@ -67,6 +67,17 @@ Decide from this:
   detail so synthesis matches richer presets, then `build` again.
 - If the local preset catalog doesn't cover the user's domain → `catalog_search`
   for external plugins, then `catalog_vendor` to pull one in.
+- If none of the above fills a skill the user genuinely needs, you may author
+  its `SKILL.md` body yourself (write real Process/Anti-Rationalization/
+  Evidence/Red Flags content for that domain) and hand it to the user to place
+  under `skills/<id>/SKILL.md` in the installed tree. This is a legitimate way
+  to close a gap the preset catalog doesn't cover — **but warn the user
+  explicitly, in the same turn**: a future `build`/`install_plugin` on this
+  profile re-synthesizes from scratch and will silently overwrite any
+  hand-authored `SKILL.md` back to its skeleton unless the content is also
+  contributed back as a preset (`registry/presets/<genre>/<id>.md` in the BYOH
+  repo) or vendored (`catalog_vendor` / `vendor add`) so synthesis picks it up
+  going forward.
 
 ### 3. Install scope
 
@@ -92,3 +103,13 @@ sessions (how the skills perform, where they underdeliver), not through a
 single tool call. Treat each session as a retrospective: note which skills
 helped, which stayed hollow, and feed that back by re-interviewing the profile
 and rebuilding. No `evolve` tool exists — the loop is conversational.
+
+**Never edit an installed tree directly** (no `Write`/`Edit` on files under a
+`dist/byoh-<slug>/` that carries `.byoh-manifest` with `"owned": true`) unless
+you have just told the user, in this same conversation, that the edit won't
+survive the next `build`/`install_plugin`. `render_target`/`install_plugin`
+always re-synthesize from the profile and atomically replace the entire tree —
+a hand-edited `SKILL.md` that was never fed back as a preset or vendored skill
+is silently lost on the next rebuild. If the user wants a hand-authored skill
+to persist, say so and point them at contributing it as a preset/vendored
+skill (see above) — don't let a good edit quietly become a landmine.
