@@ -84,11 +84,10 @@ byoh serve   # stdio MCP server
 
 ```
 profile_create → profile_scan → profile_interview → profile_confirm
-           → compile → compile_dry_run → render_plugin → install_plugin
-           → (optional) registry_clone_skill → (later) evolve_cycle
+           → build → install_plugin
 ```
 
-الأدوات المتاحة: `profile_read`, `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `genre_list`, `compile`, `compile_dry_run`, `render_plugin`, `install_plugin`, `evolve_cycle`, `registry_clone_skill`, `catalog_search`, `catalog_vendor`.
+الأدوات المتاحة: `profile_read`, `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `build`, `render_plugin`, `install_plugin`, `catalog_search`, `catalog_vendor`.
 
 هل تريد أن يقودك الوكيل خلال ذلك؟ فقط قُل *"build my harness"* — وكيل `byoh-guide` المُضمَّن ينسّق التدفّق كله.
 
@@ -122,21 +121,20 @@ byoh catalog vendor obra/superpowers --genre developer
 byoh profile init me --paths ./src ./docs   # auto-scans your project
 byoh profile confirm me --genre developer   # lock in your genre (+ optional --goal)
 
-byoh compile me                             # gates (static + dry-run) always run; writes the HarnessBundle
-byoh render me --target claude              # or: codex | agy | all (default: all)
+byoh render me --target claude              # synthesize (compile + preset injection + static gate) and write the HarnessBundle; or: codex | agy | all (default: all)
 byoh install me --scope local               # render to dist/, activate into this project's .claude/ only
 byoh install me --scope global              # ...or ~/.claude + ~/.codex + ~/.gemini (was --host)
 byoh install me --scope publish             # ...or add LICENSE + .gitignore and print git instructions
 ```
 
-المقابلة نفسها مُقادة بالوكيل (أداة MCP `profile_interview`) — المحادثة هي المقابلة، لذا لا توجد مقابلة تفاعلية في الـ CLI. التطوير (`evolve_cycle` أداة MCP) يشغّل دورة بثلاث بوابات (Critic / Seesaw / Stagnation) لا يمكن تجاوزها أبدًا — وبذلك يكون التطوير آمنًا وقابلًا للتدقيق.
+المقابلة نفسها مُقادة بالوكيل (أداة MCP `profile_interview`) — المحادثة هي المقابلة، لذا لا توجد مقابلة تفاعلية في الـ CLI. بوابة الـ static gate في الـ build تعمل دائمًا، لذا يكون الـ bundle صالحًا هيكليًا قبل الشحن. التحسين بعد التثبيت هو مراجعة استرجاعية حوارية في الجلسات اللاحقة، وليس استدعاء أداة.
 
 ## كيف يعمل تحت الغطاء
 
 محرّك التوليف في BYOH يطابق وسوم ملفّك الشخصي مع سجل المهارات، يرتّبها في خط أنابيب محلول التبعيات، ويُنتج `HarnessBundle` — قطعة (artifact) جاهزة لـ git تُعرَض إلى التنسيق الأصلي لأي مضيف مدعوم.
 
 - **نموذج أمان من 4 حلقات** — مواصفات دورة الحياة (Ring 0) ومهارات خط الأنابيب المدمجة (Ring 1) مرورًا بالمهارات المجتمعية/غير الموثوقة (Ring 3)، لكلٍّ منها تحقّق متصاعد؛ المهارات المُورَّدة (vendored) مُثبَّتة بـ sha256 ومُتحقَّق منها عند القراءة + الإدراج
-- **تطوير بثلاث بوابات** — كل دورة `evolve` تمرّ ببوابات Critic (الجودة)، وSeesaw (التراجع)، وStagnation (الهضبة)؛ لا تجاوز
+- **أساس أمان بثلاث بوابات** — كل عملية build تمرّ ببوابة static gate تتحقّق من وجود بوابات Critic (الجودة)، وSeesaw (التراجع)، وStagnation (الهضبة)؛ لا تجاوز
 - **خطوط أنابيب موجَّهة بالأهداف** — إعلان هدف ثلاثين يومًا (إطلاق منتج، تقرير بحثي، تسليم آمن…) يُطبِّق تلقائيًا سلّم مهارات مطابقًا
 
 البنية: سداسية — `domain / ports / adapters / application / compiler / evolve / templates / deploy / catalog / mcp / i18n / security / cli`. راجع `AGENTS.md` للدليل الكامل.
@@ -151,9 +149,8 @@ byoh profile init <slug> [--paths ...]      # non-destructive project scan
 byoh profile confirm <slug> --genre <g> [--goal <text>]  # confirm and lock profile
 byoh profile show <slug>                    # print the profile YAML
 
-# Build (static gate + read-only dry-run gate always run)
-byoh compile <slug> [--out <dir>]           # write the HarnessBundle
-byoh render <slug> [--target <host>]        # claude | codex | agy | all (default: all)
+# Build (static gate always runs; render synthesizes: compile + preset injection)
+byoh render <slug> [--target <host>]        # claude | codex | agy | all (default: all); writes the HarnessBundle
 byoh install <slug> [--target <host>] [--scope local|global|publish] [--host] [--force]  # dist/ tree; --scope decides where it goes (local=this project, global=HOME, publish=+LICENSE/.gitignore+git steps). --host is legacy for --scope global.
 
 # Community skills (maintainer/build-time; sha256-pinned and verified at read + embed time)

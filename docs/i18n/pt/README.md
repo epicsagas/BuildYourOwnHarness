@@ -84,11 +84,10 @@ O mesmo fluxo, na ordem sugerida de ferramentas:
 
 ```
 profile_create → profile_scan → profile_interview → profile_confirm
-           → compile → compile_dry_run → render_plugin → install_plugin
-           → (opcional) registry_clone_skill → (depois) evolve_cycle
+           → build → install_plugin
 ```
 
-Ferramentas disponíveis: `profile_read`, `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `genre_list`, `compile`, `compile_dry_run`, `render_plugin`, `install_plugin`, `evolve_cycle`, `registry_clone_skill`, `catalog_search`, `catalog_vendor`.
+Ferramentas disponíveis: `profile_read`, `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `build`, `render_plugin`, `install_plugin`, `catalog_search`, `catalog_vendor`.
 
 Quer que o agente te guie pelo processo? Basta dizer *"construa meu harness"* — o agente `byoh-guide`, incluído no bundle, orquestra todo o fluxo.
 
@@ -122,21 +121,20 @@ Todos os fluxos acima também são acessíveis pelo terminal. O CLI é **auxilia
 byoh profile init me --paths ./src ./docs   # examina seu projeto automaticamente
 byoh profile confirm me --genre developer   # trava seu gênero (+ opcional --goal)
 
-byoh compile me                             # gates (estático + dry-run) sempre rodam; escreve o HarnessBundle
-byoh render me --target claude              # ou: codex | agy | all (padrão: all)
+byoh render me --target claude              # sintetiza (compile + injeção de presets + static gate) e escreve o HarnessBundle; ou: codex | agy | all (padrão: all)
 byoh install me --scope local               # renderiza para dist/, ativa apenas no .claude/ deste projeto
 byoh install me --scope global              # ...ou ~/.claude + ~/.codex + ~/.gemini (antigo --host)
 byoh install me --scope publish             # ...ou adiciona LICENSE + .gitignore e exibe instruções do git
 ```
 
-A própria entrevista é conduzida pelo agente (a ferramenta MCP `profile_interview`) — a conversa é a entrevista, então não há entrevista interativa no CLI. A evolução (ferramenta MCP `evolve_cycle`) executa um ciclo de 3 gates (Critic / Seesaw / Stagnation) que nunca pode ser bypassado — portanto a evolução é segura e auditável.
+A própria entrevista é conduzida pelo agente (a ferramenta MCP `profile_interview`) — a conversa é a entrevista, então não há entrevista interativa no CLI. O static gate do build sempre roda, então o bundle é estruturalmente válido antes de ser entregue. A melhoria pós-instalação é uma retrospectiva conversacional em sessões posteriores, não uma chamada de ferramenta.
 
 ## Como funciona por baixo dos panos
 
 O motor de síntese do BYOH faz a correspondência das tags do seu perfil com o registro de skills, ordena-as em um pipeline resolvido por dependências e emite um `HarnessBundle` — um artefato pronto para git que é renderizado no formato nativo de qualquer host suportado.
 
 - **Modelo de segurança de 4 anéis** — spec de ciclo de vida (Ring 0) e skills de pipeline embutidas (Ring 1) até skills da comunidade/não confiáveis (Ring 3), cada uma com validação crescente; skills com vendor têm sha256 fixado e verificado no momento de leitura + embed
-- **Evolução de 3 gates** — cada ciclo de `evolve` passa pelos gates Critic (qualidade), Seesaw (regressão) e Stagnation (platô); sem bypass
+- **Piso de segurança de 3 gates** — todo build passa por um static gate que confirma a presença dos gates Critic (qualidade), Seesaw (regressão) e Stagnation (platô); sem bypass
 - **Pipelines orientados a objetivos** — declarar um objetivo de 30 dias (lançamento de produto, relatório de pesquisa, secure ship…) sobrepõe automaticamente uma escada de skills correspondente
 
 Arquitetura: hexagonal — `domain / ports / adapters / application / compiler / evolve / templates / deploy / catalog / mcp / i18n / security / cli`. Veja `AGENTS.md` para o guia completo.
@@ -151,9 +149,8 @@ byoh profile init <slug> [--paths ...]      # scan não destrutivo do projeto
 byoh profile confirm <slug> --genre <g> [--goal <text>]  # confirma e trava o perfil
 byoh profile show <slug>                    # exibe o YAML do perfil
 
-# Build (gate estático + gate dry-run somente leitura sempre rodam)
-byoh compile <slug> [--out <dir>]           # escreve o HarnessBundle
-byoh render <slug> [--target <host>]        # claude | codex | agy | all (padrão: all)
+# Build (o static gate sempre roda; render sintetiza: compile + injeção de presets)
+byoh render <slug> [--target <host>]        # claude | codex | agy | all (padrão: all); escreve o HarnessBundle
 byoh install <slug> [--target <host>] [--scope local|global|publish] [--host] [--force]  # árvore em dist/; --scope decide o destino (local=este projeto, global=HOME, publish=+LICENSE/.gitignore+passos git). --host é o legado para --scope global.
 
 # Skills da comunidade (mantenedor/build-time; sha256 fixado e verificado no momento de leitura + embed)

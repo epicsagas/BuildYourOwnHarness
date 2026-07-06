@@ -8,5 +8,5 @@ pub mod render;
 pub mod validate;
 
 pub use dryrun::{DryRunReport, dry_run};
-pub use render::compile_profile;
+pub use render::{compile_profile, is_skeleton_body};
 pub use validate::{StaticGateReport, static_gate};

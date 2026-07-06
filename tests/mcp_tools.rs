@@ -3,9 +3,9 @@
 //! Exercises the agent-led flow by constructing a `ByohServer` and calling its
 //! tool methods *directly* (bypassing the JSON-RPC transport, which is hard to
 //! drive in a unit test). This is the closest testable analog of AC3: an agent
-//! driving profile → compile using only MCP tool calls.
+//! driving profile → build using only MCP tool calls.
 //!
-//! Gated behind the `mcp` feature. The heavy tools (profile_scan/dry_run) are
+//! Gated behind the `mcp` feature. The heavy tools (profile_scan/build) are
 //! `async fn`s backed by `spawn_blocking`, so tests need a tokio runtime.
 
 #![cfg(feature = "mcp")]
@@ -29,19 +29,6 @@ fn server() -> ByohServer {
         home: byoh::store::byoh_home(),
         language: "en".into(),
     })
-}
-
-#[serial]
-#[tokio::test]
-async fn genre_list_returns_four_genres() {
-    let s = server();
-    let res = s.genre_list();
-    assert!(!res.is_error.unwrap_or(false));
-    // Assert the promise in the name, not just "didn't crash": all 4 genres.
-    let text = format!("{:?}", res.content);
-    for g in ["developer", "creator", "researcher", "business"] {
-        assert!(text.contains(g), "genre_list must include '{g}'");
-    }
 }
 
 #[serial]
@@ -71,43 +58,38 @@ async fn hostile_slugs_are_rejected_over_mcp() {
 
 #[serial]
 #[tokio::test]
-async fn compile_requires_confirmed_profile() {
+async fn build_requires_confirmed_profile() {
     // The state machine must hold on the MCP surface, not just the CLI: a
-    // Draft profile must not compile/render/install.
+    // Draft profile must not build/render/install.
     let s = server();
     let _ = s.profile_create(Parameters(ProfileCreateParams {
         slug: "draftonly".into(),
         scan_paths: vec![],
         language: Some("en".into()),
     }));
-    let compiled = s.compile(Parameters(CompileParams {
-        slug: "draftonly".into(),
-        run_static_gate: true,
-    }));
+    let built = s
+        .build(Parameters(BuildParams {
+            slug: "draftonly".into(),
+            run_dry_run: false,
+        }))
+        .await;
     assert!(
-        compiled.is_error.unwrap_or(false),
-        "compile must refuse a Draft profile"
+        built.is_error.unwrap_or(false),
+        "build must refuse a Draft profile"
     );
 }
 
 #[serial]
 #[tokio::test]
-async fn agent_led_flow_create_confirm_compile_clone() {
+async fn build_classifies_matched_and_skeleton_skills() {
     let s = server();
 
-    // S1: create a draft profile.
-    let created = s.profile_create(Parameters(ProfileCreateParams {
+    // create + confirm a developer profile whose expertise tags match tdd/debug.
+    let _ = s.profile_create(Parameters(ProfileCreateParams {
         slug: "devtest".into(),
         scan_paths: vec![],
         language: Some("en".into()),
     }));
-    assert!(
-        !created.is_error.unwrap_or(false),
-        "profile_create should succeed"
-    );
-
-    // S3 confirm (skip the interview in this test — unanswered questions stay
-    // open, and confirm advances a Draft profile through Interviewed itself).
     let _ = s.profile_interview(Parameters(ProfileInterviewParams {
         slug: "devtest".into(),
         answers: HashMap::new(),
@@ -115,62 +97,34 @@ async fn agent_led_flow_create_confirm_compile_clone() {
     let confirmed = s.profile_confirm(Parameters(ProfileConfirmParams {
         slug: "devtest".into(),
         genre: "developer".into(),
-        goal_30d: Some("ship faster".into()),
+        goal_30d: Some("write tests and debug fast".into()),
     }));
-    assert!(
-        !confirmed.is_error.unwrap_or(false),
-        "profile_confirm should succeed"
-    );
+    assert!(!confirmed.is_error.unwrap_or(false));
 
-    // S4: compile → bundle + static gate.
-    let compiled = s.compile(Parameters(CompileParams {
-        slug: "devtest".into(),
-        run_static_gate: true,
-    }));
-    assert!(
-        !compiled.is_error.unwrap_or(false),
-        "compile should succeed"
-    );
-
-    // Dry-run (deps missing → graceful fallback, not an error). Async (spawn_blocking).
-    let dry = s
-        .compile_dry_run(Parameters(CompileDryRunParams {
+    // build → synthesize + classification. Async (spawn_blocking for dry_run).
+    let built = s
+        .build(Parameters(BuildParams {
             slug: "devtest".into(),
+            run_dry_run: false,
         }))
         .await;
-    assert!(
-        !dry.is_error.unwrap_or(false),
-        "dry_run should not hard-error"
-    );
+    assert!(!built.is_error.unwrap_or(false), "build should succeed");
 
-    // Clone a vetted preset skill into the bundle.
-    let cloned = s.registry_clone_skill(Parameters(RegistryCloneSkillParams {
-        genre: "developer".into(),
-        skill_id: "tdd".into(),
-        slug: "devtest".into(),
-    }));
+    let text = format!("{:?}", built.content);
+    // build must classify skills: matched (real preset bodies) vs skeleton
+    // (genre-template placeholders). Both keys must appear in the result.
     assert!(
-        !cloned.is_error.unwrap_or(false),
-        "registry_clone_skill should succeed"
+        text.contains("static_gate_passed"),
+        "build must report static gate status: {text}"
     );
-}
-
-#[serial]
-#[test]
-fn evolve_cycle_runs_under_safety_gates() {
-    let s = server();
-    let res = s.evolve_cycle(Parameters(EvolveCycleParams {
-        slug: "dev".into(),
-        genre: "developer".into(),
-        edit_type: "AddSkill".into(),
-        metric: EvolveMetricParams {
-            with_: 0.8,
-            without: 0.5,
-            samples_with: 5,
-            samples_without: 5,
-        },
-    }));
-    assert!(!res.is_error.unwrap_or(false));
+    assert!(
+        text.contains("matched_skills"),
+        "build must classify matched skills: {text}"
+    );
+    assert!(
+        text.contains("skeleton_skills"),
+        "build must classify skeleton skills: {text}"
+    );
 }
 
 #[serial]

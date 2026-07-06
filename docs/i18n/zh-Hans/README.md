@@ -84,11 +84,12 @@ host 连上之后，你不需要敲命令——直接聊天就行。你的 agent
 
 ```
 profile_create → profile_scan → profile_interview → profile_confirm
-           → compile → compile_dry_run → render_plugin → install_plugin
-           → (optional) registry_clone_skill → (later) evolve_cycle
+           → build → install_plugin
 ```
 
-可用 tools：`profile_read`、`profile_create`、`profile_scan`、`profile_interview`、`profile_confirm`、`genre_list`、`compile`、`compile_dry_run`、`render_plugin`、`install_plugin`、`evolve_cycle`、`registry_clone_skill`、`catalog_search`、`catalog_vendor`。
+`build` 会合成 bundle（compile + preset 注入 + static gate），并将每个 skill 分类为 `matched`（注入了真实 preset 内容）或 `skeleton`（仍是 genre 模板占位符）——agent 据此判断是立即安装还是先迭代 profile。
+
+可用 tools：`profile_read`、`profile_create`、`profile_scan`、`profile_interview`、`profile_confirm`、`build`、`render_plugin`、`install_plugin`、`catalog_search`、`catalog_vendor`。
 
 想让 agent 带你走完整套流程？只要说一句 *"build my harness"*——内置的 `byoh-guide` agent 会编排整个过程。
 
@@ -122,21 +123,20 @@ LLM agent（通过 `catalog_search` / `catalog_vendor` MCP tools）可以自主�
 byoh profile init me --paths ./src ./docs   # auto-scans your project
 byoh profile confirm me --genre developer   # lock in your genre (+ optional --goal)
 
-byoh compile me                             # gates (static + dry-run) always run; writes the HarnessBundle
-byoh render me --target claude              # or: codex | agy | all (default: all)
+byoh render me --target claude              # 合成（compile + preset 注入 + static gate）并写出 HarnessBundle; or: codex | agy | all (default: all)
 byoh install me --scope local               # render to dist/, activate into this project's .claude/ only
 byoh install me --scope global              # ...or ~/.claude + ~/.codex + ~/.gemini (was --host)
 byoh install me --scope publish             # ...or add LICENSE + .gitignore and print git instructions
 ```
 
-访谈本身由 agent 主导（`profile_interview` MCP tool）——对话即访谈，因此不存在交互式 CLI 访谈。Evolution（`evolve_cycle` MCP tool）运行一套 3-gate 循环（Critic / Seesaw / Stagnation），且永远无法绕过——所以 evolution 是安全、可审计的。
+访谈本身由 agent 主导（`profile_interview` MCP tool）——对话即访谈，因此不存在交互式 CLI 访谈。build 的 static gate（Critic / Seesaw / Stagnation 安全门齐备性、MCP schema、hook 输入）始终运行且永远无法绕过——因此 bundle 在发布前保证结构有效。安装后的改进是后续会话中的对话式复盘，而不是一次工具调用。
 
 ## 底层如何工作
 
 BYOH 的 synthesis engine 把你的 profile 标签匹配到 skill registry，按依赖关系排成一条 pipeline，并输出一个 `HarnessBundle`——一个 git 就绪的产物，可渲染为任意受支持 host 的原生格式。
 
 - **4-ring 安全模型**——从 lifecycle spec（Ring 0）和内置 pipeline skills（Ring 1）一直到 community/untrusted skills（Ring 3），每一层都配有递进的校验；vendored skills 以 sha256 固定，并在读取 + embed 时校验
-- **3-gate evolution**——每个 `evolve` 循环都要过 Critic（质量）、Seesaw（回归）和 Stagnation（停滞）三道闸门；无法绕过
+- **3-gate 安全基线**——每次 build 的 static gate 都会确认 Critic（质量）、Seesaw（回归）和 Stagnation（停滞）三道闸门齐备；无法绕过
 - **面向目标的 pipelines**——声明一个 30 天目标（产品上线、研究报告、安全交付……）会自动叠加一条匹配的 skill ladder
 
 架构：六边形——`domain / ports / adapters / application / compiler / evolve / templates / deploy / catalog / mcp / i18n / security / cli`。完整指南见 `AGENTS.md`。
@@ -151,9 +151,8 @@ byoh profile init <slug> [--paths ...]      # non-destructive project scan
 byoh profile confirm <slug> --genre <g> [--goal <text>]  # confirm and lock profile
 byoh profile show <slug>                    # print the profile YAML
 
-# Build (static gate + read-only dry-run gate always run)
-byoh compile <slug> [--out <dir>]           # write the HarnessBundle
-byoh render <slug> [--target <host>]        # claude | codex | agy | all (default: all)
+# Build (static gate always runs; render synthesizes: compile + preset injection)
+byoh render <slug> [--target <host>]        # claude | codex | agy | all (default: all); writes the HarnessBundle
 byoh install <slug> [--target <host>] [--scope local|global|publish] [--host] [--force]  # dist/ tree; --scope decides where it goes (local=this project, global=HOME, publish=+LICENSE/.gitignore+git steps). --host is legacy for --scope global.
 
 # Community skills (maintainer/build-time; sha256-pinned and verified at read + embed time)

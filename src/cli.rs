@@ -9,7 +9,7 @@ use clap::{Parser, Subcommand};
 #[command(
     name = "byoh",
     version,
-    about = "BuildYourOwnHarness — profile → compile → install → evolve a personalized AI agent harness"
+    about = "BuildYourOwnHarness — profile → build → install a personalized AI agent harness"
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -32,22 +32,11 @@ pub enum Command {
         #[command(subcommand)]
         action: ProfileAction,
     },
-    /// Compile a confirmed profile into a harness bundle. The static gate and
-    /// the read-only dry-run gate always run; a failed gate aborts the compile.
-    Compile {
-        /// Profile slug.
-        slug: String,
-        /// Profiles root dir (overrides BYOH_HOME). Defaults to BYOH_HOME/profiles.
-        #[arg(long)]
-        profiles_dir: Option<PathBuf>,
-        /// Output dir for the bundle.
-        #[arg(long, default_value = "./bundle")]
-        out: PathBuf,
-    },
     /// Run the doctor: verify dependency tools are installed.
     Doctor,
-    /// Render a harness plugin for a slug as a polyglot tree into a safe
-    /// project-local `dist/`; `--host` additionally activates it so each host
+    /// Build (synthesize: compile + preset injection + static gate) and render
+    /// a harness plugin for a slug as a polyglot tree into a safe project-local
+    /// `dist/`; `--host` additionally activates it so each host
     /// (claude/codex/agy) discovers the tree.
     Install {
         slug: String,

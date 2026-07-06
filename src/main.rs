@@ -6,7 +6,6 @@ use byoh::adapters::{FilesystemSource, RuleInterview, RuleLlm, StdCommand};
 use byoh::application::ProfileOrchestrator;
 use byoh::catalog::search::{SearchOptions, catalog_search};
 use byoh::cli::{CatalogAction, Cli, Command, ProfileAction};
-use byoh::compiler::{compile_profile, dry_run, static_gate};
 use byoh::domain::genre::Genre;
 use byoh::domain::profile::{ProfileStatus, UserProfile};
 use byoh::i18n::{Msg, t};
@@ -25,11 +24,6 @@ fn main() -> anyhow::Result<()> {
     };
     match cli.command {
         Command::Profile { action } => run_profile(action, &lang)?,
-        Command::Compile {
-            slug,
-            profiles_dir,
-            out,
-        } => run_compile(&slug, profiles_dir.as_deref(), &out, &lang)?,
         Command::Doctor => run_doctor(&lang)?,
         Command::Install {
             slug,
@@ -391,102 +385,6 @@ fn run_profile(action: ProfileAction, lang: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn run_compile(
-    slug: &str,
-    profiles_dir: Option<&std::path::Path>,
-    out: &std::path::Path,
-    lang: &str,
-) -> anyhow::Result<()> {
-    let slug = byoh::store::sanitize_slug(slug)?;
-    let path = match profiles_dir {
-        Some(dir) => dir.join(format!("{slug}.yaml")),
-        None => profile_path(slug)?,
-    };
-    let body = std::fs::read_to_string(&path)
-        .map_err(|e| anyhow::anyhow!("reading profile {}: {e}", path.display()))?;
-    let profile: UserProfile = serde_yaml::from_str(&body)?;
-    if profile.status != ProfileStatus::Confirmed {
-        anyhow::bail!(
-            "profile {slug} is not confirmed (status={}); run `byoh profile confirm`",
-            profile.status
-        );
-    }
-    let bundle = compile_profile(&profile)?;
-
-    // Static gate.
-    let report = static_gate(&bundle)?;
-    if !report.passed() {
-        anyhow::bail!("static gate failed: {}", report.errors.join("; "));
-    }
-
-    // Dry-run gate (always on — it is cheap and read-only).
-    let cmd = StdCommand::new();
-    let dr = dry_run(&bundle, &cmd)?;
-    if dr.passed() {
-        println!("{}", t(Msg::DryRunPassed, lang));
-    } else {
-        anyhow::bail!("{}", t(Msg::DryRunFailed, lang));
-    }
-    for fb in &dr.fallbacks {
-        eprintln!("[byoh] {fb}");
-    }
-
-    // Materialize the bundle on disk.
-    std::fs::create_dir_all(out)?;
-    materialize_bundle(&bundle, out)?;
-    println!("bundle written to {}", out.display());
-    Ok(())
-}
-
-fn materialize_bundle(
-    bundle: &byoh::domain::bundle::HarnessBundle,
-    out: &std::path::Path,
-) -> anyhow::Result<()> {
-    std::fs::create_dir_all(out)?;
-    let cfg = toml::to_string(&bundle.config())?;
-    let config_dir = out.join("config");
-    std::fs::create_dir_all(&config_dir)?;
-    std::fs::write(config_dir.join("harness.toml"), cfg)?;
-
-    for skill in &bundle.skills {
-        let ring_dir = out.join("skills").join(skill.ring.as_str());
-        std::fs::create_dir_all(&ring_dir)?;
-        std::fs::write(
-            ring_dir.join(format!("{}.md", skill.id)),
-            &skill.body_markdown,
-        )?;
-    }
-    let hooks_json = serde_json::to_string_pretty(&serde_json::json!({
-        "hooks": bundle.hooks.iter().map(|h| serde_json::json!({
-            "event": h.event,
-            "command": h.command,
-            "reads": h.reads,
-        })).collect::<Vec<_>>()
-    }))?;
-    let hooks_dir = out.join("hooks");
-    std::fs::create_dir_all(&hooks_dir)?;
-    std::fs::write(hooks_dir.join("hooks.json"), hooks_json)?;
-
-    std::fs::create_dir_all(out.join("mcp").join("tools"))?;
-    for tool in &bundle.mcp_tools {
-        std::fs::write(
-            out.join("mcp")
-                .join("tools")
-                .join(format!("{}.json", tool.name)),
-            serde_json::to_string_pretty(tool)?,
-        )?;
-    }
-
-    let policy = toml::to_string(&serde_json::json!({
-        "enabled": true,
-        "safety_gates": bundle.safety_gates,
-        "stagnation_limit": bundle.stagnation_limit,
-        "improvement_threshold": bundle.improvement_threshold,
-    }))?;
-    std::fs::write(out.join("evolution_policy.toml"), policy)?;
-    Ok(())
-}
-
 fn run_doctor(lang: &str) -> anyhow::Result<()> {
     let cmd = StdCommand::new();
     for tool in ["obsidian-forge", "alcove", "epic-harness", "claudy"] {
@@ -624,15 +522,4 @@ fn load_profile(slug: &str) -> anyhow::Result<UserProfile> {
 
 fn write_profile(p: &UserProfile) -> anyhow::Result<()> {
     Ok(byoh::store::write_profile(p)?)
-}
-
-// Helper trait to convert BundleConfig into a TOML-serializable form via serde.
-trait ConfigTomlExt {
-    fn config(&self) -> serde_json::Value;
-}
-
-impl ConfigTomlExt for byoh::domain::bundle::HarnessBundle {
-    fn config(&self) -> serde_json::Value {
-        serde_json::to_value(&self.config).unwrap_or(serde_json::json!({}))
-    }
 }

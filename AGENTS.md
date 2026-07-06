@@ -37,7 +37,7 @@ src/
 ├── templates/       genre template library (base inheritance + overrides)
 ├── deploy/          presets, agent_presets, vendor (sha256-pinned), install, provider
 ├── catalog/         quemsah top-100 index / search / vendor-from-catalog + curated companion-tool seeds
-├── mcp/             stdio MCP server (`byoh serve`) — 14 tools, the primary interface
+├── mcp/             stdio MCP server (`byoh serve`) — 10 tools, the primary interface
 ├── store.rs         profile persistence; sanitize_slug choke point; BYOH_HOME (~/.byoh)
 ├── security.rs      secret masking — applied to every rendered markdown artifact
 ├── i18n/            ko/en message catalog (10-language CLI flag, en fallback)
@@ -69,16 +69,18 @@ src/
 - **Synthesis can never bypass the gates** — it re-runs `static_gate` after assembly.
 - **External skills → Ring 3** (most-restricted) on both clone AND augment
   (id-collision) paths; a vendored body may never replace a safety-gate skill.
-- **Compile/render/install require a Confirmed profile** — enforced on the MCP
+- **Build/render/install require a Confirmed profile** — enforced on the MCP
   surface too, not just the CLI.
 
 ## 4. Entry points
 
-Primary interface: **MCP** (`byoh serve`, 14 tools — see README "Agent-led mode").
-CLI (intentionally small): `profile init/confirm/show`, `compile` (gates always
-run), `render --target <claude|codex|agy|all>`, `install [--scope local|global|publish]`,
+Primary interface: **MCP** (`byoh serve`, 10 tools — see README "Agent-led mode").
+CLI (intentionally small): `profile init/confirm/show`,
+`render --target <claude|codex|agy|all>` (synthesizes: compile + preset
+injection + static gate), `install [--scope local|global|publish]`,
 `vendor add/list/remove`, `catalog index/search/vendor`, `doctor`, `serve`.
-Interview and evolution are MCP-only (`profile_interview`, `evolve_cycle`).
+Interview is MCP-only (`profile_interview`); `build` returns matched vs
+skeleton skill classification so the agent decides install-readiness.
 
 ## 5. Conventions
 

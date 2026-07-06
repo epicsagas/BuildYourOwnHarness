@@ -54,46 +54,12 @@ pub struct ProfileConfirmParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
-pub struct CompileParams {
+pub struct BuildParams {
     pub slug: String,
-    /// If true, also run the static gate and include its report.
-    #[serde(default = "default_true")]
-    pub run_static_gate: bool,
-}
-
-#[derive(Debug, Deserialize, JsonSchema)]
-pub struct CompileDryRunParams {
-    pub slug: String,
-}
-
-#[derive(Debug, Deserialize, JsonSchema)]
-pub struct EvolveCycleParams {
-    /// Profile slug — keys the persisted seesaw/stagnation state across runs.
-    pub slug: String,
-    pub genre: String,
-    /// Edit type: "AddSkill" | "ModifyInstinct" | "ModifyConfig" | "AddGuardRule"
-    /// | "ModifyPrompt" | "RemoveSkill".
-    pub edit_type: String,
-    pub metric: EvolveMetricParams,
-}
-
-#[derive(Debug, Deserialize, JsonSchema)]
-pub struct EvolveMetricParams {
-    /// Avg score with the proposed edit.
-    #[serde(rename = "with")]
-    pub with_: f64,
-    /// Avg score without the proposed edit.
-    pub without: f64,
-    pub samples_with: u32,
-    pub samples_without: u32,
-}
-
-#[derive(Debug, Deserialize, JsonSchema)]
-pub struct RegistryCloneSkillParams {
-    pub genre: String,
-    /// Preset skill id, e.g. "tdd" or "debug".
-    pub skill_id: String,
-    pub slug: String,
+    /// If true, also run the dry-run gate (deps missing → graceful fallback).
+    /// The static gate always runs (built into `synthesize`).
+    #[serde(default)]
+    pub run_dry_run: bool,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -160,7 +126,4 @@ fn default_target() -> String {
 
 fn default_k() -> usize {
     5
-}
-fn default_true() -> bool {
-    true
 }

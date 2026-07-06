@@ -1,7 +1,7 @@
 //! The BYOH stdio MCP server (`byoh serve`).
 //!
 //! Wraps BYOH's synchronous lib APIs as MCP tools so an LLM agent can drive the
-//! whole profile → compile → evolve flow. The `#[tool_router(server_handler)]`
+//! whole profile → build → install flow. The `#[tool_router(server_handler)]`
 //! macro generates the `ServerHandler` impl; each `#[tool]` method is a plain
 //! sync `fn` that calls BYOH directly (the lib has no async surface). Domain
 //! data is returned as opaque `serde_json::Value`.
@@ -18,14 +18,12 @@ use rmcp::transport::stdio;
 use rmcp::{ServerHandler, ServiceExt};
 use serde_json::{Value, json};
 
-use crate::adapters::{FilesystemSource, RuleInterview, RuleLlm};
+use crate::adapters::{FilesystemSource, RuleInterview, RuleLlm, StdCommand};
 use crate::application::ProfileOrchestrator;
-use crate::domain::bundle::HarnessBundle;
+use crate::compiler::{dry_run, is_skeleton_body, static_gate};
 use crate::domain::error::ByohError;
-use crate::domain::evidence::AbMetric;
 use crate::domain::genre::Genre;
 use crate::domain::profile::{ProfileStatus, UserProfile};
-use crate::evolve::EvolutionDecision;
 
 use super::params::*;
 
@@ -322,131 +320,16 @@ impl ByohServer {
     }
 
     #[tool(
-        description = "List the four BYOH genres (developer/creator/researcher/business) with MVP flags."
+        description = "Build a harness bundle from a confirmed profile: synthesize (compile + preset injection + static gate), optionally dry-run. Returns the bundle, synthesis plan, gate status, and matched vs skeleton skill classification. The agent decides whether to install or iterate the profile first based on this. Runs off the async runtime via spawn_blocking (dry-run shells out to dependency tools)."
     )]
-    pub fn genre_list(&self) -> CallToolResult {
-        let lib = crate::templates::TemplateLibrary::new();
-        let out: Vec<Value> = lib
-            .all()
-            .into_iter()
-            .map(|t| {
-                json!({
-                    "genre": t.genre.as_str(),
-                    "mvp": t.mvp,
-                })
-            })
-            .collect();
-        ok_value(json!(out))
-    }
-
-    #[tool(
-        description = "Compile a confirmed profile into a HarnessBundle (4-Ring). Optionally run the static gate. Returns the bundle (and gate report)."
-    )]
-    pub fn compile(&self, Parameters(p): Parameters<CompileParams>) -> CallToolResult {
-        let profile = match crate::store::load_profile_in(&self.ctx.home, &p.slug) {
-            Ok(p) => p,
-            Err(e) => return err_result(e),
-        };
-        if let Err(e) = require_confirmed(&profile) {
-            return err_result(e);
-        }
-        match crate::compiler::compile_profile(&profile) {
-            Ok(bundle) => {
-                if p.run_static_gate {
-                    match crate::compiler::static_gate(&bundle) {
-                        Ok(report) => ok_value(json!({
-                            "bundle": serde_json::to_value(&bundle).unwrap_or(Value::Null),
-                            "static_gate": static_gate_json(&report),
-                        })),
-                        Err(e) => err_result(e),
-                    }
-                } else {
-                    ok_value(serde_json::to_value(&bundle).unwrap_or(Value::Null))
-                }
-            }
-            Err(e) => err_result(e),
-        }
-    }
-
-    #[tool(
-        description = "Compile + static gate + dry-run a profile. Returns whether each gate passed (deps missing are a graceful fallback, not an error). Dry-run shells out to dependency tools: runs off the async runtime via spawn_blocking."
-    )]
-    pub async fn compile_dry_run(
-        &self,
-        Parameters(p): Parameters<CompileDryRunParams>,
-    ) -> CallToolResult {
+    pub async fn build(&self, Parameters(p): Parameters<BuildParams>) -> CallToolResult {
         let home = self.ctx.home.clone();
-        let res = tokio::task::spawn_blocking(move || compile_dry_run_sync(&home, &p.slug)).await;
+        let res = tokio::task::spawn_blocking(move || build_sync(&home, &p)).await;
         match res {
             Ok(r) => r,
-            Err(join_err) => err_result(crate::domain::error::ByohError::Other(format!(
-                "dry_run task join failed: {join_err}"
+            Err(join_err) => err_result(ByohError::Other(format!(
+                "build task join failed: {join_err}"
             ))),
-        }
-    }
-
-    #[tool(
-        description = "Run one Ring-3 evolution cycle (Observe→Analyze→Evolve→Gate) under the 3 safety gates, PERSISTING seesaw/stagnation state across runs by slug. Returns the honest decision (Approved/Rejected/RolledBack/AutoTuned) + reason + cycle number."
-    )]
-    pub fn evolve_cycle(&self, Parameters(p): Parameters<EvolveCycleParams>) -> CallToolResult {
-        let genre = match parse_genre(&p.genre) {
-            Ok(g) => g,
-            Err(e) => return err_result(e),
-        };
-        let edit = match crate::application::evolve_run::parse_edit_type(&p.edit_type) {
-            Ok(e) => e,
-            Err(e) => return err_result(e),
-        };
-        let metric = AbMetric {
-            avg_score_with: p.metric.with_,
-            avg_score_without: p.metric.without,
-            samples_with: p.metric.samples_with,
-            samples_without: p.metric.samples_without,
-        };
-        match crate::application::evolve_one_cycle(&self.ctx.home, &p.slug, genre, edit, metric) {
-            Ok((decision, state)) => {
-                let label = crate::application::evolve_run::decision_label(&decision);
-                let reason = match &decision {
-                    EvolutionDecision::Rejected { reason }
-                    | EvolutionDecision::RolledBack { reason } => reason.clone(),
-                    _ => String::new(),
-                };
-                ok_value(json!({
-                    "decision": label,
-                    "reason": reason,
-                    "cycle_n": state.cycle_n,
-                    "negative": crate::application::evolve_run::decision_is_negative(&decision),
-                }))
-            }
-            Err(e) => err_result(e),
-        }
-    }
-
-    #[tool(
-        description = "Clone a vetted preset skill (e.g. 'tdd', 'debug') into a compiled genre bundle. Compiles by slug first, then injects. Returns the enriched bundle. Generate + clone coexist (deduped by skill id)."
-    )]
-    pub fn registry_clone_skill(
-        &self,
-        Parameters(p): Parameters<RegistryCloneSkillParams>,
-    ) -> CallToolResult {
-        let genre = match parse_genre(&p.genre) {
-            Ok(g) => g,
-            Err(e) => return err_result(e),
-        };
-        let profile = match crate::store::load_profile_in(&self.ctx.home, &p.slug) {
-            Ok(p) => p,
-            Err(e) => return err_result(e),
-        };
-        if let Err(e) = require_confirmed(&profile) {
-            return err_result(e);
-        }
-        let mut bundle: HarnessBundle = match crate::compiler::compile_profile(&profile) {
-            Ok(b) => b,
-            Err(e) => return err_result(e),
-        };
-        match crate::deploy::presets::inject_preset(&mut bundle, genre, &p.skill_id) {
-            Ok(()) => ok_value(serde_json::to_value(&bundle).unwrap_or(Value::Null)),
-            Err(e) => err_result(e),
         }
     }
 
@@ -570,7 +453,9 @@ impl ServerHandler for ByohServer {
         .with_instructions(
             "BYOH: build a personalized AI agent harness. Drive the flow: \
                  profile_create → profile_scan → profile_interview → profile_confirm \
-                 → compile → compile_dry_run → registry_clone_skill. The conversation \
+                 → build → install_plugin. build returns matched_skills (real preset \
+                 bodies) vs skeleton_skills (genre-template placeholders); you decide \
+                 whether to install now or iterate the profile first. The conversation \
                  IS the interview/wizard.",
         )
     }
@@ -727,35 +612,68 @@ fn profile_scan_sync(home: &std::path::Path, slug: &str, paths: &[String]) -> Ca
     }
 }
 
-/// Synchronous body of `compile_dry_run`.
-fn compile_dry_run_sync(home: &std::path::Path, slug: &str) -> CallToolResult {
-    let profile = match crate::store::load_profile_in(home, slug) {
+/// Synchronous body of `build`.
+///
+/// Synthesizes the bundle (compile + preset injection; `synthesize` re-runs the
+/// static gate internally at synthesis.rs), classifies which skills got real
+/// preset bodies vs. which are still genre-template skeletons, and optionally
+/// runs the dry-run gate. The agent reads `matched_skills` / `skeleton_skills`
+/// to decide whether to `install_plugin` now or iterate the profile first.
+fn build_sync(home: &std::path::Path, p: &BuildParams) -> CallToolResult {
+    let profile = match crate::store::load_profile_in(home, &p.slug) {
         Ok(p) => p,
         Err(e) => return err_result(e),
     };
     if let Err(e) = require_confirmed(&profile) {
         return err_result(e);
     }
-    let bundle = match crate::compiler::compile_profile(&profile) {
+    let (bundle, plan) = match crate::application::synthesize(&profile) {
         Ok(b) => b,
         Err(e) => return err_result(e),
     };
-    let static_report = match crate::compiler::static_gate(&bundle) {
+    // `synthesize` already ran static_gate; recompute the report for the JSON.
+    let static_report = match static_gate(&bundle) {
         Ok(r) => r,
         Err(e) => return err_result(e),
     };
-    // StdCommand shells out to dependency tools; missing tools are a graceful
-    // fallback inside dry_run, surfaced in the report.
-    let cmds = crate::adapters::StdCommand::new();
-    match crate::compiler::dry_run(&bundle, &cmds) {
-        Ok(dry_report) => ok_value(json!({
-            "static_gate_passed": static_report.passed(),
-            "dry_run_passed": dry_report.passed(),
-            "static_gate": static_gate_json(&static_report),
-            "dry_run": dry_run_json(&dry_report),
-        })),
-        Err(e) => err_result(e),
+
+    // Skills the synthesis plan injected real preset bodies into.
+    let matched_skills: Vec<&str> = plan
+        .pipelines
+        .iter()
+        .flat_map(|pp| pp.steps.iter())
+        .map(|s| s.skill_id.as_str())
+        .collect();
+    // Skills still carrying the genre-template placeholder body.
+    let skeleton_skills: Vec<&str> = bundle
+        .skills
+        .iter()
+        .filter(|s| is_skeleton_body(&s.body_markdown))
+        .map(|s| s.id.as_str())
+        .collect();
+
+    let mut result = json!({
+        "bundle": serde_json::to_value(&bundle).unwrap_or(Value::Null),
+        "synthesis_plan": serde_json::to_value(&plan).unwrap_or(Value::Null),
+        "static_gate_passed": static_report.passed(),
+        "static_gate": static_gate_json(&static_report),
+        "matched_skills": matched_skills,
+        "skeleton_skills": skeleton_skills,
+    });
+
+    if p.run_dry_run {
+        // StdCommand shells out to dependency tools; missing tools are a graceful
+        // fallback inside dry_run, surfaced in the report.
+        let cmds = StdCommand::new();
+        match dry_run(&bundle, &cmds) {
+            Ok(dry_report) => {
+                result["dry_run_passed"] = json!(dry_report.passed());
+                result["dry_run"] = dry_run_json(&dry_report);
+            }
+            Err(e) => return err_result(e),
+        }
     }
+    ok_value(result)
 }
 
 /// Synchronous body of `catalog_vendor`.

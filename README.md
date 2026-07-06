@@ -76,17 +76,21 @@ Once your host is connected, you don't type commands — you just talk. Your age
 
 > **You:** *I'm a backend Go developer shipping a payments API this month. Build me a harness.*
 >
-> **Agent:** *(scans your repo via `profile_scan`, asks a few targeted questions via `profile_interview`, locks the genre to `developer`)* → compiles a `HarnessBundle` → installs agents, skills, and a secure-ship goal pipeline into Claude Code. Done — next session, your agent already speaks your stack.
+> **Agent:** *(scans your repo via `profile_scan`, asks a few targeted questions via `profile_interview`, locks the genre to `developer`)* → builds a `HarnessBundle` (synthesize + classify matched/skeleton skills) → installs agents, skills, and a secure-ship goal pipeline into Claude Code. Done — next session, your agent already speaks your stack.
 
 That same flow, in the suggested tool order:
 
 ```
 profile_create → profile_scan → profile_interview → profile_confirm
-           → compile → compile_dry_run → render_plugin → install_plugin
-           → (optional) registry_clone_skill → (later) evolve_cycle
+           → build → install_plugin
 ```
 
-Available tools: `profile_read`, `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `genre_list`, `compile`, `compile_dry_run`, `render_plugin`, `install_plugin`, `evolve_cycle`, `registry_clone_skill`, `catalog_search`, `catalog_vendor`.
+`build` synthesizes the bundle (compile + preset injection + static gate) and
+classifies every skill as `matched` (real preset body) or `skeleton` (genre-template
+placeholder) — the agent reads that to decide whether to install now or iterate
+the profile first.
+
+Available tools: `profile_read`, `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `build`, `render_plugin`, `install_plugin`, `catalog_search`, `catalog_vendor`.
 
 Want the agent to walk you through it? Just say *"build my harness"* — the bundled `byoh-guide` agent orchestrates the whole flow.
 
@@ -110,6 +114,21 @@ The LLM agent (via `catalog_search` / `catalog_vendor` MCP tools) can do this en
 
 A few companion tools are seeded into search results as **reference material** (not dependencies): BYOH's own execution-layer tools — [alcove](https://github.com/epicsagas/alcove) (doc server), [obsidian-forge](https://github.com/epicsagas/obsidian-forge) (vault automation), [epic-harness](https://github.com/epicsagas/epic-harness) (hook/skill runtime) — surface contextually (a "doc server" / "search backend" query finds alcove) so an agent can recommend them when relevant. Vendor one only if you actually want it; bundles ship dependency-free either way.
 
+## Example harnesses
+
+Two harnesses built with the flow above and published to GitHub — each a multi-host polyglot plugin (Claude Code · Codex · Antigravity), made of skills, agents, and manifests only, so it runs on any machine with no extra binaries:
+
+- **[byoh-paper-whisperer](https://github.com/epicsagas/byoh-paper-whisperer)** — `researcher` genre · 13 skills · 1 agent. Survey, read, analyze, and take notes on AI/ML papers. The bundled *Research Analyst* agent tags every claim with an evidence tier (primary > peer-reviewed > secondary > anecdotal) and never overstates a source; a `search_citations` MCP tool wires citation checks to a knowledge base ([alcove](https://github.com/epicsagas/alcove)).
+- **[byoh-marketing](https://github.com/epicsagas/byoh-marketing)** — `business` genre · 16 skills · 1 agent. A marketing-focused harness with the same Critic / Seesaw / Stagnation safety gates.
+
+```bash
+# install byoh-paper-whisperer into Claude Code
+claude plugin marketplace add epicsagas/byoh-paper-whisperer
+claude plugin install byoh-paper-whisperer@byoh-paper-whisperer
+```
+
+Each repo's README carries per-host install steps for Codex and Antigravity too.
+
 ## Power users: the CLI (optional)
 
 Every flow above is also reachable from the terminal. The CLI is **auxiliary** — useful for scripting, CI, or when you'd rather not chat — but the agent-led path is the intended one.
@@ -120,21 +139,20 @@ Every flow above is also reachable from the terminal. The CLI is **auxiliary** �
 byoh profile init me --paths ./src ./docs   # auto-scans your project
 byoh profile confirm me --genre developer   # lock in your genre (+ optional --goal)
 
-byoh compile me                             # gates (static + dry-run) always run; writes the HarnessBundle
-byoh render me --target claude              # or: codex | agy | all (default: all)
+byoh render me --target claude              # synthesize (compile + preset injection + static gate) and write the HarnessBundle; or: codex | agy | all (default: all)
 byoh install me --scope local               # render to dist/, activate into this project's .claude/ only
 byoh install me --scope global              # ...or ~/.claude + ~/.codex + ~/.gemini (was --host)
 byoh install me --scope publish             # ...or add LICENSE + .gitignore and print git instructions
 ```
 
-The interview itself is agent-led (the `profile_interview` MCP tool) — the conversation is the interview, so there is no interactive CLI interview. Evolution (`evolve_cycle` MCP tool) runs a 3-gate cycle (Critic / Seesaw / Stagnation) that can never be bypassed — so evolution is safe and auditable.
+The interview itself is agent-led (the `profile_interview` MCP tool) — the conversation is the interview, so there is no interactive CLI interview. The build's static gate (Critic / Seesaw / Stagnation safety-gate presence, MCP schema, hook input) always runs and can never be bypassed — so the bundle is structurally valid before it ships. Post-install improvement is a conversational retrospective in later sessions, not a tool call.
 
 ## How it works under the hood
 
 BYOH's synthesis engine matches your profile tags against the skill registry, orders them into a dependency-resolved pipeline, and emits a `HarnessBundle` — a git-ready artifact that renders into the native format of any supported host.
 
 - **4-ring security model** — lifecycle spec (Ring 0) and built-in pipeline skills (Ring 1) through community/untrusted skills (Ring 3), each with escalating validation; vendored skills are sha256-pinned and verified at read + embed time
-- **3-gate evolution** — every `evolve` cycle passes Critic (quality), Seesaw (regression), and Stagnation (plateau) gates; no bypass
+- **3-gate safety floor** — every build's static gate confirms Critic (quality), Seesaw (regression), and Stagnation (plateau) gates are present; no bypass
 - **Goal-oriented pipelines** — declaring a 30-day goal (product launch, research report, secure ship…) overlays a matching skill ladder automatically
 
 Architecture: hexagonal — `domain / ports / adapters / application / compiler / evolve / templates / deploy / catalog / mcp / i18n / security / cli`. See `AGENTS.md` for the full guide.
@@ -149,9 +167,8 @@ byoh profile init <slug> [--paths ...]      # non-destructive project scan
 byoh profile confirm <slug> --genre <g> [--goal <text>]  # confirm and lock profile
 byoh profile show <slug>                    # print the profile YAML
 
-# Build (static gate + read-only dry-run gate always run)
-byoh compile <slug> [--out <dir>]           # write the HarnessBundle
-byoh render <slug> [--target <host>]        # claude | codex | agy | all (default: all)
+# Build (static gate always runs; render synthesizes: compile + preset injection)
+byoh render <slug> [--target <host>]        # claude | codex | agy | all (default: all); writes the HarnessBundle
 byoh install <slug> [--target <host>] [--scope local|global|publish] [--host] [--force]  # dist/ tree; --scope decides where it goes (local=this project, global=HOME, publish=+LICENSE/.gitignore+git steps). --host is legacy for --scope global.
 
 # Community skills (maintainer/build-time; sha256-pinned and verified at read + embed time)

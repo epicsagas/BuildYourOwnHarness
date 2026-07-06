@@ -84,11 +84,12 @@ byoh serve   # stdio MCP server
 
 ```
 profile_create → profile_scan → profile_interview → profile_confirm
-           → compile → compile_dry_run → render_plugin → install_plugin
-           → (optional) registry_clone_skill → (later) evolve_cycle
+           → build → install_plugin
 ```
 
-利用可能なツール: `profile_read`, `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `genre_list`, `compile`, `compile_dry_run`, `render_plugin`, `install_plugin`, `evolve_cycle`, `registry_clone_skill`, `catalog_search`, `catalog_vendor`.
+`build` はバンドルを合成し（compile + preset 注入 + static gate）、各スキルを `matched`（実プリセット本文が注入済み）か `skeleton`（ジャンルテンプレートのプレースホルダー）に分類します — エージェントはこれを見て、今すぐインストールするかプロファイルを見直すかを判断します。
+
+利用可能なツール: `profile_read`, `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `build`, `render_plugin`, `install_plugin`, `catalog_search`, `catalog_vendor`.
 
 エージェントに手取り足取り案内してほしいですか？ *"build my harness"* とだけ言えば、同梱の `byoh-guide` エージェントがフロー全体を取り仕切ります。
 
@@ -122,21 +123,20 @@ LLM エージェント（`catalog_search` / `catalog_vendor` MCP ツール経由
 byoh profile init me --paths ./src ./docs   # auto-scans your project
 byoh profile confirm me --genre developer   # lock in your genre (+ optional --goal)
 
-byoh compile me                             # gates (static + dry-run) always run; writes the HarnessBundle
-byoh render me --target claude              # or: codex | agy | all (default: all)
+byoh render me --target claude              # 合成（compile + preset 注入 + static gate）して HarnessBundle を書き出す; or: codex | agy | all (default: all)
 byoh install me --scope local               # render to dist/, activate into this project's .claude/ only
 byoh install me --scope global              # ...or ~/.claude + ~/.codex + ~/.gemini (was --host)
 byoh install me --scope publish             # ...or add LICENSE + .gitignore and print git instructions
 ```
 
-インタビュー自体はエージェント駆動です（`profile_interview` MCP ツール）。会話がインタビューであるため、対話型の CLI インタビューは存在しません。進化（`evolve_cycle` MCP ツール）は 3 つのゲート（Critic / Seesaw / Stagnation）からなるサイクルを実行し、決してバイパスできません — したがって進化は安全で監査可能です。
+インタビュー自体はエージェント駆動です（`profile_interview` MCP ツール）。会話がインタビューであるため、対話型の CLI インタビューは存在しません。build の static gate（Critic / Seesaw / Stagnation の安全ゲート、MCP スキーマ、hook 入力）は常に実行され、決してバイパスできません — したがってバンドルは出荷前に構造的に有効であることが保証されます。インストール後の改善はツール呼び出しではなく、後続セッションでの対話的な振り返りです。
 
 ## 内部の仕組み
 
 BYOH の合成エンジンは、プロファイルのタグをスキルレジストリと照合し、依存関係を解決したパイプラインに並べ、サポートされている任意のホストのネイティブ形式にレンダリングされる git 対応のアーティファクト ── `HarnessBundle` を出力します。
 
 - **4 リングセキュリティモデル** — ライフサイクル仕様（Ring 0）と組み込みのパイプラインスキル（Ring 1）から、コミュニティ/非信頼スキル（Ring 3）まで、それぞれ段階的に厳格になる検証。vendor されたスキルは sha256 でピン留めされ、読み取り + 組み込み時に検証される
-- **3 ゲート進化** — すべての `evolve` サイクルは Critic（品質）・Seesaw（回帰）・Stagnation（停滞）のゲートを通過する。バイパス不可
+- **3 ゲート安全基盤** — すべてのビルドの static gate は Critic（品質）・Seesaw（回帰）・Stagnation（停滞）の各ゲートの存在を確認する。バイパス不可
 - **ゴール指向のパイプライン** — 30 日の目標（プロダクトローンチ・研究レポート・secure ship など）を宣言すると、それに合うスキルラダーを自動で重ね合わせる
 
 アーキテクチャ: ヘキサゴナル — `domain / ports / adapters / application / compiler / evolve / templates / deploy / catalog / mcp / i18n / security / cli`。完全なガイドは `AGENTS.md` を参照してください。
@@ -151,9 +151,8 @@ byoh profile init <slug> [--paths ...]      # non-destructive project scan
 byoh profile confirm <slug> --genre <g> [--goal <text>]  # confirm and lock profile
 byoh profile show <slug>                    # print the profile YAML
 
-# Build (static gate + read-only dry-run gate always run)
-byoh compile <slug> [--out <dir>]           # write the HarnessBundle
-byoh render <slug> [--target <host>]        # claude | codex | agy | all (default: all)
+# Build (static gate always runs; render synthesizes: compile + preset injection)
+byoh render <slug> [--target <host>]        # claude | codex | agy | all (default: all); writes the HarnessBundle
 byoh install <slug> [--target <host>] [--scope local|global|publish] [--host] [--force]  # dist/ tree; --scope decides where it goes (local=this project, global=HOME, publish=+LICENSE/.gitignore+git steps). --host is legacy for --scope global.
 
 # Community skills (maintainer/build-time; sha256-pinned and verified at read + embed time)

@@ -84,11 +84,12 @@ Le même flux, dans l'ordre d'outils suggéré :
 
 ```
 profile_create → profile_scan → profile_interview → profile_confirm
-           → compile → compile_dry_run → render_plugin → install_plugin
-           → (optional) registry_clone_skill → (later) evolve_cycle
+           → build → install_plugin
 ```
 
-Outils disponibles : `profile_read`, `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `genre_list`, `compile`, `compile_dry_run`, `render_plugin`, `install_plugin`, `evolve_cycle`, `registry_clone_skill`, `catalog_search`, `catalog_vendor`.
+`build` synthétise le bundle (compile + injection de presets + static gate) et classe chaque skill en `matched` (corps de preset réel injecté) ou `skeleton` (placeholder du template de genre) — l'agent lit cela pour décider d'installer maintenant ou d'itérer d'abord sur le profil.
+
+Outils disponibles : `profile_read`, `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `build`, `render_plugin`, `install_plugin`, `catalog_search`, `catalog_vendor`.
 
 Vous voulez que l'agent vous guide à travers tout ? Dites simplement *« build my harness »* — l'agent `byoh-guide` fourni orchestre l'ensemble du flux.
 
@@ -122,21 +123,20 @@ Chaque flux ci-dessus est également accessible depuis le terminal. Le CLI est *
 byoh profile init me --paths ./src ./docs   # auto-scans your project
 byoh profile confirm me --genre developer   # lock in your genre (+ optional --goal)
 
-byoh compile me                             # gates (static + dry-run) always run; writes the HarnessBundle
-byoh render me --target claude              # or: codex | agy | all (default: all)
+byoh render me --target claude              # synthesize (compile + preset injection + static gate) and write the HarnessBundle; or: codex | agy | all (default: all)
 byoh install me --scope local               # render to dist/, activate into this project's .claude/ only
 byoh install me --scope global              # ...or ~/.claude + ~/.codex + ~/.gemini (was --host)
 byoh install me --scope publish             # ...or add LICENSE + .gitignore and print git instructions
 ```
 
-L'interview elle-même est pilotée par l'agent (l'outil MCP `profile_interview`) — la conversation est l'interview, il n'y a donc pas d'interview interactive en CLI. L'évolution (outil MCP `evolve_cycle`) exécute un cycle à 3 portes (Critic / Seesaw / Stagnation) qui ne peut jamais être contourné — l'évolution est donc sûre et auditable.
+L'interview elle-même est pilotée par l'agent (l'outil MCP `profile_interview`) — la conversation est l'interview, il n'y a donc pas d'interview interactive en CLI. Le static gate de `build` (présence des 3 gates de sécurité Critic / Seesaw / Stagnation, schéma MCP, entrées de hook) s'exécute toujours et ne peut jamais être contourné — le bundle est donc structurellement valide avant d'être livré. L'amélioration post-installation est une rétrospective conversationnelle lors de sessions ultérieures, pas un appel d'outil.
 
 ## Comment ça marche sous le capot
 
 Le moteur de synthèse de BYOH fait correspondre vos tags de profil au registre de skills, les ordonne dans un pipeline résolu en termes de dépendances, et émet un `HarnessBundle` — un artefact prêt pour git qui se rend dans le format natif de tout hôte supporté.
 
 - **Modèle de sécurité à 4 anneaux** — spec de cycle de vie (Ring 0) et skills de pipeline intégrés (Ring 1) jusqu'aux skills communautaires/non fiables (Ring 3), chacun avec une validation croissante ; les skills vendés sont épinglés en sha256 et vérifiés au moment de la lecture + l'embed
-- **Évolution à 3 portes** — chaque cycle `evolve` passe les portes Critic (qualité), Seesaw (régression) et Stagnation (plateau) ; aucun contournement
+- **Socle de sécurité à 3 portes** — chaque build passe une static gate qui vérifie la présence des portes Critic (qualité), Seesaw (régression) et Stagnation (plateau) ; aucun contournement
 - **Pipelines orientés objectifs** — déclarer un objectif à 30 jours (lancement produit, rapport de recherche, secure ship…) superpose automatiquement une échelle de skills adaptée
 
 Architecture : hexagonale — `domain / ports / adapters / application / compiler / evolve / templates / deploy / catalog / mcp / i18n / security / cli`. Voir `AGENTS.md` pour le guide complet.
@@ -151,9 +151,8 @@ byoh profile init <slug> [--paths ...]      # non-destructive project scan
 byoh profile confirm <slug> --genre <g> [--goal <text>]  # confirm and lock profile
 byoh profile show <slug>                    # print the profile YAML
 
-# Build (static gate + read-only dry-run gate always run)
-byoh compile <slug> [--out <dir>]           # write the HarnessBundle
-byoh render <slug> [--target <host>]        # claude | codex | agy | all (default: all)
+# Build (static gate always runs; render synthesizes: compile + preset injection)
+byoh render <slug> [--target <host>]        # claude | codex | agy | all (default: all); writes the HarnessBundle
 byoh install <slug> [--target <host>] [--scope local|global|publish] [--host] [--force]  # dist/ tree; --scope decides where it goes (local=this project, global=HOME, publish=+LICENSE/.gitignore+git steps). --host is legacy for --scope global.
 
 # Community skills (maintainer/build-time; sha256-pinned and verified at read + embed time)

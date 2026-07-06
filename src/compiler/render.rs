@@ -105,6 +105,18 @@ fn render_skill(id: &str, ring: Ring, genre: Genre) -> SkillSpec {
     }
 }
 
+/// Prefix every synthesized skeleton skill body starts with. `skill_doc`
+/// emits this; `is_skeleton_body` detects it. Single source of truth so a
+/// template change stays in lockstep with the skeleton classifier.
+const SKELETON_BODY_PREFIX: &str = "## Process\nThe ";
+
+/// True when a skill body is the placeholder skeleton emitted by `skill_doc`
+/// for a ring skill that no preset was injected into. The `build` tool uses
+/// this to tell the agent which skills still need real bodies.
+pub fn is_skeleton_body(body: &str) -> bool {
+    body.starts_with(SKELETON_BODY_PREFIX)
+}
+
 /// SKILL.md-style doc: frontmatter (name, description) + 4-section body
 /// (Process / Anti-Rationalization / Evidence / Red Flags) per epic-harness.
 fn skill_doc(id: &str, _ring: Ring, genre: Genre) -> (String, String, String) {
@@ -114,7 +126,7 @@ fn skill_doc(id: &str, _ring: Ring, genre: Genre) -> (String, String, String) {
     // owns frontmatter emission from the spec's name/description; baking it in
     // here too produced duplicated `---` blocks in the published SKILL.md.
     let body = format!(
-        "## Process\nThe {id} skill executes its {genre} pipeline step.\n\n\
+        "{SKELETON_BODY_PREFIX}{id} skill executes its {genre} pipeline step.\n\n\
          ## Anti-Rationalization\nDo not skip steps; evidence required.\n\n\
          ## Evidence\nOutputs are persisted as files for inspection.\n\n\
          ## Red Flags\n- Empty output\n- Skipped validation\n"
