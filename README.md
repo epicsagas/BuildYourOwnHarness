@@ -116,10 +116,10 @@ A few companion tools are seeded into search results as **reference material** (
 
 ## Example harnesses
 
-Two harnesses built with the flow above and published to GitHub — each a multi-host polyglot plugin (Claude Code · Codex · Antigravity), made of skills, agents, and manifests only, so it runs on any machine with no extra binaries:
+Two harnesses built with the flow above and published to GitHub — each a multi-host polyglot plugin (Claude Code · Codex · Antigravity), made of skills, manifests, and (where matched) agents only, so it runs on any machine with no extra binaries:
 
 - **[byoh-paper-whisperer](https://github.com/epicsagas/byoh-paper-whisperer)** — `researcher` genre · 13 skills · 1 agent. Survey, read, analyze, and take notes on AI/ML papers. The bundled *Research Analyst* agent tags every claim with an evidence tier (primary > peer-reviewed > secondary > anecdotal) and never overstates a source; a `search_citations` MCP tool wires citation checks to a knowledge base ([alcove](https://github.com/epicsagas/alcove)).
-- **[byoh-marketing](https://github.com/epicsagas/byoh-marketing)** — `business` genre · 16 skills · 1 agent. A marketing-focused harness with the same Critic / Seesaw / Stagnation safety gates.
+- **[byoh-market-gtm-analyst](https://github.com/epicsagas/byoh-market-gtm-analyst)** — `business` genre · 9 skills. Scopes a market/competitive research engagement (`goal`), runs evidence-tiered market and competitor analysis (`analyze`), builds a positioning read (`decide`), and produces a GTM strategy doc with per-channel ROI and a risk register (`execute` / `roi_evaluation` / `risk_assessment`) — all gated by the same Critic / Seesaw / Stagnation safety gates.
 
 ```bash
 # install byoh-paper-whisperer into Claude Code
