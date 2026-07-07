@@ -29,7 +29,8 @@ BYOH is built to be driven by your AI agent — not by you typing commands. Inst
 
 ```
 1. Install the plugin      # Claude Code / Codex / agy — auto-installs the binary
-2. "Build me a harness"    # your agent scans your repo and compiles the result
+2. "Build me a harness"    # your agent interviews you, builds, fills any gaps
+                           # itself, and installs — all in conversation
 ```
 
 On the next session your host loads the harness automatically — agents, skills, and goal pipelines tuned to you.
@@ -76,13 +77,13 @@ Once your host is connected, you don't type commands — you just talk. Your age
 
 > **You:** *I'm a backend Go developer shipping a payments API this month. Build me a harness.*
 >
-> **Agent:** *(scans your repo via `profile_scan`, asks a few targeted questions via `profile_interview`, locks the genre to `developer`)* → builds a `HarnessBundle` (synthesize + classify matched/skeleton skills) → installs agents, skills, and a secure-ship goal pipeline into Claude Code. Done — next session, your agent already speaks your stack.
+> **Agent:** *(scans your repo via `profile_scan`, asks a few targeted questions via `profile_interview`, locks the genre to `developer`)* → `build` synthesizes a `HarnessBundle` and classifies every skill as `matched` / `authored` / `skeleton` → for any skeleton the profile needs (say, a payments-specific verification skill), the agent authors it on the spot via `author_skill`, then `build`s again to confirm → installs agents, skills, and a secure-ship goal pipeline into Claude Code. Authored content persists across rebuilds. Done — next session, your agent already speaks your stack.
 
 That same flow, in the suggested tool order:
 
 ```
 profile_create → profile_scan → profile_interview → profile_confirm
-           → build → install_plugin
+           → build → (author_skill / author_doc to fill skeletons) → build → install_plugin
 ```
 
 `build` synthesizes the bundle (compile + preset injection + static gate) and
@@ -151,7 +152,7 @@ The interview itself is agent-led (the `profile_interview` MCP tool) — the con
 
 ## How it works under the hood
 
-BYOH's synthesis engine matches your profile tags against the skill registry, orders them into a dependency-resolved pipeline, and emits a `HarnessBundle` — a git-ready artifact that renders into the native format of any supported host.
+BYOH's synthesis engine matches your profile tags against the skill registry, orders them into a dependency-resolved pipeline, and emits a `HarnessBundle` — a git-ready artifact that renders into the native format of any supported host. Skills the registry doesn't cover stay as skeletons; the agent fills them via `author_skill`, writing to a profile-scoped overlay that the next build reads back — so authored content persists and the static gate still runs on every build.
 
 - **4-ring security model** — lifecycle spec (Ring 0) and built-in pipeline skills (Ring 1) through community/untrusted skills (Ring 3), each with escalating validation; vendored skills are sha256-pinned and verified at read + embed time
 - **3-gate safety floor** — every build's static gate confirms Critic (quality), Seesaw (regression), and Stagnation (plateau) gates are present; no bypass

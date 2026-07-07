@@ -31,7 +31,8 @@ BYOH создан, чтобы им управлял ваш AI-агент — а 
 
 ```
 1. Install the plugin      # Claude Code / Codex / agy — auto-installs the binary
-2. "Build me a harness"    # your agent scans your repo and compiles the result
+2. "Build me a harness"    # ваш агент проводит интервью, собирает, сам заполняет
+                           # пробелы и устанавливает — всё в одном диалоге
 ```
 
 На следующей сессии ваш хост автоматически загружает harness — agents, skills и goal pipelines, настроенные под вас.
@@ -78,13 +79,13 @@ byoh serve   # stdio MCP server
 
 > **Вы:** *Я бэкенд-разработчик на Go, в этом месяце сдаю payments API. Собери мне harness.*
 >
-> **Агент:** *(сканирует репозиторий через `profile_scan`, задаёт несколько точечных вопросов через `profile_interview`, фиксирует жанр как `developer`)* → компилирует `HarnessBundle` → устанавливает agents, skills и secure-ship goal pipeline в Claude Code. Готово — на следующей сессии агент уже говорит на вашем стеке.
+> **Агент:** *(сканирует репозиторий через `profile_scan`, задаёт несколько точечных вопросов через `profile_interview`, фиксирует жанр как `developer`)* → `build` синтезирует `HarnessBundle` и классифицирует каждый skill как `matched` / `authored` / `skeleton` → для любого skeleton, который нужен профилю (например, skill верификации для платежей), агент пишет его на месте через `author_skill`, а затем снова запускает `build` для подтверждения → устанавливает agents, skills и secure-ship goal pipeline в Claude Code. Авторский контент сохраняется между пересборками. Готово — на следующей сессии агент уже говорит на вашем стеке.
 
 Тот же поток в предлагаемом порядке инструментов:
 
 ```
 profile_create → profile_scan → profile_interview → profile_confirm
-           → build → install_plugin
+           → build → (author_skill / author_doc to fill skeletons) → build → install_plugin
 ```
 
 Доступные инструменты: `profile_read`, `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `build`, `author_skill`, `author_doc`, `enable_hook`, `list_overrides`, `delete_override`, `render_plugin`, `install_plugin`, `catalog_search`, `catalog_vendor`.

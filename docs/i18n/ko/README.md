@@ -31,7 +31,8 @@ BYOH는 AI 에이전트가 주도하도록 설계됐습니다 — 사용자가 �
 
 ```
 1. Install the plugin      # Claude Code / Codex / agy — 바이너리까지 자동 설치
-2. "Build me a harness"    # 에이전트가 레포를 스캔해서 번들을 빌드
+2. "Build me a harness"    # 에이전트가 인터뷰하고, 빌드하고, 빈 곳은 직접
+                           # 채워서 설치까지 — 전부 대화 한 번에
 ```
 
 다음 세션부터 호스트가 하네스를 자동으로 로드합니다 — 에이전트, 스킬, 목표 파이프라인 모두 나에게 맞춰진 상태로.
@@ -78,13 +79,13 @@ byoh serve   # stdio MCP 서버
 
 > **나:** *이번 달에 결제 API를 출시할 백엔드 Go 개발자야. 하네스 하나 만들어줘.*
 >
-> **에이전트:** *(`profile_scan`으로 레포를 스캔하고, `profile_interview`로 타깃팅된 질문 몇 개를 던지고, 장르를 `developer`로 고정)* → `HarnessBundle`을 빌드(synthesize + matched/skeleton 스킬 분류) → 에이전트, 스킬, 보안 배포 목표 파이프라인을 Claude Code에 설치. 완료 — 다음 세션부터 에이전트가 내 스택을 이미 알고 있습니다.
+> **에이전트:** *(`profile_scan`으로 레포를 스캔하고, `profile_interview`로 타깃팅된 질문 몇 개를 던지고, 장르를 `developer`로 고정)* → `build`가 `HarnessBundle`을 합성하며 각 스킬을 `matched` / `authored` / `skeleton`으로 분류 → 프로파일에 필요한 skeleton(예: 결제 전용 검증 스킬)이 있으면 에이전트가 즉석에서 `author_skill`로 직접 작성한 뒤, 확인 차 `build`를 다시 실행 → 에이전트, 스킬, 보안 배포 목표 파이프라인을 Claude Code에 설치. 작성한 내용은 재빌드해도 유지됩니다. 완료 — 다음 세션부터 에이전트가 내 스택을 이미 알고 있습니다.
 
 같은 흐름을, 권장 도구 호출 순서대로 보면:
 
 ```
 profile_create → profile_scan → profile_interview → profile_confirm
-           → build → install_plugin
+           → build → (author_skill / author_doc to fill skeletons) → build → install_plugin
 ```
 
 `build`는 번들을 합성(컴파일 + 프리셋 주입 + static 게이트)하면서, 각 스킬을 `matched`(실제 프리셋 본문), `authored`(`author_skill`로 직접 채운 본문), 또는 `skeleton`(장르 템플릿 자리표시자)으로 분류합니다 — 에이전트는 이 결과를 보고 지금 설치할지, 빈 스킬을 직접 작성할지, 프로파일을 더 다듬을지 결정합니다. `author_skill` / `author_doc`은 프로파일 오버레이에 기록하며 `build`가 다시 읽으므로, 작성한 내용은 재빌드에도 유지됩니다.

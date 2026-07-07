@@ -31,7 +31,8 @@
 
 ```
 1. Install the plugin      # Claude Code / Codex / agy — auto-installs the binary
-2. "Build me a harness"    # your agent scans your repo and compiles the result
+2. "Build me a harness"    # يقوم وكيلك بالمقابلة، والبناء، وتعبئة الفجوات بنفسه،
+                           # ثم التثبيت — كل ذلك ضمن المحادثة
 ```
 
 في الجلسة التالية، يحمّل المضيف (host) الـ harness تلقائيًا — وكلاء ومهارات وخطوط أنابيب أهداف معدّة خصيصًا لك.
@@ -78,13 +79,13 @@ byoh serve   # stdio MCP server
 
 > **أنت:** *أنا مطوّر Go خلفيّة (backend) أُطلق واجهة برمجة مدفوعات هذا الشهر. ابنِ لي harness.*
 >
-> **الوكيل:** *(يبحث مستودعك عبر `profile_scan`، يطرح أسئلة موجّهة قليلة عبر `profile_interview`، يُثبّت الـ genre على `developer`)* ← يُجمّع `HarnessBundle` ← يثبّت وكلاء ومهارات وخط أنابيب هدف secure-ship في Claude Code. تم — في الجلسة التالية، وكيلك يتحدّث لغة حزمتك التقنية فعلًا.
+> **الوكيل:** *(يبحث مستودعك عبر `profile_scan`، يطرح أسئلة موجّهة قليلة عبر `profile_interview`، يُثبّت الـ genre على `developer`)* ← `build` يُركّب `HarnessBundle` ويُصنّف كل skill كـ `matched` / `authored` / `skeleton` ← لأي skeleton يحتاجه الـ profile (مثلًا skill تحقّق خاص بالمدفوعات)، يكتبه الوكيل على الفور عبر `author_skill` ثم يُعيد `build` للتأكيد ← يثبّت وكلاء ومهارات وخط أنابيب هدف secure-ship في Claude Code. المحتوى المؤلَّف يبقى عبر إعادات البناء. تم — في الجلسة التالية، وكيلك يتحدّث لغة حزمتك التقنية فعلًا.
 
 نفس التدفّق، بالترتيب المقترح للأدوات:
 
 ```
 profile_create → profile_scan → profile_interview → profile_confirm
-           → build → install_plugin
+           → build → (author_skill / author_doc to fill skeletons) → build → install_plugin
 ```
 
 الأدوات المتاحة: `profile_read`, `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `build`, `author_skill`, `author_doc`, `enable_hook`, `list_overrides`, `delete_override`, `render_plugin`, `install_plugin`, `catalog_search`, `catalog_vendor`.

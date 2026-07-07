@@ -31,7 +31,8 @@ O BYOH foi projetado para ser conduzido pelo seu agente de IA — não por você
 
 ```
 1. Instale o plugin        # Claude Code / Codex / agy — auto-instala o binário
-2. "Construa um harness"   # seu agente examina seu repo e compila o resultado
+2. "Construa um harness"   # seu agente te entrevista, constrói, preenche as lacunas
+                           # ele mesmo e instala — tudo na conversa
 ```
 
 Na próxima sessão, seu host carrega o harness automaticamente — agentes, skills e pipelines de objetivos ajustados para você.
@@ -78,13 +79,13 @@ Depois que seu host está conectado, você não digita comandos — apenas conve
 
 > **Você:** *Sou um desenvolvedor Go de backend entregando uma API de pagamentos este mês. Construa um harness para mim.*
 >
-> **Agente:** *(examina seu repo via `profile_scan`, faz algumas perguntas direcionadas via `profile_interview`, trava o gênero como `developer`)* → compila um `HarnessBundle` → instala agentes, skills e um pipeline de objetivos de secure-ship no Claude Code. Pronto — na próxima sessão, seu agente já fala a sua stack.
+> **Agente:** *(examina seu repo via `profile_scan`, faz algumas perguntas direcionadas via `profile_interview`, trava o gênero como `developer`)* → `build` sintetiza um `HarnessBundle` e classifica cada skill como `matched` / `authored` / `skeleton` → para qualquer skeleton que o perfil precise (digamos, uma skill de verificação específica de pagamentos), o agente a escreve na hora via `author_skill`, e roda `build` de novo para confirmar → instala agentes, skills e um pipeline de objetivos de secure-ship no Claude Code. O conteúdo autorizado persiste entre reconstruções. Pronto — na próxima sessão, seu agente já fala a sua stack.
 
 O mesmo fluxo, na ordem sugerida de ferramentas:
 
 ```
 profile_create → profile_scan → profile_interview → profile_confirm
-           → build → install_plugin
+           → build → (author_skill / author_doc to fill skeletons) → build → install_plugin
 ```
 
 Ferramentas disponíveis: `profile_read`, `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `build`, `author_skill`, `author_doc`, `enable_hook`, `list_overrides`, `delete_override`, `render_plugin`, `install_plugin`, `catalog_search`, `catalog_vendor`.

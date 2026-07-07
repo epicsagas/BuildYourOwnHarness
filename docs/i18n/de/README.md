@@ -31,7 +31,8 @@ BYOH ist dafür gebaut, von deinem KI-Agent gesteuert zu werden — nicht von di
 
 ```
 1. Install the plugin      # Claude Code / Codex / agy — auto-installs the binary
-2. "Build me a harness"    # your agent scans your repo and compiles the result
+2. "Build me a harness"    # dein Agent interviewt dich, baut, füllt Lücken selbst
+                           # aus und installiert — alles im Gespräch
 ```
 
 In der nächsten Sitzung lädt dein Host das Harness automatisch — Agents, Skills und Goal-Pipelines, die auf dich abgestimmt sind.
@@ -78,13 +79,13 @@ Sobald dein Host verbunden ist, tippst du keine Befehle ein — du sprichst einf
 
 > **Du:** *Ich bin ein Backend-Go-Entwickler, der diesen Monat eine Payments-API ausliefert. Bau mir ein Harness.*
 >
-> **Agent:** *(scannt dein Repo via `profile_scan`, stellt ein paar gezielte Fragen via `profile_interview`, sperrt das Genre auf `developer`)* → kompiliert ein `HarnessBundle` → installiert Agents, Skills und eine Secure-Ship-Goal-Pipeline in Claude Code. Fertig — in der nächsten Sitzung spricht dein Agent bereits deinen Stack.
+> **Agent:** *(scannt dein Repo via `profile_scan`, stellt ein paar gezielte Fragen via `profile_interview`, sperrt das Genre auf `developer`)* → `build` synthetisiert ein `HarnessBundle` und klassifiziert jeden Skill als `matched` / `authored` / `skeleton` → für jedes Skeleton, das das Profil braucht (z. B. einen zahlungsspezifischen Verifikations-Skill), schreibt der Agent es direkt via `author_skill` und baut dann erneut mit `build`, um zu bestätigen → installiert Agents, Skills und eine Secure-Ship-Goal-Pipeline in Claude Code. Verfasste Inhalte bleiben über Rebuilds hinweg erhalten. Fertig — in der nächsten Sitzung spricht dein Agent bereits deinen Stack.
 
 Derselbe Ablauf, in der vorgeschlagenen Tool-Reihenfolge:
 
 ```
 profile_create → profile_scan → profile_interview → profile_confirm
-           → build → install_plugin
+           → build → (author_skill / author_doc to fill skeletons) → build → install_plugin
 ```
 
 `build` synthetisiert das Bundle (Compile + Preset-Injection + Static Gate) und

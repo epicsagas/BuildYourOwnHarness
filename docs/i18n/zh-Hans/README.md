@@ -31,7 +31,8 @@ BYOH 的设计是由你的 AI agent 来驱动——而不是靠你敲命令。�
 
 ```
 1. Install the plugin      # Claude Code / Codex / agy — auto-installs the binary
-2. "Build me a harness"    # your agent scans your repo and compiles the result
+2. "Build me a harness"    # 你的 agent 会访谈你、构建、自己补齐空缺并安装
+                           # —— 全程在一次对话里完成
 ```
 
 下一次会话时，你的 host 会自动加载 harness——agents、skills 和 goal pipelines 都已为你调好。
@@ -78,13 +79,13 @@ host 连上之后，你不需要敲命令——直接聊天就行。你的 agent
 
 > **你：** *我是一名后端 Go 开发者，本月要交付一个 payments API。帮我构建一个 harness。*
 >
-> **Agent：** *（通过 `profile_scan` 扫描你的仓库，再用 `profile_interview` 问几个有针对性的问题，将 genre 锁定为 `developer`）* → 编译出一个 `HarnessBundle` → 把 agents、skills 和一条 secure-ship goal pipeline 装进 Claude Code。搞定——下一次会话时，你的 agent 已经会说你的技术栈了。
+> **Agent：** *（通过 `profile_scan` 扫描你的仓库，再用 `profile_interview` 问几个有针对性的问题，将 genre 锁定为 `developer`）* → `build` 合成 `HarnessBundle`，并把每个 skill 分类为 `matched` / `authored` / `skeleton` → 对 profile 需要的任何 skeleton（比如一个支付专用的验证 skill），agent 当场用 `author_skill` 写出来，再 `build` 一次确认 → 把 agents、skills 和一条 secure-ship goal pipeline 装进 Claude Code。手写的内容在每次重建后都会保留。搞定——下一次会话时，你的 agent 已经会说你的技术栈了。
 
 同一套流程，按建议的 tool 顺序：
 
 ```
 profile_create → profile_scan → profile_interview → profile_confirm
-           → build → install_plugin
+           → build → (author_skill / author_doc to fill skeletons) → build → install_plugin
 ```
 
 `build` 会合成 bundle（compile + preset 注入 + static gate），并将每个 skill 分类为 `matched`（注入了真实 preset 内容）或 `skeleton`（仍是 genre 模板占位符）——agent 据此判断是立即安装还是先迭代 profile。

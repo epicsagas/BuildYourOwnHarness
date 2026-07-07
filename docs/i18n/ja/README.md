@@ -31,7 +31,8 @@ BYOH は、あなたがコマンドを打つのではなく、AI エージェン
 
 ```
 1. Install the plugin      # Claude Code / Codex / agy — auto-installs the binary
-2. "Build me a harness"    # your agent scans your repo and compiles the result
+2. "Build me a harness"    # エージェントがインタビューし、ビルドし、足りない部分は
+                           # 自ら埋めてインストールまで — すべて会話の中で
 ```
 
 次のセッションでは、ホストがハーネスを自動的に読み込みます — あなたに合わせて調整されたエージェント・スキル・目標パイプラインが揃います。
@@ -78,13 +79,13 @@ byoh serve   # stdio MCP server
 
 > **あなた:** *今月決済 API を出荷するバックエンドの Go 開発者です。ハーネスを構築してください。*
 >
-> **エージェント:** *（`profile_scan` でリポジトリをスキャンし、`profile_interview` で的を絞った質問をいくつか投げ、ジャンルを `developer` に固定）* → `HarnessBundle` をコンパイル → エージェント・スキル・secure-ship の目標パイプラインを Claude Code にインストール。完了 — 次のセッションでは、エージェントはすでにあなたのスタックを話しています。
+> **エージェント:** *（`profile_scan` でリポジトリをスキャンし、`profile_interview` で的を絞った質問をいくつか投げ、ジャンルを `developer` に固定）* → `build` が `HarnessBundle` を合成し、各スキルを `matched` / `authored` / `skeleton` に分類 → プロファイルが必要とする skeleton（例えば決済専用の検証スキル）があれば、エージェントがその場で `author_skill` で執筆してから確認のためもう一度 `build` → エージェント・スキル・secure-ship の目標パイプラインを Claude Code にインストール。執筆内容は再ビルドしても保持されます。完了 — 次のセッションでは、エージェントはすでにあなたのスタックを話しています。
 
 同じフローを、推奨されるツールの呼び出し順で示すと:
 
 ```
 profile_create → profile_scan → profile_interview → profile_confirm
-           → build → install_plugin
+           → build → (author_skill / author_doc to fill skeletons) → build → install_plugin
 ```
 
 `build` はバンドルを合成し（compile + preset 注入 + static gate）、各スキルを `matched`（実プリセット本文が注入済み）か `skeleton`（ジャンルテンプレートのプレースホルダー）に分類します — エージェントはこれを見て、今すぐインストールするかプロファイルを見直すかを判断します。

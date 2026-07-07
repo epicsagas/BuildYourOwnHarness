@@ -31,7 +31,8 @@ BYOH est conçu pour être piloté par votre agent IA — pas par vous en tapant
 
 ```
 1. Install the plugin      # Claude Code / Codex / agy — auto-installs the binary
-2. "Build me a harness"    # your agent scans your repo and compiles the result
+2. "Build me a harness"    # votre agent vous interviewe, construit, comble les lacunes
+                           # lui-même et installe — le tout en conversation
 ```
 
 Lors de la session suivante, votre hôte charge le harness automatiquement — agents, skills et pipelines d'objectifs réglés pour vous.
@@ -78,13 +79,13 @@ Une fois votre hôte connecté, vous ne tapez pas de commandes — vous parlez s
 
 > **Vous :** *Je suis un développeur backend Go qui livre une API de paiements ce mois-ci. Construis-moi un harness.*
 >
-> **Agent :** *(scanne votre dépôt via `profile_scan`, pose quelques questions ciblées via `profile_interview`, verrouille le genre sur `developer`)* → compile un `HarnessBundle` → installe des agents, des skills et un pipeline d'objectifs secure-ship dans Claude Code. Terminé — à la session suivante, votre agent parle déjà votre stack.
+> **Agent :** *(scanne votre dépôt via `profile_scan`, pose quelques questions ciblées via `profile_interview`, verrouille le genre sur `developer`)* → `build` synthétise un `HarnessBundle` et classe chaque skill comme `matched` / `authored` / `skeleton` → pour tout skeleton dont le profil a besoin (par ex. une skill de vérification spécifique aux paiements), l'agent le rédige à la volée via `author_skill`, puis relance un `build` pour confirmer → installe des agents, des skills et un pipeline d'objectifs secure-ship dans Claude Code. Le contenu rédigé persiste entre les reconstructions. Terminé — à la session suivante, votre agent parle déjà votre stack.
 
 Le même flux, dans l'ordre d'outils suggéré :
 
 ```
 profile_create → profile_scan → profile_interview → profile_confirm
-           → build → install_plugin
+           → build → (author_skill / author_doc to fill skeletons) → build → install_plugin
 ```
 
 `build` synthétise le bundle (compile + injection de presets + static gate) et classe chaque skill en `matched` (corps de preset réel injecté) ou `skeleton` (placeholder du template de genre) — l'agent lit cela pour décider d'installer maintenant ou d'itérer d'abord sur le profil.

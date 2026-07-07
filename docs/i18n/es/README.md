@@ -31,7 +31,8 @@ BYOH está diseñado para ser conducido por tu agente de IA — no para que tú 
 
 ```
 1. Install the plugin      # Claude Code / Codex / agy — auto-installs the binary
-2. "Build me a harness"    # your agent scans your repo and compiles the result
+2. "Build me a harness"    # tu agente te entrevista, construye, rellena los huecos
+                           # él mismo e instala — todo en la conversación
 ```
 
 En la siguiente sesión, tu host carga el harness automáticamente — agents, skills y goal pipelines ajustados a ti.
@@ -78,13 +79,13 @@ Una vez que tu host está conectado, no escribes comandos — simplemente hablas
 
 > **Tú:** *Soy un desarrollador backend de Go que envía una API de pagos este mes. Constrúyeme un harness.*
 >
-> **Agent:** *(escanea tu repo vía `profile_scan`, hace algunas preguntas dirigidas vía `profile_interview`, fija el genre en `developer`)* → compila un `HarnessBundle` → instala agents, skills y un goal pipeline de secure-ship en Claude Code. Listo — en la próxima sesión, tu agente ya habla tu stack.
+> **Agent:** *(escanea tu repo vía `profile_scan`, hace algunas preguntas dirigidas vía `profile_interview`, fija el genre en `developer`)* → `build` sintetiza un `HarnessBundle` y clasifica cada skill como `matched` / `authored` / `skeleton` → para cualquier skeleton que el perfil necesite (digamos, una skill de verificación específica de pagos), el agente lo escribe al momento vía `author_skill`, y vuelve a hacer `build` para confirmar → instala agents, skills y un goal pipeline de secure-ship en Claude Code. El contenido autorizado persiste entre reconstrucciones. Listo — en la próxima sesión, tu agente ya habla tu stack.
 
 El mismo flujo, en el orden de herramientas sugerido:
 
 ```
 profile_create → profile_scan → profile_interview → profile_confirm
-           → build → install_plugin
+           → build → (author_skill / author_doc to fill skeletons) → build → install_plugin
 ```
 
 `build` sintetiza el bundle (compile + inyección de presets + static gate) y
