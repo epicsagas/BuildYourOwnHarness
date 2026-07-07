@@ -307,8 +307,16 @@ fn run_render(slug: &str, target: &str, out: &std::path::Path) -> anyhow::Result
         );
     }
     // Synthesize (recombined bundle); falls back to the static template inside.
-    let (bundle, _plan) = byoh::application::synthesize(&profile)?;
-    let root = byoh::application::render_target(&bundle, target, out)?;
+    let (mut bundle, _plan) = byoh::application::synthesize(&profile)?;
+    // Apply LLM-authored overlays so the rendered tree carries authored content.
+    if let Err(e) = byoh::application::overrides::apply_profile_overrides(
+        &byoh::store::byoh_home(),
+        slug,
+        &mut bundle,
+    ) {
+        return Err(byoh::domain::ByohError::Other(format!("override apply failed: {e}")).into());
+    }
+    let root = byoh::application::render_target(&bundle, target, out, &byoh::store::byoh_home())?;
     println!(
         "[byoh] rendered '{slug}' → {} ({} skills, {} agents) at {}",
         target.as_str(),
@@ -421,7 +429,14 @@ fn run_install(
             profile.status
         );
     }
-    let (bundle, _plan) = byoh::application::synthesize(&profile)?;
+    let (mut bundle, _plan) = byoh::application::synthesize(&profile)?;
+    if let Err(e) = byoh::application::overrides::apply_profile_overrides(
+        &byoh::store::byoh_home(),
+        slug,
+        &mut bundle,
+    ) {
+        anyhow::bail!("override apply failed: {e}");
+    }
     let loc = byoh::deploy::InstallLocations::from_env();
 
     // Render ONE polyglot tree (all three hosts' manifests) to dist/.

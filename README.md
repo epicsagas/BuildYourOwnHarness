@@ -86,11 +86,13 @@ profile_create → profile_scan → profile_interview → profile_confirm
 ```
 
 `build` synthesizes the bundle (compile + preset injection + static gate) and
-classifies every skill as `matched` (real preset body) or `skeleton` (genre-template
-placeholder) — the agent reads that to decide whether to install now or iterate
-the profile first.
+classifies every skill as `matched` (real preset body), `authored` (filled by you
+via `author_skill`), or `skeleton` (genre-template placeholder) — the agent reads
+that to decide whether to install now, author the skeletons, or iterate the
+profile first. `author_skill` / `author_doc` write to a profile overlay that
+`build` reads back, so authored content survives every rebuild.
 
-Available tools: `profile_read`, `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `build`, `render_plugin`, `install_plugin`, `catalog_search`, `catalog_vendor`.
+Available tools: `profile_read`, `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `build`, `author_skill`, `author_doc`, `enable_hook`, `list_overrides`, `delete_override`, `render_plugin`, `install_plugin`, `catalog_search`, `catalog_vendor`.
 
 Want the agent to walk you through it? Just say *"build my harness"* — the bundled `byoh-guide` agent orchestrates the whole flow.
 

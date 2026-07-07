@@ -50,18 +50,27 @@ pub fn write_publish_extras(out: &Path) -> Result<()> {
 /// `.codex-plugin/`, root agy `plugin.json`) plus shared `skills/`/`agents/`.
 /// A single concrete target renders a host-only tree.
 ///
+/// `home` resolves the profile's overlay directory: when the LLM has authored a
+/// doc override (README / getting-started / AGENTS), the rendered skeleton doc
+/// is replaced by the override body. Pass the resolved `byoh_home()`.
+///
 /// Refuses to write into an existing non-empty directory that is not
 /// BYOH-owned (no `.byoh-manifest`) — an agent calling `render_plugin` with
 /// `out: "."` must not silently clobber a real project's README/plugin.json.
-pub fn render_target(bundle: &HarnessBundle, target: Target, out: &Path) -> Result<PathBuf> {
+pub fn render_target(
+    bundle: &HarnessBundle,
+    target: Target,
+    out: &Path,
+    home: &Path,
+) -> Result<PathBuf> {
     guard_output_dir(out)?;
     if target == Target::All {
         render_polyglot(bundle, out)?;
-        write_readme(bundle, out, Target::All)?;
-        write_docs_guide(bundle, out)?;
+        write_readme(bundle, out, Target::All, home)?;
+        write_docs_guide(bundle, out, home)?;
     } else {
         render_one(bundle, target, out)?;
-        write_readme(bundle, out, target)?;
+        write_readme(bundle, out, target, home)?;
     }
     // Mark the tree BYOH-owned so re-renders and installs recognize it.
     crate::deploy::install::write_owned_marker(out, &format!("byoh-{}", bundle.slug))?;
@@ -497,8 +506,18 @@ fn root_agents_md(bundle: &HarnessBundle) -> String {
     )
 }
 
-fn write_readme(bundle: &HarnessBundle, out: &Path, target: Target) -> Result<()> {
-    let body = match bundle.language.as_str() {
+fn write_readme(bundle: &HarnessBundle, out: &Path, target: Target, home: &Path) -> Result<()> {
+    // If the LLM authored a README override for this language, use it verbatim.
+    // Otherwise emit the Rust skeleton (structural info is always correct here:
+    // install commands, gate list, counts — only prose is a placeholder).
+    let lang = bundle.language.as_str();
+    if let Some(body) =
+        crate::application::overrides::read_doc_override(home, &bundle.slug, "README", lang)
+    {
+        crate::store::write_file(out, "README.md", &body)?;
+        return Ok(());
+    }
+    let body = match lang {
         "ko" => readme_ko(bundle, target),
         // English is the canonical fallback for every other / unknown language.
         _ => readme_en(bundle, target),
@@ -510,11 +529,25 @@ fn write_readme(bundle: &HarnessBundle, out: &Path, target: Target) -> Result<()
 /// Write a getting-started guide under `docs/`. User-facing (follows the README
 /// language); the filename carries the lang code so multiple languages don't
 /// collide. Only emitted for the polyglot (All) target — single-host renders
-/// stay minimal. AI instructions (skills/agents/AGENTS.md) stay English.
-fn write_docs_guide(bundle: &HarnessBundle, out: &Path) -> Result<()> {
-    let (body, lang_suffix) = match bundle.language.as_str() {
-        "ko" => (docs_guide_ko(bundle), "ko"),
-        _ => (docs_guide_en(bundle), "en"),
+/// stay minimal. AI instructions (skills/agents/AGENTS.md) stay English. If the
+/// LLM authored a `getting-started.<lang>` override, it replaces the skeleton.
+fn write_docs_guide(bundle: &HarnessBundle, out: &Path, home: &Path) -> Result<()> {
+    let lang_suffix = if bundle.language.as_str() == "ko" {
+        "ko"
+    } else {
+        "en"
+    };
+    let body = if let Some(o) = crate::application::overrides::read_doc_override(
+        home,
+        &bundle.slug,
+        "getting-started",
+        lang_suffix,
+    ) {
+        o
+    } else if lang_suffix == "ko" {
+        docs_guide_ko(bundle)
+    } else {
+        docs_guide_en(bundle)
     };
     let name = format!("getting-started.{lang_suffix}.md");
     crate::store::write_file(&out.join("docs"), &name, &mask(&body))?;
@@ -524,6 +557,7 @@ fn write_docs_guide(bundle: &HarnessBundle, out: &Path) -> Result<()> {
 /// English getting-started guide. Covers harness-common structure (entry rule,
 /// skill list from the bundle, output dirs, safety gates) — genre-neutral.
 fn docs_guide_en(bundle: &HarnessBundle) -> String {
+    let entry = bundle.entry_skill.as_deref().unwrap_or("spec");
     let skill_lines: Vec<String> = bundle
         .skills
         .iter()
@@ -538,7 +572,7 @@ fn docs_guide_en(bundle: &HarnessBundle) -> String {
         "# Getting started — byoh-{slug}\n\n\
          This is a personalized BYOH harness. This guide covers the parts common to every harness.\n\n\
          ## Entry rule\n\n\
-         Sessions begin with the `spec` skill (or this harness's designated entry skill): it turns your \
+         Sessions begin with the `{entry}` skill (this harness's designated entry skill): it turns your \
          request into a structured spec and routes it to the right workflow. Skills persist their \
          output as files under the workspace — never keep results only in context.\n\n\
          ## Skills\n\n\
@@ -551,6 +585,7 @@ fn docs_guide_en(bundle: &HarnessBundle) -> String {
          ## Safety gates\n\n\
          Artifacts pass the BYOH gates before release: {gates}.\n",
         slug = bundle.slug,
+        entry = entry,
         skills = if skill_lines.is_empty() {
             "_(none)_".into()
         } else {
@@ -567,6 +602,7 @@ fn docs_guide_en(bundle: &HarnessBundle) -> String {
 
 /// Korean getting-started guide (user-facing only; AI instructions stay English).
 fn docs_guide_ko(bundle: &HarnessBundle) -> String {
+    let entry = bundle.entry_skill.as_deref().unwrap_or("spec");
     let skill_lines: Vec<String> = bundle
         .skills
         .iter()
@@ -581,7 +617,7 @@ fn docs_guide_ko(bundle: &HarnessBundle) -> String {
         "# 시작하기 — byoh-{slug}\n\n\
          BYOH로 생성된 개인화 하네스입니다. 이 문서는 모든 하네스에 공통인 부분을 다룹니다.\n\n\
          ## 진입 규칙\n\n\
-         세션은 `spec` 스킬(또는 이 하네스의 지정 진입 스킬)에서 시작합니다. 사용자 요청을 \
+         세션은 `{entry}` 스킬(이 하네스의 지정 진입 스킬)에서 시작합니다. 사용자 요청을 \
          구조화된 명세로 바꾸고 알맞은 워크플로우로 분기합니다. 스킬은 산출물을 워크스페이스 파일로 \
          저장합니다 — 컨텍스트에만 두지 않습니다.\n\n\
          ## 스킬\n\n\
@@ -594,6 +630,7 @@ fn docs_guide_ko(bundle: &HarnessBundle) -> String {
          ## 안전 게이트\n\n\
          산출물은 출시 전 BYOH 게이트를 거칩니다: {gates}.\n",
         slug = bundle.slug,
+        entry = entry,
         skills = if skill_lines.is_empty() {
             "_(없음)_".into()
         } else {
@@ -840,7 +877,7 @@ mod tests {
             input_schema: serde_json::json!({"type": "object"}),
         }];
         let dir = tempfile::tempdir().unwrap();
-        render_target(&bundle, Target::All, dir.path()).unwrap();
+        render_target(&bundle, Target::All, dir.path(), &crate::store::byoh_home()).unwrap();
 
         for f in ["mcp_config.json", ".mcp.json", "hooks.json"] {
             assert!(!dir.path().join(f).exists(), "{f} must not be rendered");
@@ -866,7 +903,7 @@ mod tests {
         // without it, "push and install" is false for Claude Code.
         let bundle = compile_profile(&confirmed_profile()).unwrap();
         let dir = tempfile::tempdir().unwrap();
-        render_target(&bundle, Target::All, dir.path()).unwrap();
+        render_target(&bundle, Target::All, dir.path(), &crate::store::byoh_home()).unwrap();
         let m: Value = serde_json::from_str(
             &std::fs::read_to_string(dir.path().join(".claude-plugin/marketplace.json")).unwrap(),
         )
@@ -884,7 +921,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         // Simulate a real project dir: has a README the render would clobber.
         std::fs::write(dir.path().join("README.md"), "my real project").unwrap();
-        let err = render_target(&bundle, Target::All, dir.path());
+        let err = render_target(&bundle, Target::All, dir.path(), &crate::store::byoh_home());
         assert!(err.is_err(), "must refuse a non-empty non-BYOH dir");
         assert_eq!(
             std::fs::read_to_string(dir.path().join("README.md")).unwrap(),
@@ -894,9 +931,21 @@ mod tests {
 
         // Fresh dir renders fine, and re-rendering over a BYOH-owned tree works.
         let fresh = tempfile::tempdir().unwrap();
-        render_target(&bundle, Target::All, fresh.path()).unwrap();
+        render_target(
+            &bundle,
+            Target::All,
+            fresh.path(),
+            &crate::store::byoh_home(),
+        )
+        .unwrap();
         assert!(fresh.path().join(".byoh-manifest").exists());
-        render_target(&bundle, Target::All, fresh.path()).unwrap();
+        render_target(
+            &bundle,
+            Target::All,
+            fresh.path(),
+            &crate::store::byoh_home(),
+        )
+        .unwrap();
     }
 
     #[test]
@@ -905,7 +954,7 @@ mod tests {
         // A leaked token pasted into a skill body must not survive rendering.
         bundle.skills[0].body_markdown = "use TOKEN=supersecretvalue1234 to auth".into();
         let dir = tempfile::tempdir().unwrap();
-        render_target(&bundle, Target::All, dir.path()).unwrap();
+        render_target(&bundle, Target::All, dir.path(), &crate::store::byoh_home()).unwrap();
         let skill_dir = dir.path().join("skills").join(&bundle.skills[0].id);
         let body = std::fs::read_to_string(skill_dir.join("SKILL.md")).unwrap();
         assert!(
@@ -918,7 +967,7 @@ mod tests {
     fn render_all_creates_polyglot_tree() {
         let bundle = compile_profile(&confirmed_profile()).unwrap();
         let dir = tempfile::tempdir().unwrap();
-        render_target(&bundle, Target::All, dir.path()).unwrap();
+        render_target(&bundle, Target::All, dir.path(), &crate::store::byoh_home()).unwrap();
 
         // One tree carrying all three hosts' manifests.
         assert!(dir.path().join(".claude-plugin/plugin.json").exists());
@@ -942,7 +991,7 @@ mod tests {
     fn render_polyglot_writes_shared_paths_once() {
         let bundle = compile_profile(&confirmed_profile()).unwrap();
         let dir = tempfile::tempdir().unwrap();
-        render_target(&bundle, Target::All, dir.path()).unwrap();
+        render_target(&bundle, Target::All, dir.path(), &crate::store::byoh_home()).unwrap();
 
         // Shared skills/agents/AGENTS.md exist exactly once (not triplicated).
         assert!(dir.path().join("AGENTS.md").exists());
@@ -960,7 +1009,7 @@ mod tests {
     fn render_polyglot_codex_toml_coexists_with_agents_md() {
         let bundle = compile_profile(&confirmed_profile()).unwrap();
         let dir = tempfile::tempdir().unwrap();
-        render_target(&bundle, Target::All, dir.path()).unwrap();
+        render_target(&bundle, Target::All, dir.path(), &crate::store::byoh_home()).unwrap();
 
         // Codex TOML agents + shared .md agents coexist (different dirs).
         assert!(
@@ -975,7 +1024,7 @@ mod tests {
     fn render_polyglot_creates_host_symlinks() {
         let bundle = compile_profile(&confirmed_profile()).unwrap();
         let dir = tempfile::tempdir().unwrap();
-        render_target(&bundle, Target::All, dir.path()).unwrap();
+        render_target(&bundle, Target::All, dir.path(), &crate::store::byoh_home()).unwrap();
 
         // Each host dir links the shared skills + agents.
         for host in [".claude", ".gemini", ".codex"] {
@@ -992,7 +1041,7 @@ mod tests {
         p.language = "ko".into();
         let bundle = compile_profile(&p).unwrap();
         let dir = tempfile::tempdir().unwrap();
-        render_target(&bundle, Target::All, dir.path()).unwrap();
+        render_target(&bundle, Target::All, dir.path(), &crate::store::byoh_home()).unwrap();
         let readme = std::fs::read_to_string(dir.path().join("README.md")).unwrap();
         assert!(readme.contains("설치"), "ko profile → Korean README");
         // AGENTS.md is AI-facing → always English regardless of language.

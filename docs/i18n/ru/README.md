@@ -87,7 +87,7 @@ profile_create → profile_scan → profile_interview → profile_confirm
            → build → install_plugin
 ```
 
-Доступные инструменты: `profile_read`, `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `build`, `render_plugin`, `install_plugin`, `catalog_search`, `catalog_vendor`.
+Доступные инструменты: `profile_read`, `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `build`, `author_skill`, `author_doc`, `enable_hook`, `list_overrides`, `delete_override`, `render_plugin`, `install_plugin`, `catalog_search`, `catalog_vendor`.
 
 Хотите, чтобы агент провёл вас через всё это? Просто скажите *"build my harness"* — встроенный агент `byoh-guide` оркестрирует весь поток.
 

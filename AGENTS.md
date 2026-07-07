@@ -37,7 +37,7 @@ src/
 ├── templates/       genre template library (base inheritance + overrides)
 ├── deploy/          presets, agent_presets, vendor (sha256-pinned), install, provider
 ├── catalog/         quemsah top-100 index / search / vendor-from-catalog + curated companion-tool seeds
-├── mcp/             stdio MCP server (`byoh serve`) — 10 tools, the primary interface
+├── mcp/             stdio MCP server (`byoh serve`) — 15 tools, the primary interface
 ├── store.rs         profile persistence; sanitize_slug choke point; BYOH_HOME (~/.byoh)
 ├── security.rs      secret masking — applied to every rendered markdown artifact
 ├── i18n/            ko/en message catalog (10-language CLI flag, en fallback)
@@ -74,7 +74,7 @@ src/
 
 ## 4. Entry points
 
-Primary interface: **MCP** (`byoh serve`, 10 tools — see README "Agent-led mode").
+Primary interface: **MCP** (`byoh serve`, 15 tools — see README "Agent-led mode").
 CLI (intentionally small): `profile init/confirm/show`,
 `render --target <claude|codex|agy|all>` (synthesizes: compile + preset
 injection + static gate), `install [--scope local|global|publish]`,

@@ -168,10 +168,13 @@ pub fn install_plugin(
 
     std::fs::create_dir_all(&root).map_err(|e| io_at(&root, e))?;
 
-    // Render into a staging dir on the SAME parent (⇒ atomic rename).
+    // Render into a staging dir on the SAME parent (⇒ atomic rename). Resolve
+    // the home dir here so doc overrides authored via `author_doc` are applied;
+    // tests isolate this via `set_home_override`.
     let staging = root.join(format!(".{name}.staging"));
     let _ = std::fs::remove_dir_all(&staging); // clean any prior aborted staging
-    render_target(bundle, Target::All, &staging)?;
+    let home = crate::store::byoh_home();
+    render_target(bundle, Target::All, &staging, &home)?;
     // Drop the owned-marker into the staged tree.
     write_owned_marker(&staging, &name)?;
 

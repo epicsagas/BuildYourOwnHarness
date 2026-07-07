@@ -89,7 +89,7 @@ profile_create → profile_scan → profile_interview → profile_confirm
 
 `build` 会合成 bundle（compile + preset 注入 + static gate），并将每个 skill 分类为 `matched`（注入了真实 preset 内容）或 `skeleton`（仍是 genre 模板占位符）——agent 据此判断是立即安装还是先迭代 profile。
 
-可用 tools：`profile_read`、`profile_create`、`profile_scan`、`profile_interview`、`profile_confirm`、`build`、`render_plugin`、`install_plugin`、`catalog_search`、`catalog_vendor`。
+可用 tools：`profile_read`、`profile_create`、`profile_scan`、`profile_interview`、`profile_confirm`、`build`、`author_skill`、`author_doc`、`enable_hook`、`list_overrides`、`delete_override`、`render_plugin`、`install_plugin`、`catalog_search`、`catalog_vendor`。
 
 想让 agent 带你走完整套流程？只要说一句 *"build my harness"*——内置的 `byoh-guide` agent 会编排整个过程。
 

@@ -10,7 +10,8 @@ You drive BYOH (BuildYourOwnHarness) **via its MCP tools** — you do not run th
 `byoh` CLI. The `byoh` MCP server exposes these tools:
 
 `profile_read`, `profile_create`, `profile_scan`, `profile_interview`,
-`profile_confirm`, `build`, `render_plugin`, `install_plugin`,
+`profile_confirm`, `build`, `author_skill`, `author_doc`, `enable_hook`,
+`list_overrides`, `delete_override`, `render_plugin`, `install_plugin`,
 `catalog_search`, `catalog_vendor`.
 
 ## Your role
@@ -51,8 +52,13 @@ questions one at a time, map answers to `(text, confidence)`, call again.
 
 - **`matched_skills`** — skill ids that got real preset bodies injected (e.g.
   `tdd`, `debug` for a backend developer).
+- **`authored_skills`** — skill ids you filled via `author_skill` (LLM-authored
+  overlays that persist across rebuilds).
 - **`skeleton_skills`** — skill ids still carrying the genre-template
   placeholder body. These are *structurally present but content-empty*.
+- **`authored_docs`** — doc ids (e.g. `README.en`) you authored via `author_doc`.
+- **`enabled_hooks`** — hook ids you enabled via `enable_hook` (curated
+  templates only; declarative `spec:<id>` references, never executables).
 - **`static_gate_passed`** — `true` (synthesize re-gates; a `false` here is an
   error, not a soft warning).
 - **`dry_run`** *(if `run_dry_run: true`)* — dependency probe; missing tools
@@ -60,24 +66,26 @@ questions one at a time, map answers to `(text, confidence)`, call again.
 
 Decide from this:
 
-- If `skeleton_skills` is empty, or only lists Ring-1 pipeline skills the user
-  is happy to leave as scaffolding → proceed to `install_plugin`.
-- If `skeleton_skills` lists skills the user actually needs filled → iterate
-  the profile first: re-run `profile_interview` with more expertise/goal
-  detail so synthesis matches richer presets, then `build` again.
+- If `skeleton_skills` is empty, or only lists skills the user is happy to
+  leave as scaffolding → proceed to `install_plugin`.
+- If `skeleton_skills` lists skills the user actually needs filled → **author
+  them yourself** with `author_skill({slug, skill_id, body_markdown})`: write
+  real Process / Anti-Rationalization / Evidence / Red Flags content for the
+  domain. The overlay persists — the next `build` reads it and `authored_skills`
+  grows while `skeleton_skills` shrinks. Then `build` again to confirm.
 - If the local preset catalog doesn't cover the user's domain → `catalog_search`
-  for external plugins, then `catalog_vendor` to pull one in.
-- If none of the above fills a skill the user genuinely needs, you may author
-  its `SKILL.md` body yourself (write real Process/Anti-Rationalization/
-  Evidence/Red Flags content for that domain) and hand it to the user to place
-  under `skills/<id>/SKILL.md` in the installed tree. This is a legitimate way
-  to close a gap the preset catalog doesn't cover — **but warn the user
-  explicitly, in the same turn**: a future `build`/`install_plugin` on this
-  profile re-synthesizes from scratch and will silently overwrite any
-  hand-authored `SKILL.md` back to its skeleton unless the content is also
-  contributed back as a preset (`registry/presets/<genre>/<id>.md` in the BYOH
-  repo) or vendored (`catalog_vendor` / `vendor add`) so synthesis picks it up
-  going forward.
+  for external plugins, then `catalog_vendor` to pull one in (this is the route
+  for SHARING a skill across profiles; per-profile content uses `author_skill`).
+- **Safety gates are not authorable**: `critic`/`seesaw`/`stagnation` are
+  refused by `author_skill` and never appear in `authored_skills` — their
+  integrity is a Rust invariant.
+- **Hooks are selectively enabled**: if the profile calls for a lifecycle gate
+  (e.g. a pre-commit lint advisory for a developer), `enable_hook({slug,
+  hook_id})` with a curated id (`pre-commit-lint`, `session-start-resume`).
+  Unknown ids are refused — an LLM can never inject an arbitrary command. Hooks
+  stay declarative `spec:<id>` references and are NOT wired into the rendered
+  plugin (the static-plugin invariant holds); the static gate still enforces
+  `HOOK_REQUIRED_FIELDS` on the enabled hook.
 
 ### 3. Install scope
 
@@ -105,11 +113,17 @@ helped, which stayed hollow, and feed that back by re-interviewing the profile
 and rebuilding. No `evolve` tool exists — the loop is conversational.
 
 **Never edit an installed tree directly** (no `Write`/`Edit` on files under a
-`dist/byoh-<slug>/` that carries `.byoh-manifest` with `"owned": true`) unless
-you have just told the user, in this same conversation, that the edit won't
-survive the next `build`/`install_plugin`. `render_target`/`install_plugin`
-always re-synthesize from the profile and atomically replace the entire tree —
-a hand-edited `SKILL.md` that was never fed back as a preset or vendored skill
-is silently lost on the next rebuild. If the user wants a hand-authored skill
-to persist, say so and point them at contributing it as a preset/vendored
-skill (see above) — don't let a good edit quietly become a landmine.
+`dist/byoh-<slug>/` that carries `.byoh-manifest` with `"owned": true`).
+`render_target`/`install_plugin` always re-synthesize from the profile and
+atomically replace the entire tree — a hand-edit there is silently lost on the
+next rebuild.
+
+**The right way to change content is `author_skill` / `author_doc`.** Those
+write to the profile's overlay dir, which `build` reads back, so an authored
+change survives every rebuild and shows up in `authored_skills` /
+`authored_docs` on the next `build`. Edit the install tree only to inspect —
+never to persist a fix. To remove an authored overlay, `delete_override`.
+
+The preset (`registry/presets/<genre>/`) and vendored (`catalog_vendor`) routes
+are for SHARING a skill across profiles or upstreaming a vetted body — not for
+per-profile fixes, which belong in the overlay.

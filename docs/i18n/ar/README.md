@@ -87,7 +87,7 @@ profile_create → profile_scan → profile_interview → profile_confirm
            → build → install_plugin
 ```
 
-الأدوات المتاحة: `profile_read`, `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `build`, `render_plugin`, `install_plugin`, `catalog_search`, `catalog_vendor`.
+الأدوات المتاحة: `profile_read`, `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `build`, `author_skill`, `author_doc`, `enable_hook`, `list_overrides`, `delete_override`, `render_plugin`, `install_plugin`, `catalog_search`, `catalog_vendor`.
 
 هل تريد أن يقودك الوكيل خلال ذلك؟ فقط قُل *"build my harness"* — وكيل `byoh-guide` المُضمَّن ينسّق التدفّق كله.
 

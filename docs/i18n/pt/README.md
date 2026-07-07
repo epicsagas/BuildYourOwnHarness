@@ -87,7 +87,7 @@ profile_create → profile_scan → profile_interview → profile_confirm
            → build → install_plugin
 ```
 
-Ferramentas disponíveis: `profile_read`, `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `build`, `render_plugin`, `install_plugin`, `catalog_search`, `catalog_vendor`.
+Ferramentas disponíveis: `profile_read`, `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `build`, `author_skill`, `author_doc`, `enable_hook`, `list_overrides`, `delete_override`, `render_plugin`, `install_plugin`, `catalog_search`, `catalog_vendor`.
 
 Quer que o agente te guie pelo processo? Basta dizer *"construa meu harness"* — o agente `byoh-guide`, incluído no bundle, orquestra todo o fluxo.
 

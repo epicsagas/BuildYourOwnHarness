@@ -183,6 +183,13 @@ pub struct HarnessBundle {
     /// stay English. Defaults to "en" for pre-language bundles.
     #[serde(default = "default_language")]
     pub language: String,
+    /// The skill id a session starts at — the first step of the Ring 1
+    /// pipeline. Drives the "Entry rule" line in the getting-started doc so it
+    /// reflects the genre's actual entry (`spec` for dev/researcher, `goal` for
+    /// business, `draft` for creator) instead of a hardcoded `spec`. `None` for
+    /// pre-entry-skill bundles → the renderer falls back to `spec`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub entry_skill: Option<String>,
 }
 
 /// Serde default for [`HarnessBundle::language`]. Old bundles deserialize

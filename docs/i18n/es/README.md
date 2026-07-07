@@ -92,7 +92,7 @@ clasifica cada skill como `matched` (cuerpo de preset real) o `skeleton`
 (placeholder de la plantilla de género) — el agente lo lee para decidir si
 instalar ahora o iterar el perfil primero.
 
-Herramientas disponibles: `profile_read`, `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `build`, `render_plugin`, `install_plugin`, `catalog_search`, `catalog_vendor`.
+Herramientas disponibles: `profile_read`, `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `build`, `author_skill`, `author_doc`, `enable_hook`, `list_overrides`, `delete_override`, `render_plugin`, `install_plugin`, `catalog_search`, `catalog_vendor`.
 
 ¿Quieres que el agente te guíe a través del proceso? Solo di *"build my harness"* — el agent `byoh-guide` incluido orquesta todo el flujo.
 

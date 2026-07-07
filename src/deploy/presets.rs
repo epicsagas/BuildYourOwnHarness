@@ -281,7 +281,7 @@ pub fn preset_matches(meta: &PresetMeta, tags: &[String]) -> bool {
 /// Parse minimal YAML frontmatter (`name:` / `description:`) + markdown body.
 /// Returns `(name, description, body_markdown)`. Falls back to the skill_id and
 /// an empty description if frontmatter is absent.
-fn parse_frontmatter(raw: &str, fallback_id: &str) -> (String, String, String) {
+pub(crate) fn parse_frontmatter(raw: &str, fallback_id: &str) -> (String, String, String) {
     let mut name = fallback_id.to_string();
     let mut description = String::new();
     let mut body = raw.to_string();

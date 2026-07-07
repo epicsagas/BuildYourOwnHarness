@@ -431,6 +431,89 @@ impl ByohServer {
             ))),
         }
     }
+
+    #[tool(
+        description = "Author (or replace) a skill body via the LLM-authored overlay. The body \
+                       persists across rebuilds — the next `build` reads it and replaces the \
+                       skeleton. Safety-gate skill ids (critic/seesaw/stagnation) are refused. \
+                       `body_markdown` is the full SKILL.md content (frontmatter + 4-section \
+                       Process/Anti-Rationalization/Evidence/Red Flags body). Masked on write."
+    )]
+    pub async fn author_skill(
+        &self,
+        Parameters(p): Parameters<AuthorSkillParams>,
+    ) -> CallToolResult {
+        let home = self.ctx.home.clone();
+        let res = tokio::task::spawn_blocking(move || author_skill_blocking(&home, &p)).await;
+        match res {
+            Ok(r) => r,
+            Err(join_err) => err_result(crate::domain::error::ByohError::Other(format!(
+                "author_skill task join failed: {join_err}"
+            ))),
+        }
+    }
+
+    #[tool(
+        description = "Author (or replace) a doc (README / getting-started / AGENTS) for a \
+                       profile via the overlay. `language` sets the file suffix \
+                       (README.en.md, getting-started.ko.md). The renderer prefers an authored \
+                       doc over the Rust skeleton. Masked on write."
+    )]
+    pub async fn author_doc(&self, Parameters(p): Parameters<AuthorDocParams>) -> CallToolResult {
+        let home = self.ctx.home.clone();
+        let res = tokio::task::spawn_blocking(move || author_doc_blocking(&home, &p)).await;
+        match res {
+            Ok(r) => r,
+            Err(join_err) => err_result(crate::domain::error::ByohError::Other(format!(
+                "author_doc task join failed: {join_err}"
+            ))),
+        }
+    }
+
+    #[tool(
+        description = "List the skill/agent/doc overrides currently authored for a profile. \
+                       Read-only — use to see what the next `build` will inject."
+    )]
+    pub fn list_overrides(&self, Parameters(p): Parameters<ListOverridesParams>) -> CallToolResult {
+        list_overrides_sync(&self.ctx.home, &p)
+    }
+
+    #[tool(
+        description = "Delete one authored override (kind: skill | agent | doc). The next `build` \
+                       reverts the affected skill/doc to its preset body or skeleton."
+    )]
+    pub async fn delete_override(
+        &self,
+        Parameters(p): Parameters<DeleteOverrideParams>,
+    ) -> CallToolResult {
+        let home = self.ctx.home.clone();
+        let res = tokio::task::spawn_blocking(move || delete_override_blocking(&home, &p)).await;
+        match res {
+            Ok(r) => r,
+            Err(join_err) => err_result(crate::domain::error::ByohError::Other(format!(
+                "delete_override task join failed: {join_err}"
+            ))),
+        }
+    }
+
+    #[tool(
+        description = "Enable a curated hook template (`registry/hooks/<id>.toml`) for a profile. \
+                       Writes a POINTER (the hook id) to the profile overlay — never a command. \
+                       The template supplies the declarative `spec:<id>` reference and seeds \
+                       HOOK_REQUIRED_FIELDS so the static gate passes. Refuses any hook_id not \
+                       in the curated set (no arbitrary commands). Hooks stay declarative and \
+                       are NOT wired into the rendered plugin."
+    )]
+    pub async fn enable_hook(&self, Parameters(p): Parameters<EnableHookParams>) -> CallToolResult {
+        let home = self.ctx.home.clone();
+        let res = tokio::task::spawn_blocking(move || enable_hook_blocking(&home, &p)).await;
+        match res {
+            Ok(r) => r,
+            Err(join_err) => err_result(crate::domain::error::ByohError::Other(format!(
+                "enable_hook task join failed: {join_err}"
+            ))),
+        }
+    }
 }
 
 #[tool_handler]
@@ -481,7 +564,14 @@ fn render_plugin_blocking(home: &std::path::Path, p: &RenderPluginParams) -> Cal
         Ok(b) => b,
         Err(e) => return err_result(e),
     };
-    match crate::application::render_target(&bundle, target, std::path::Path::new(&p.out)) {
+    // Apply LLM-authored overlays so rendered output carries authored content.
+    let mut bundle = bundle;
+    if let Err(e) =
+        crate::application::overrides::apply_profile_overrides(home, &p.slug, &mut bundle)
+    {
+        return err_result(ByohError::Other(format!("override apply failed: {e}")));
+    }
+    match crate::application::render_target(&bundle, target, std::path::Path::new(&p.out), home) {
         Ok(root) => ok_value(json!({
             "rendered_to": root.to_string_lossy(),
             "target": target.as_str(),
@@ -515,6 +605,13 @@ fn install_plugin_blocking(
         Ok(b) => b,
         Err(e) => return err_result(e),
     };
+    // Apply LLM-authored overlays so installed output carries authored content.
+    let mut bundle = bundle;
+    if let Err(e) =
+        crate::application::overrides::apply_profile_overrides(home, &p.slug, &mut bundle)
+    {
+        return err_result(ByohError::Other(format!("override apply failed: {e}")));
+    }
     let scope = match crate::deploy::resolve_scope(p.scope.clone(), p.host) {
         Ok(s) => s,
         Err(e) => return err_result(e),
@@ -631,6 +728,14 @@ fn build_sync(home: &std::path::Path, p: &BuildParams) -> CallToolResult {
         Ok(b) => b,
         Err(e) => return err_result(e),
     };
+    // Apply LLM-authored overlays (defect-3 fix): authored skills/docs persist
+    // across rebuilds and replace skeleton bodies here, before classification.
+    let mut bundle = bundle;
+    let override_report =
+        match crate::application::overrides::apply_profile_overrides(home, &p.slug, &mut bundle) {
+            Ok(r) => r,
+            Err(e) => return err_result(ByohError::Other(format!("override apply failed: {e}"))),
+        };
     // `synthesize` already ran static_gate; recompute the report for the JSON.
     let static_report = match static_gate(&bundle) {
         Ok(r) => r,
@@ -658,7 +763,12 @@ fn build_sync(home: &std::path::Path, p: &BuildParams) -> CallToolResult {
         "static_gate_passed": static_report.passed(),
         "static_gate": static_gate_json(&static_report),
         "matched_skills": matched_skills,
+        "authored_skills": override_report.authored_skills,
+        "authored_docs": override_report.authored_docs,
+        "enabled_hooks": override_report.enabled_hooks,
         "skeleton_skills": skeleton_skills,
+        "override_collisions": override_report.collisions,
+        "override_refused": override_report.refused,
     });
 
     if p.run_dry_run {
@@ -729,6 +839,193 @@ fn catalog_vendor_blocking(home: &std::path::Path, p: &CatalogVendorParams) -> C
         }
         Err(e) => err_result(e),
     }
+}
+
+/// Synchronous body of `author_skill`. Atomically writes the masked body to
+/// `<home>/profiles/<slug>/overrides/skills/<id>.md` (temp + rename). Refuses
+/// safety-gate ids.
+fn author_skill_blocking(home: &std::path::Path, p: &AuthorSkillParams) -> CallToolResult {
+    if !crate::application::overrides::is_overridable_skill(&p.skill_id) {
+        return err_result(crate::domain::error::ByohError::Schema(format!(
+            "skill '{}' is a safety gate and cannot be overridden",
+            p.skill_id
+        )));
+    }
+    let dir = match crate::application::overrides::overrides_dir(home, &p.slug) {
+        Ok(d) => d.join("skills"),
+        Err(e) => {
+            return err_result(crate::domain::error::ByohError::Other(format!(
+                "override dir: {e}"
+            )));
+        }
+    };
+    let masked = crate::security::mask(&p.body_markdown);
+    let name = format!("{}.md", p.skill_id);
+    match atomic_write(&dir, &name, &masked) {
+        Ok(()) => ok_value(json!({
+            "authored": "skill",
+            "skill_id": p.skill_id,
+            "slug": p.slug,
+            "persisted": true,
+        })),
+        Err(e) => err_result(crate::domain::error::ByohError::Other(format!(
+            "write override: {e}"
+        ))),
+    }
+}
+
+/// Synchronous body of `author_doc`. Atomically writes the masked doc body to
+/// `<home>/profiles/<slug>/overrides/docs/<id>.<lang>.md`.
+fn author_doc_blocking(home: &std::path::Path, p: &AuthorDocParams) -> CallToolResult {
+    let doc_id = match p.doc_id.as_str() {
+        "README" | "getting-started" | "AGENTS" => p.doc_id.as_str(),
+        other => {
+            return err_result(crate::domain::error::ByohError::Schema(format!(
+                "unknown doc_id '{other}' (expected README | getting-started | AGENTS)"
+            )));
+        }
+    };
+    let dir = match crate::application::overrides::overrides_dir(home, &p.slug) {
+        Ok(d) => d.join("docs"),
+        Err(e) => {
+            return err_result(crate::domain::error::ByohError::Other(format!(
+                "override dir: {e}"
+            )));
+        }
+    };
+    let masked = crate::security::mask(&p.body_markdown);
+    let name = format!("{doc_id}.{}.md", p.language);
+    match atomic_write(&dir, &name, &masked) {
+        Ok(()) => ok_value(json!({
+            "authored": "doc",
+            "doc_id": doc_id,
+            "language": p.language,
+            "slug": p.slug,
+            "persisted": true,
+        })),
+        Err(e) => err_result(crate::domain::error::ByohError::Other(format!(
+            "write override: {e}"
+        ))),
+    }
+}
+
+/// Synchronous body of `list_overrides`. Walks the override tree.
+fn list_overrides_sync(home: &std::path::Path, p: &ListOverridesParams) -> CallToolResult {
+    let root = match crate::application::overrides::overrides_dir(home, &p.slug) {
+        Ok(d) => d,
+        Err(e) => {
+            return err_result(crate::domain::error::ByohError::Other(format!(
+                "override dir: {e}"
+            )));
+        }
+    };
+    if !root.exists() {
+        return ok_value(json!({ "skills": [], "agents": [], "docs": [], "hooks": [] }));
+    }
+    // Collect file stems regardless of extension (skills/agents/docs are .md,
+    // hooks are .toml) so one helper covers every overlay kind.
+    let collect = |sub: &str| -> Vec<String> {
+        let d = root.join(sub);
+        if !d.is_dir() {
+            return vec![];
+        }
+        std::fs::read_dir(&d)
+            .map(|rd| {
+                rd.filter_map(|e| e.ok())
+                    .filter_map(|e| e.path().file_stem()?.to_str().map(|s| s.to_string()))
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    ok_value(json!({
+        "skills": collect("skills"),
+        "agents": collect("agents"),
+        "docs": collect("docs"),
+        "hooks": collect("hooks"),
+    }))
+}
+
+/// Synchronous body of `delete_override`. Removes one overlay file.
+fn delete_override_blocking(home: &std::path::Path, p: &DeleteOverrideParams) -> CallToolResult {
+    let (sub, ext) = match p.kind.as_str() {
+        "skill" => ("skills", "md"),
+        "agent" => ("agents", "md"),
+        "doc" => ("docs", "md"),
+        "hook" => ("hooks", "toml"),
+        other => {
+            return err_result(crate::domain::error::ByohError::Schema(format!(
+                "unknown kind '{other}' (expected skill | agent | doc | hook)"
+            )));
+        }
+    };
+    let root = match crate::application::overrides::overrides_dir(home, &p.slug) {
+        Ok(d) => d,
+        Err(e) => {
+            return err_result(crate::domain::error::ByohError::Other(format!(
+                "override dir: {e}"
+            )));
+        }
+    };
+    let path = root.join(sub).join(format!("{}.{}", p.id, ext));
+    if !path.exists() {
+        return ok_value(
+            json!({ "deleted": false, "reason": "not_found", "path": path.to_string_lossy() }),
+        );
+    }
+    match std::fs::remove_file(&path) {
+        Ok(()) => ok_value(json!({ "deleted": true, "kind": sub, "id": p.id })),
+        Err(e) => err_result(crate::domain::error::ByohError::Other(format!(
+            "remove override: {e}"
+        ))),
+    }
+}
+
+/// Synchronous body of `enable_hook`. Validates the hook_id against the curated
+/// `registry/hooks/` set (refuses unknown ids), then writes a pointer TOML to
+/// the profile overlay. The pointer carries only the id; the template supplies
+/// the declarative command + required reads at apply time.
+fn enable_hook_blocking(home: &std::path::Path, p: &EnableHookParams) -> CallToolResult {
+    // Validate against the curated set BEFORE writing anything: refuse any id
+    // not backed by a registry/hooks/<id>.toml template. No arbitrary command
+    // ever enters the overlay from this tool.
+    if let Err(reason) = crate::application::overrides::load_hook_template(&p.hook_id) {
+        return err_result(crate::domain::error::ByohError::Schema(format!(
+            "hook '{}' is not in the curated registry/hooks set: {reason}",
+            p.hook_id
+        )));
+    }
+    let dir = match crate::application::overrides::overrides_dir(home, &p.slug) {
+        Ok(d) => d.join("hooks"),
+        Err(e) => {
+            return err_result(crate::domain::error::ByohError::Other(format!(
+                "override dir: {e}"
+            )));
+        }
+    };
+    let body = format!("hook_id = \"{}\"\n", p.hook_id);
+    let name = format!("{}.toml", p.hook_id);
+    match atomic_write(&dir, &name, &body) {
+        Ok(()) => ok_value(json!({
+            "enabled": true,
+            "hook_id": p.hook_id,
+            "slug": p.slug,
+            "note": "declarative spec pointer; the static gate enforces HOOK_REQUIRED_FIELDS at build time",
+        })),
+        Err(e) => err_result(crate::domain::error::ByohError::Other(format!(
+            "write hook pointer: {e}"
+        ))),
+    }
+}
+
+/// Create `dir` then atomically write `name` via temp-file + rename, so
+/// concurrent `author_skill` calls can't interleave a partial body.
+fn atomic_write(dir: &std::path::Path, name: &str, content: &str) -> Result<(), String> {
+    std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    let final_path = dir.join(name);
+    let tmp = dir.join(format!(".{name}.tmp"));
+    std::fs::write(&tmp, content).map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, &final_path).map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 #[cfg(test)]

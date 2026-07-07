@@ -127,3 +127,64 @@ fn default_target() -> String {
 fn default_k() -> usize {
     5
 }
+
+/// Author (or replace) a skill body for a profile via the LLM-authored overlay.
+/// The body persists across rebuilds — the next `build` reads it and replaces
+/// the skeleton. Safety-gate skill ids (`critic`/`seesaw`/`stagnation`) are
+/// refused: gate integrity is a Rust invariant.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct AuthorSkillParams {
+    /// Profile slug.
+    pub slug: String,
+    /// Skill id to author (e.g. `tdd`, `spec`). Must not be a safety gate.
+    pub skill_id: String,
+    /// Full SKILL.md content: frontmatter (`name:`/`description:`) + a 4-section
+    /// body (Process / Anti-Rationalization / Evidence / Red Flags). Masked on
+    /// write so secrets never land on disk.
+    pub body_markdown: String,
+}
+
+/// Author (or replace) a doc (README / getting-started / AGENTS) for a profile.
+/// `language` picks the file (`README.en.md`, `getting-started.ko.md`, …); the
+/// renderer prefers an authored doc over the Rust skeleton.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct AuthorDocParams {
+    /// Profile slug.
+    pub slug: String,
+    /// Doc id: "README" | "getting-started" | "AGENTS".
+    pub doc_id: String,
+    /// Language code (e.g. "en", "ko") — sets the file suffix.
+    pub language: String,
+    /// Full doc markdown body. Masked on write.
+    pub body_markdown: String,
+}
+
+/// List the overrides currently authored for a profile.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct ListOverridesParams {
+    /// Profile slug.
+    pub slug: String,
+}
+
+/// Delete one authored override.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct DeleteOverrideParams {
+    /// Profile slug.
+    pub slug: String,
+    /// Override kind: "skill" | "agent" | "doc" | "hook".
+    pub kind: String,
+    /// Override id (skill id / agent id / doc id like "README.en" / hook id).
+    pub id: String,
+}
+
+/// Enable a curated hook template (`registry/hooks/<id>.toml`) for a profile.
+/// Writes a POINTER (the hook id), never a command — the template supplies the
+/// declarative `spec:<id>` reference and seeds `HOOK_REQUIRED_FIELDS` so the
+/// static gate passes. Refuses any `hook_id` not in the curated set.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct EnableHookParams {
+    /// Profile slug.
+    pub slug: String,
+    /// Hook id from the curated `registry/hooks/` set (e.g. `pre-commit-lint`).
+    pub hook_id: String,
+}

@@ -1,0 +1,17 @@
+# Curated hook template (PR-controlled). `enable_hook` accepts ONLY ids that
+# exist as a file here — it never accepts an arbitrary `command` string, so an
+# LLM cannot inject an executable into a bundle's hooks.
+#
+# Hooks stay DECLARATIVE: `command` is a `spec:<id>` reference, not a shell
+# command. The renderer never wires bundle hooks into host plugin trees (a
+# plugin that ships hook commands breaks on every consumer's machine), so
+# enabling a hook enriches the bundle's spec, it does not ship an executable.
+id = "pre-commit-lint"
+event = "PreToolUse"
+command = "spec:pre-commit-lint"
+# The static gate (validate.rs) requires every hook's `reads` to contain
+# HOOK_REQUIRED_FIELDS — the template seeds them so a freshly-enabled hook
+# passes the gate without the agent having to know the field names.
+reads = ["tool_name", "tool_input", "hook_event_name", "context_usage"]
+description = "Advisory pre-commit lint gate. Documents that file-level lint checks (clippy/eslint) should pass before a commit skill finalizes. Declarative only — the host's own hook engine, if any, owns execution."
+genre = "developer"

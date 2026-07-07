@@ -66,6 +66,11 @@ pub fn compile_profile(profile: &UserProfile) -> crate::domain::Result<HarnessBu
 
     let source_profile_hash = hash_profile(profile);
 
+    // The session entry skill is the first step of the Ring 1 pipeline. It
+    // varies by genre (`spec` / `goal` / `draft`) and feeds the getting-started
+    // "Entry rule" line so the doc never hardcodes `spec`.
+    let entry_skill = merged.rings.ring1_pipeline.first().cloned();
+
     Ok(HarnessBundle {
         config,
         version: BundleVersion::new(1, 0, 0),
@@ -80,6 +85,7 @@ pub fn compile_profile(profile: &UserProfile) -> crate::domain::Result<HarnessBu
         improvement_threshold: merged.evolution.improvement_threshold,
         source_profile_hash,
         language: profile.language.clone(),
+        entry_skill,
     })
 }
 

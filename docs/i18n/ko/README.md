@@ -87,9 +87,9 @@ profile_create → profile_scan → profile_interview → profile_confirm
            → build → install_plugin
 ```
 
-`build`는 번들을 합성(컴파일 + 프리셋 주입 + static 게이트)하면서, 각 스킬을 `matched`(실제 프리셋 본문) 또는 `skeleton`(장르 템플릿 자리표시자)으로 분류합니다 — 에이전트는 이 결과를 보고 지금 설치할지, 프로파일을 더 다듬을지 결정합니다.
+`build`는 번들을 합성(컴파일 + 프리셋 주입 + static 게이트)하면서, 각 스킬을 `matched`(실제 프리셋 본문), `authored`(`author_skill`로 직접 채운 본문), 또는 `skeleton`(장르 템플릿 자리표시자)으로 분류합니다 — 에이전트는 이 결과를 보고 지금 설치할지, 빈 스킬을 직접 작성할지, 프로파일을 더 다듬을지 결정합니다. `author_skill` / `author_doc`은 프로파일 오버레이에 기록하며 `build`가 다시 읽으므로, 작성한 내용은 재빌드에도 유지됩니다.
 
-사용 가능한 도구: `profile_read`, `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `build`, `render_plugin`, `install_plugin`, `catalog_search`, `catalog_vendor`.
+사용 가능한 도구: `profile_read`, `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `build`, `author_skill`, `author_doc`, `enable_hook`, `list_overrides`, `delete_override`, `render_plugin`, `install_plugin`, `catalog_search`, `catalog_vendor`.
 
 에이전트가 처음부터 끝까지 안내해 주길 원하신다면, 그냥 *"build my harness"*라고 말하세요 — 번들된 `byoh-guide` 에이전트가 전체 흐름을 오케스트레이션합니다.
 

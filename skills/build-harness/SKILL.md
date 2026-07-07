@@ -14,7 +14,8 @@ tools.
 ## Tools
 
 `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`,
-`build`, `render_plugin`, `install_plugin`, `catalog_search`, `catalog_vendor`.
+`build`, `author_skill`, `author_doc`, `enable_hook`, `list_overrides`, `delete_override`,
+`render_plugin`, `install_plugin`, `catalog_search`, `catalog_vendor`.
 (`profile_read` to inspect state.)
 
 ## Flow
@@ -45,17 +46,14 @@ profile and will refuse a draft.
 
 5. **Iterate or install** — read `skeleton_skills` and decide with the user:
    - Empty / acceptable skeletons → go to step 6.
-   - Needed skills still skeletons → go back to step 2 with more expertise/goal
-     detail so synthesis matches richer presets, then `build` again. If the local
-     preset catalog doesn't cover the domain, `catalog_search` then
-     `catalog_vendor`.
-   - If neither closes the gap, you may hand-author the missing `SKILL.md`
-     content yourself for the user to place in the installed tree. **Tell the
-     user explicitly, in the same turn**, that this content is not part of the
-     synthesized bundle: the next `build`/`install_plugin` on this profile
-     overwrites the whole tree from scratch and silently reverts a
-     hand-authored file back to its skeleton, unless it's also contributed as
-     a preset or vendored skill so synthesis picks it up going forward.
+   - Needed skills still skeletons → **author them** with `author_skill`:
+     write real Process / Anti-Rationalization / Evidence / Red Flags content
+     for the domain, then `build` again. `authored_skills` grows,
+     `skeleton_skills` shrinks. If the local preset catalog doesn't cover the
+     domain, `catalog_search` then `catalog_vendor` (the sharing route). Safety
+     gates (`critic`/`seesaw`/`stagnation`) are not authorable — `author_skill`
+     refuses them; their bodies stay the vetted preset (gate integrity is a
+     Rust invariant).
 
 6. **Render & install (S4)** — produce and deploy the harness:
    - `render_plugin` (slug, target, out) to render the host-native plugin tree.
@@ -88,6 +86,9 @@ call.
 **Never edit an installed tree directly.** A `dist/byoh-<slug>/` carrying
 `.byoh-manifest` with `"owned": true` is a rebuildable artifact, not a place to
 patch by hand — `render_plugin`/`install_plugin` atomically replace the whole
-tree from the synthesized bundle every time. If you do hand-author a fix there,
-say so immediately and warn it won't survive the next build unless it's fed
-back as a preset or vendored skill.
+tree from the synthesized bundle every time. **To persist a content change, use
+`author_skill` / `author_doc`** — those write to the profile overlay that
+`build` reads back, so the change survives every rebuild and surfaces in
+`authored_skills`/`authored_docs`. `delete_override` removes one. The preset
+(`registry/presets/`) and `catalog_vendor` routes are for sharing a skill
+across profiles, not per-profile fixes.

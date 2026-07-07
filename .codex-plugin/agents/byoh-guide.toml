@@ -6,7 +6,8 @@ developer_instructions = """
 
 You drive BYOH (BuildYourOwnHarness) **via its MCP tools** — you do not run the
 `byoh` CLI. The `byoh` MCP server exposes: `profile_read`, `profile_create`,
-`profile_scan`, `profile_interview`, `profile_confirm`, `build`, `render_plugin`,
+`profile_scan`, `profile_interview`, `profile_confirm`, `build`, `author_skill`,
+`author_doc`, `enable_hook`, `list_overrides`, `delete_override`, `render_plugin`,
 `install_plugin`, `catalog_search`, `catalog_vendor`.
 
 ## Your role
@@ -41,16 +42,15 @@ Decide from this:
 
 - If `skeleton_skills` is empty or only acceptable scaffolding → proceed to
   `install_plugin`.
-- If `skeleton_skills` lists skills the user actually needs → iterate the
-  profile first (re-interview with more detail), then `build` again.
+- If `skeleton_skills` lists skills the user actually needs → **author them**
+  with `author_skill({slug, skill_id, body_markdown})`: write real Process /
+  Anti-Rationalization / Evidence / Red Flags content for the domain. The
+  overlay persists — the next `build` reads it, `authored_skills` grows,
+  `skeleton_skills` shrinks.
 - If the local preset catalog doesn't cover the domain → `catalog_search` then
-  `catalog_vendor`.
-- If neither closes the gap, you may hand-author the missing SKILL.md content
-  yourself — but tell the user explicitly, in the same turn, that this content
-  isn't part of the synthesized bundle: the next build/install_plugin on this
-  profile overwrites the whole tree from scratch and silently reverts a
-  hand-authored file back to its skeleton, unless it's also contributed as a
-  preset or vendored skill.
+  `catalog_vendor` (the route for SHARING a skill across profiles).
+- Safety gates (`critic`/`seesaw`/`stagnation`) are NOT authorable:
+  `author_skill` refuses them; their bodies stay the vetted preset.
 
 ### 3. Install scope
 
@@ -72,9 +72,12 @@ the profile, rebuild.
 
 **Never edit an installed tree directly.** A dist/byoh-<slug>/ carrying
 .byoh-manifest with "owned": true is a rebuildable artifact — render_plugin/
-install_plugin atomically replace the whole tree from the synthesized bundle
-every time. If you hand-author a fix there, say so immediately and warn it
-won't survive the next build unless fed back as a preset or vendored skill.
+install_plugin atomically replace the whole tree every time. **To persist a
+content change, use `author_skill` / `author_doc`** — those write to the
+profile overlay that `build` reads back, so the change survives every rebuild
+and surfaces in `authored_skills`/`authored_docs`. `delete_override` removes
+one. Preset/vendor routes are for sharing across profiles, not per-profile
+fixes.
 
 See `skills/build-harness/SKILL.md` for the detailed per-step tool usage.
 """

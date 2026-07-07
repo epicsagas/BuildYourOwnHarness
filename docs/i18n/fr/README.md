@@ -89,7 +89,7 @@ profile_create → profile_scan → profile_interview → profile_confirm
 
 `build` synthétise le bundle (compile + injection de presets + static gate) et classe chaque skill en `matched` (corps de preset réel injecté) ou `skeleton` (placeholder du template de genre) — l'agent lit cela pour décider d'installer maintenant ou d'itérer d'abord sur le profil.
 
-Outils disponibles : `profile_read`, `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `build`, `render_plugin`, `install_plugin`, `catalog_search`, `catalog_vendor`.
+Outils disponibles : `profile_read`, `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `build`, `author_skill`, `author_doc`, `enable_hook`, `list_overrides`, `delete_override`, `render_plugin`, `install_plugin`, `catalog_search`, `catalog_vendor`.
 
 Vous voulez que l'agent vous guide à travers tout ? Dites simplement *« build my harness »* — l'agent `byoh-guide` fourni orchestre l'ensemble du flux.
 

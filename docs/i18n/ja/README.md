@@ -89,7 +89,7 @@ profile_create → profile_scan → profile_interview → profile_confirm
 
 `build` はバンドルを合成し（compile + preset 注入 + static gate）、各スキルを `matched`（実プリセット本文が注入済み）か `skeleton`（ジャンルテンプレートのプレースホルダー）に分類します — エージェントはこれを見て、今すぐインストールするかプロファイルを見直すかを判断します。
 
-利用可能なツール: `profile_read`, `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `build`, `render_plugin`, `install_plugin`, `catalog_search`, `catalog_vendor`.
+利用可能なツール: `profile_read`, `profile_create`, `profile_scan`, `profile_interview`, `profile_confirm`, `build`, `author_skill`, `author_doc`, `enable_hook`, `list_overrides`, `delete_override`, `render_plugin`, `install_plugin`, `catalog_search`, `catalog_vendor`.
 
 エージェントに手取り足取り案内してほしいですか？ *"build my harness"* とだけ言えば、同梱の `byoh-guide` エージェントがフロー全体を取り仕切ります。
 

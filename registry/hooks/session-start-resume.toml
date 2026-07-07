@@ -1,0 +1,9 @@
+# Curated hook template (PR-controlled). See pre-commit-lint.toml for the
+# rationale on why `command` is a `spec:<id>` reference and `reads` seeds the
+# HOOK_REQUIRED_FIELDS the static gate enforces.
+id = "session-start-resume"
+event = "SessionStart"
+command = "spec:session-start-resume"
+reads = ["tool_name", "tool_input", "hook_event_name", "context_usage"]
+description = "Session-start/resume lifecycle marker. Documents that a session should re-establish context (load the profile, recall the active goal) at startup. Declarative only — enrichment of the bundle spec, not an executable."
+genre = "all"
