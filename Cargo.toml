@@ -94,3 +94,10 @@ default = ["mcp"]
 # CLI-only binary.
 mcp = ["dep:rmcp", "dep:tokio", "dep:schemars"]
 
+# The profile that 'dist' (cargo-dist) builds with — the release workflow runs
+# `cargo build --profile dist`. Inherits release + thin LTO for smaller shippable
+# binaries. Matches the convention used across epiccounty Rust crates.
+[profile.dist]
+inherits = "release"
+lto = "thin"
+
