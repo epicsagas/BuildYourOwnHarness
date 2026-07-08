@@ -61,7 +61,7 @@ codex plugin add byoh@epicsagas
 
 ### 그 외 MCP 호환 호스트를 쓰신다면?
 
-BYOH는 MCP를 사용하므로, Cursor, Zed, Continue 같은 호스트에서도 잘 동작합니다. [바이너리](#설치)를 한 번 설치한 뒤, 호스트가 서버를 바라보게 하면 됩니다:
+BYOH는 MCP를 사용하므로, Cursor, Zed, Continue 같은 호스트에서도 잘 동작합니다. [바이너리](#바이너리-직접-설치)를 한 번 설치한 뒤, 호스트가 서버를 바라보게 하면 됩니다:
 
 ```bash
 byoh serve   # stdio MCP 서버
@@ -72,6 +72,33 @@ byoh serve   # stdio MCP 서버
 ```
 
 > **참고:** 현재 레포는 비공개입니다. 위 경로를 사용하세요. 공개 후에는 공용 `epicsagas/plugins` 마켓플레이스에도 등록됩니다.
+
+## 바이너리 직접 설치
+
+플러그인을 쓰지 않을 때(플러그인은 첫 세션에 바이너리를 자동 설치합니다)이거나, 플러그인 미지원 MCP 호스트에 BYOH를 올릴 때만 필요합니다. 릴리즈마다 사전 빌드 바이너리가 제공되므로 Rust 툴체인은 필요 없습니다.
+
+### macOS / Linux
+
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/epicsagas/BuildYourOwnHarness/releases/latest/download/install.sh | sh
+```
+
+### Windows (PowerShell)
+
+```powershell
+irm https://github.com/epicsagas/BuildYourOwnHarness/releases/latest/download/install.ps1 | iex
+```
+
+### 소스 빌드
+
+```bash
+cargo install byoh --git https://github.com/epicsagas/BuildYourOwnHarness
+```
+
+```bash
+byoh --version   # 설치 확인
+```
 
 ## 에이전트 주도 모드 — 메인 경로
 
@@ -172,32 +199,6 @@ byoh serve                                  # stdio MCP 서버 (에이전트 주
 ```
 
 프로파일과 카탈로그 캐시는 기본적으로 `~/.byoh` 아래에 저장됩니다(`BYOH_HOME`으로 재정의).
-
-## 설치
-
-플러그인을 쓰지 않을 때(플러그인이 바이너리를 자동 설치하므로)이거나, 플러그인 미지원 MCP 호스트에 BYOH를 올릴 때만 필요합니다.
-
-### 바이너리 (Rust 툴체인 불필요)
-
-**macOS / Linux:**
-```bash
-curl --proto '=https' --tlsv1.2 -LsSf \
-  https://github.com/epicsagas/BuildYourOwnHarness/releases/latest/download/install.sh | sh
-```
-
-**Windows (PowerShell):**
-```powershell
-irm https://github.com/epicsagas/BuildYourOwnHarness/releases/latest/download/install.ps1 | iex
-```
-
-**소스 빌드:**
-```bash
-cargo install byoh --git https://github.com/epicsagas/BuildYourOwnHarness
-```
-
-```bash
-byoh --version   # 설치 확인
-```
 
 ## 빌드 & 개발
 
