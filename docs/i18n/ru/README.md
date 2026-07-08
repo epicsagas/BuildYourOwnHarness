@@ -61,7 +61,7 @@ codex plugin add byoh@epicsagas
 
 ### Используете любой другой MCP-совместимый хост?
 
-BYOH говорит на MCP, поэтому Cursor, Zed, Continue и подобные тоже работают. Один раз установите [бинарник](#installation), затем укажите хосту на сервер:
+BYOH говорит на MCP, поэтому Cursor, Zed, Continue и подобные тоже работают. Один раз установите [бинарник](#установка-бинарного-файла-напрямую), затем укажите хосту на сервер:
 
 ```bash
 byoh serve   # stdio MCP server
@@ -72,6 +72,33 @@ byoh serve   # stdio MCP server
 ```
 
 > **Примечание:** Сейчас репозиторий приватный. Используйте указанные пути. Как только он станет публичным, он появится в общем маркетплейсе `epicsagas/plugins`.
+
+## Установка бинарного файла напрямую
+
+Нужна только если вы **не** используете plugin (он сам устанавливает бинарник) или хотите использовать BYOH на не-plugin MCP-хосте.
+
+### macOS / Linux
+
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/epicsagas/BuildYourOwnHarness/releases/latest/download/install.sh | sh
+```
+
+### Windows (PowerShell)
+
+```powershell
+irm https://github.com/epicsagas/BuildYourOwnHarness/releases/latest/download/install.ps1 | iex
+```
+
+### Из исходников
+
+```bash
+cargo install byoh --git https://github.com/epicsagas/BuildYourOwnHarness
+```
+
+```bash
+byoh --version   # verify
+```
 
 ## Режим, управляемый агентом — основной путь
 
@@ -170,32 +197,6 @@ byoh serve                                  # stdio MCP server (agent-led mode)
 ```
 
 Профили и кэш каталога по умолчанию лежат в `~/.byoh` (переопределяется через `BYOH_HOME`).
-
-## Установка
-
-Нужна только если вы **не** используете plugin (он сам устанавливает бинарник) или хотите использовать BYOH на не-plugin MCP-хосте.
-
-### Бинарник (Rust-тулчейн не требуется)
-
-**macOS / Linux:**
-```bash
-curl --proto '=https' --tlsv1.2 -LsSf \
-  https://github.com/epicsagas/BuildYourOwnHarness/releases/latest/download/install.sh | sh
-```
-
-**Windows (PowerShell):**
-```powershell
-irm https://github.com/epicsagas/BuildYourOwnHarness/releases/latest/download/install.ps1 | iex
-```
-
-**Из исходников:**
-```bash
-cargo install byoh --git https://github.com/epicsagas/BuildYourOwnHarness
-```
-
-```bash
-byoh --version   # verify
-```
 
 ## Сборка и разработка
 

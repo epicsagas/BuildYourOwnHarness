@@ -61,7 +61,7 @@ codex plugin add byoh@epicsagas
 
 ### 他の MCP 対応ホストをお使いですか？
 
-BYOH は MCP を話すので、Cursor、Zed、Continue などでも動作します。[バイナリ](#installation)を一度インストールし、ホストからサーバーを参照してください:
+BYOH は MCP を話すので、Cursor、Zed、Continue などでも動作します。[バイナリ](#バイナリを直接インストール)を一度インストールし、ホストからサーバーを参照してください:
 
 ```bash
 byoh serve   # stdio MCP server
@@ -72,6 +72,33 @@ byoh serve   # stdio MCP server
 ```
 
 > **Note:** 現在リポジトリは非公開です。上記のパスを使用してください。公開されると共通の `epicsagas/plugins` マーケットプレースに表示されます。
+
+## バイナリを直接インストール
+
+プラグインを（バイナリを自動インストールするもの）使わない場合や、非プラグインの MCP ホストで BYOH を使う場合にのみ必要です。
+
+### macOS / Linux
+
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/epicsagas/BuildYourOwnHarness/releases/latest/download/install.sh | sh
+```
+
+### Windows (PowerShell)
+
+```powershell
+irm https://github.com/epicsagas/BuildYourOwnHarness/releases/latest/download/install.ps1 | iex
+```
+
+### ソースから
+
+```bash
+cargo install byoh --git https://github.com/epicsagas/BuildYourOwnHarness
+```
+
+```bash
+byoh --version   # verify
+```
 
 ## エージェント駆動モード — メインの道
 
@@ -172,32 +199,6 @@ byoh serve                                  # stdio MCP server (agent-led mode)
 ```
 
 プロファイルとカタログのキャッシュはデフォルトで `~/.byoh` に置かれます（`BYOH_HOME` で上書き可能）。
-
-## Installation
-
-プラグインを（バイナリを自動インストールするもの）使わない場合や、非プラグインの MCP ホストで BYOH を使う場合にのみ必要です。
-
-### バイナリ（Rust ツールチェーン不要）
-
-**macOS / Linux:**
-```bash
-curl --proto '=https' --tlsv1.2 -LsSf \
-  https://github.com/epicsagas/BuildYourOwnHarness/releases/latest/download/install.sh | sh
-```
-
-**Windows (PowerShell):**
-```powershell
-irm https://github.com/epicsagas/BuildYourOwnHarness/releases/latest/download/install.ps1 | iex
-```
-
-**ソースから:**
-```bash
-cargo install byoh --git https://github.com/epicsagas/BuildYourOwnHarness
-```
-
-```bash
-byoh --version   # verify
-```
 
 ## ビルド & 開発
 

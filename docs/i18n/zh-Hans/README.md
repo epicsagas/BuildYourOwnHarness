@@ -61,7 +61,7 @@ codex plugin add byoh@epicsagas
 
 ### 使用其他兼容 MCP 的 host？
 
-BYOH 说 MCP，所以 Cursor、Zed、Continue 等也能用。先装一次 [binary](#installation)，再把 host 指向这个 server：
+BYOH 说 MCP，所以 Cursor、Zed、Continue 等也能用。先装一次 [binary](#直接安装二进制文件)，再把 host 指向这个 server：
 
 ```bash
 byoh serve   # stdio MCP server
@@ -72,6 +72,33 @@ byoh serve   # stdio MCP server
 ```
 
 > **注：** 该仓库目前为私有。请使用上述路径。公开后它会出现在共享的 `epicsagas/plugins` marketplace 中。
+
+## 直接安装二进制文件
+
+仅当你**不**使用 plugin（plugin 会自动安装 binary），或想把 BYOH 接到非 plugin 的 MCP host 上时才需要。
+
+### macOS / Linux
+
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/epicsagas/BuildYourOwnHarness/releases/latest/download/install.sh | sh
+```
+
+### Windows (PowerShell)
+
+```powershell
+irm https://github.com/epicsagas/BuildYourOwnHarness/releases/latest/download/install.ps1 | iex
+```
+
+### 从源码构建
+
+```bash
+cargo install byoh --git https://github.com/epicsagas/BuildYourOwnHarness
+```
+
+```bash
+byoh --version   # verify
+```
 
 ## Agent 主导模式——主路径
 
@@ -172,32 +199,6 @@ byoh serve                                  # stdio MCP server (agent-led mode)
 ```
 
 profile 和 catalog 缓存默认存放在 `~/.byoh` 下（可用 `BYOH_HOME` 覆盖）。
-
-## 安装
-
-仅当你**不**使用 plugin（plugin 会自动安装 binary），或想把 BYOH 接到非 plugin 的 MCP host 上时才需要。
-
-### Binary（无需 Rust 工具链）
-
-**macOS / Linux:**
-```bash
-curl --proto '=https' --tlsv1.2 -LsSf \
-  https://github.com/epicsagas/BuildYourOwnHarness/releases/latest/download/install.sh | sh
-```
-
-**Windows (PowerShell):**
-```powershell
-irm https://github.com/epicsagas/BuildYourOwnHarness/releases/latest/download/install.ps1 | iex
-```
-
-**从源码构建：**
-```bash
-cargo install byoh --git https://github.com/epicsagas/BuildYourOwnHarness
-```
-
-```bash
-byoh --version   # verify
-```
 
 ## 构建与开发
 

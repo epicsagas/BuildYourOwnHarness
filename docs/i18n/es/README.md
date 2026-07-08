@@ -61,7 +61,7 @@ codex plugin add byoh@epicsagas
 
 ### ¿Usas cualquier otro host compatible con MCP?
 
-BYOH habla MCP, así que Cursor, Zed, Continue y similares también funcionan. Instala el [binary](#installation) una vez y luego apunta tu host al server:
+BYOH habla MCP, así que Cursor, Zed, Continue y similares también funcionan. Instala el [binary](#instalar-el-binario-directamente) una vez y luego apunta tu host al server:
 
 ```bash
 byoh serve   # stdio MCP server
@@ -72,6 +72,33 @@ byoh serve   # stdio MCP server
 ```
 
 > **Nota:** El repo es actualmente privado. Usa las rutas anteriores. Una vez público aparecerá en el marketplace compartido `epicsagas/plugins`.
+
+## Instalar el binario directamente
+
+Solo necesaria si **no** usas el plugin (que auto-instala el binario) o si quieres BYOH en un host MCP sin plugin.
+
+### macOS / Linux
+
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/epicsagas/BuildYourOwnHarness/releases/latest/download/install.sh | sh
+```
+
+### Windows (PowerShell)
+
+```powershell
+irm https://github.com/epicsagas/BuildYourOwnHarness/releases/latest/download/install.ps1 | iex
+```
+
+### Desde fuente
+
+```bash
+cargo install byoh --git https://github.com/epicsagas/BuildYourOwnHarness
+```
+
+```bash
+byoh --version   # verify
+```
 
 ## Modo agent-led — el camino principal
 
@@ -175,32 +202,6 @@ byoh serve                                  # stdio MCP server (agent-led mode)
 ```
 
 Los profiles y la caché del catálogo viven bajo `~/.byoh` por defecto (sobrescribe con `BYOH_HOME`).
-
-## Instalación
-
-Solo necesaria si **no** usas el plugin (que auto-instala el binario) o si quieres BYOH en un host MCP sin plugin.
-
-### Binario (sin toolchain de Rust)
-
-**macOS / Linux:**
-```bash
-curl --proto '=https' --tlsv1.2 -LsSf \
-  https://github.com/epicsagas/BuildYourOwnHarness/releases/latest/download/install.sh | sh
-```
-
-**Windows (PowerShell):**
-```powershell
-irm https://github.com/epicsagas/BuildYourOwnHarness/releases/latest/download/install.ps1 | iex
-```
-
-**Desde fuente:**
-```bash
-cargo install byoh --git https://github.com/epicsagas/BuildYourOwnHarness
-```
-
-```bash
-byoh --version   # verify
-```
 
 ## Construir y desarrollar
 
