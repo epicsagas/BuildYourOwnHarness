@@ -1,9 +1,10 @@
 # Weekly build of the prebuilt catalog bundle.
 #
-# Crawls awesomeclaudeplugins.com in full, gzip-compresses the resulting
-# catalog.json, and uploads it as a GitHub Release asset on the moving
-# `catalog-latest` tag. `byoh catalog index` then fetches this bundle first
-# (seconds) instead of making every user crawl ~24 000 pages themselves.
+# Runs `byoh catalog index --no-bundle`, which fetches the curated
+# quemsah/awesome-claude-plugins README (top 100 plugins by stars) in a single
+# GET, gzip-compresses the resulting catalog.json, and uploads it as a GitHub
+# Release asset on the moving `catalog-latest` tag. `byoh catalog index` then
+# fetches this bundle first (seconds) instead of re-fetching the README itself.
 #
 # Manual trigger: Actions → "catalog-bundle" → Run workflow.
 name: catalog-bundle
