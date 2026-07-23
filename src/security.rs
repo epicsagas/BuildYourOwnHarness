@@ -1,12 +1,14 @@
-//! Security — secret masking (R20). Mirrors korean-law-rag's `OC=****` pattern
-//! and applies to every log line and rendered bundle artifact.
+//! Security — secret masking (R20). Redacts values for any identifier
+//! containing "OC" — the 법제처 (Korean Ministry of Government Legislation)
+//! Open API auth-key convention, e.g. LAW_OC=..., OC=..., OC_KEY=... — and
+//! applies to every log line and rendered bundle artifact.
 
 use regex::Regex;
 
 /// Patterns that must never appear in plaintext in logs/output. Captures the
 /// key name + redacts the value.
 const SECRET_PATTERNS: &[&str] = &[
-    // OC API keys (법제처 / korean-law-rag style): LAW_OC=..., OC=..., OC_KEY=...
+    // OC API keys (법제처 Korean government Open API convention): LAW_OC=..., OC=..., OC_KEY=...
     // Identifier is [A-Za-z0-9_] and contains OC; followed by = or : then the value.
     r#"(?i)((?:^|[\s,;'"])[A-Z0-9_]*OC[A-Z0-9_]*\s*[:=]\s*)([^\s,;'"]+)"#,
     // Generic bearer tokens.

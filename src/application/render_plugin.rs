@@ -11,9 +11,10 @@
 //! server / failing hooks the moment the plugin leaves this repo. Static
 //! content works in every host with zero runtime dependencies.
 //!
-//! Claude/Codex formats are grounded in real epiccounty reference projects
-//! (korean-law-rag, epic-harness, Velith, obsidian-forge). The agy layout
-//! follows the official Antigravity CLI plugin spec.
+//! Claude/Codex formats are grounded in real reference projects the author
+//! has built (self-evolving harnesses, retrieval services, storage engines,
+//! Obsidian tooling), not synthetic examples. The agy layout follows the
+//! official Antigravity CLI plugin spec.
 
 use std::path::{Path, PathBuf};
 
