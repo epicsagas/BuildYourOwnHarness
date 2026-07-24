@@ -75,7 +75,7 @@ pub(crate) fn extract_candidate_terms(body: &str) -> Vec<String> {
     // fenced code language hints
     let fence_re = regex::Regex::new(r"(?m)^```([A-Za-z0-9]+)").unwrap();
     for cap in fence_re.captures_iter(body) {
-        out.push(format!("code:{}", &cap[1].to_lowercase()));
+        out.push(format!("code:{}", cap[1].to_lowercase()));
     }
     out.sort();
     out.dedup();
