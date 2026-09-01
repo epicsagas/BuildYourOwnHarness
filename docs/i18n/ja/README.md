@@ -44,7 +44,7 @@ BYOH は、あなたがコマンドを打つのではなく、AI エージェン
 **Claude Code:**
 ```bash
 claude plugin marketplace add epicsagas/BuildYourOwnHarness
-claude plugin install byoh@epicsagas
+claude plugin install byoh@byoh
 ```
 
 **agy (Antigravity):**
@@ -55,8 +55,8 @@ agy plugin enable byoh
 
 **Codex:**
 ```bash
-codex plugin marketplace add /path/to/BuildYourOwnHarness
-codex plugin add byoh@epicsagas
+codex plugin marketplace add epicsagas/BuildYourOwnHarness
+codex plugin add byoh@byoh
 ```
 
 ### 他の MCP 対応ホストをお使いですか？
@@ -71,7 +71,7 @@ byoh serve   # stdio MCP server
 { "mcpServers": { "byoh": { "command": "byoh", "args": ["serve"] } } }
 ```
 
-> **Note:** 現在リポジトリは非公開です。上記のパスを使用してください。公開されると共通の `epicsagas/plugins` マーケットプレースに表示されます。
+> **Note:** このリポジトリは `byoh` という名前の独立マーケットプレイス(.claude-plugin/marketplace.json)を同梱しており、ハブなしで単体インストールできます。
 
 ## バイナリを直接インストール
 

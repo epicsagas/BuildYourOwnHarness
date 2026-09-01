@@ -44,7 +44,7 @@
 **Claude Code:**
 ```bash
 claude plugin marketplace add epicsagas/BuildYourOwnHarness
-claude plugin install byoh@epicsagas
+claude plugin install byoh@byoh
 ```
 
 **agy (Antigravity):**
@@ -55,8 +55,8 @@ agy plugin enable byoh
 
 **Codex:**
 ```bash
-codex plugin marketplace add /path/to/BuildYourOwnHarness
-codex plugin add byoh@epicsagas
+codex plugin marketplace add epicsagas/BuildYourOwnHarness
+codex plugin add byoh@byoh
 ```
 
 ### هل تستخدم مضيفًا آخر متوافقًا مع MCP؟
@@ -71,7 +71,7 @@ byoh serve   # stdio MCP server
 { "mcpServers": { "byoh": { "command": "byoh", "args": ["serve"] } } }
 ```
 
-> **ملاحظة:** المستودع خاص حاليًا. استخدم المسارات أعلاه. بمجرد أن يصبح عامًا، سيظهر في سوق `epicsagas/plugins` المشترك.
+> **ملاحظة:** يحمل هذا المستودع سوقه الخاص `byoh` (.claude-plugin/marketplace.json) — يثبت بشكل مستقل دون مركز.
 
 ## تثبيت البرنامج الثنائي مباشرة
 

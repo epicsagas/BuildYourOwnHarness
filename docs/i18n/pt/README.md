@@ -44,7 +44,7 @@ Usando **Claude Code, Codex ou agy**? Instale o plugin. Ele empacota o servidor 
 **Claude Code:**
 ```bash
 claude plugin marketplace add epicsagas/BuildYourOwnHarness
-claude plugin install byoh@epicsagas
+claude plugin install byoh@byoh
 ```
 
 **agy (Antigravity):**
@@ -55,8 +55,8 @@ agy plugin enable byoh
 
 **Codex:**
 ```bash
-codex plugin marketplace add /path/to/BuildYourOwnHarness
-codex plugin add byoh@epicsagas
+codex plugin marketplace add epicsagas/BuildYourOwnHarness
+codex plugin add byoh@byoh
 ```
 
 ### Usando qualquer outro host compatível com MCP?
@@ -71,7 +71,7 @@ byoh serve   # servidor MCP stdio
 { "mcpServers": { "byoh": { "command": "byoh", "args": ["serve"] } } }
 ```
 
-> **Nota:** O repo é atualmente privado. Use os caminhos acima. Quando se tornar público, ele aparecerá no marketplace compartilhado `epicsagas/plugins`.
+> **Nota:** Este repositório traz seu próprio marketplace `byoh` (.claude-plugin/marketplace.json) — instale de forma autônoma, sem hub.
 
 ## Instalar o binário diretamente
 

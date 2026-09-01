@@ -1,0 +1,21 @@
+{
+  "name": "byoh",
+  "interface": {
+    "displayName": "byoh plugin"
+  },
+  "plugins": [
+    {
+      "name": "byoh",
+      "source": {
+        "source": "local",
+        "path": "./"
+      },
+      "pluginManifest": "./.codex-plugin/plugin.json",
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Harness"
+    }
+  ]
+}

@@ -44,7 +44,7 @@ Vous utilisez **Claude Code, Codex ou agy** ? Installez le plugin. Il regroupe l
 **Claude Code :**
 ```bash
 claude plugin marketplace add epicsagas/BuildYourOwnHarness
-claude plugin install byoh@epicsagas
+claude plugin install byoh@byoh
 ```
 
 **agy (Antigravity) :**
@@ -55,8 +55,8 @@ agy plugin enable byoh
 
 **Codex :**
 ```bash
-codex plugin marketplace add /path/to/BuildYourOwnHarness
-codex plugin add byoh@epicsagas
+codex plugin marketplace add epicsagas/BuildYourOwnHarness
+codex plugin add byoh@byoh
 ```
 
 ### Vous utilisez un autre hôte compatible MCP ?
@@ -71,7 +71,7 @@ byoh serve   # stdio MCP server
 { "mcpServers": { "byoh": { "command": "byoh", "args": ["serve"] } } }
 ```
 
-> **Note :** Le dépôt est actuellement privé. Utilisez les chemins ci-dessus. Une fois public, il apparaîtra dans le marketplace partagé `epicsagas/plugins`.
+> **Note :** Ce dépôt embarque son propre marketplace `byoh` (.claude-plugin/marketplace.json) — installation autonome, sans hub.
 
 ## Installer le binaire directement
 

@@ -44,7 +44,7 @@ En la siguiente sesión, tu host carga el harness automáticamente — agents, s
 **Claude Code:**
 ```bash
 claude plugin marketplace add epicsagas/BuildYourOwnHarness
-claude plugin install byoh@epicsagas
+claude plugin install byoh@byoh
 ```
 
 **agy (Antigravity):**
@@ -55,8 +55,8 @@ agy plugin enable byoh
 
 **Codex:**
 ```bash
-codex plugin marketplace add /path/to/BuildYourOwnHarness
-codex plugin add byoh@epicsagas
+codex plugin marketplace add epicsagas/BuildYourOwnHarness
+codex plugin add byoh@byoh
 ```
 
 ### ¿Usas cualquier otro host compatible con MCP?
@@ -71,7 +71,7 @@ byoh serve   # stdio MCP server
 { "mcpServers": { "byoh": { "command": "byoh", "args": ["serve"] } } }
 ```
 
-> **Nota:** El repo es actualmente privado. Usa las rutas anteriores. Una vez público aparecerá en el marketplace compartido `epicsagas/plugins`.
+> **Nota:** Este repositorio incluye su propio marketplace `byoh` (.claude-plugin/marketplace.json) — instalación autónoma, sin hub.
 
 ## Instalar el binario directamente
 
