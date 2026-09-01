@@ -49,7 +49,7 @@ claude plugin install byoh@byoh
 
 **agy (Antigravity) :**
 ```bash
-agy plugin install /path/to/BuildYourOwnHarness
+agy plugin install https://github.com/epicsagas/BuildYourOwnHarness
 agy plugin enable byoh
 ```
 
