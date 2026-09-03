@@ -5,8 +5,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/registry/scripts/install.js\"",
-            "timeout": 30
+            "command": "node \"${GROK_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.}}/registry/scripts/install.js\"",
+            "timeout": 60
           }
         ]
       }
