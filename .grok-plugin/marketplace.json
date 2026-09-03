@@ -12,7 +12,7 @@
       "source": {
         "source": "url",
         "url": "https://github.com/epicsagas/BuildYourOwnHarness.git",
-        "sha": "7ebf89ce59a83ae9eb370dec60214caf97357487"
+        "sha": "7c7abb663b1b2012121e180efea4c66f32daaf05"
       },
       "homepage": "https://github.com/epicsagas/BuildYourOwnHarness",
       "keywords": [
@@ -21,7 +21,8 @@
         "mcp",
         "profiling",
         "harness-compiler"
-      ]
+      ],
+      "version": "0.1.1"
     }
   ]
 }
