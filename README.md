@@ -44,6 +44,7 @@ grok plugin install epicsagas/BuildYourOwnHarness --trust
 ```
 
 Grok reads skills from `skills/`, agents from `agents/`, and the `hooks/hooks.json` SessionStart hook (same `install.js` bootstrap as Claude Code — Grok injects `CLAUDE_PLUGIN_ROOT` for plugin hooks). The plugin's `.mcp.json` wires the `byoh serve` MCP server, which must be on PATH. Repo-local (non-plugin) `.mcp.json` MCP servers additionally require folder trust (`--trust` or `/hooks-trust`).
+Note: verified on Grok 1.0.13 — the hook loads, but Grok does not yet deliver `SessionStart` events to plugin hooks (other events like `Stop`/`Notification` fire). Until then the bootstrap is a no-op on Grok; keep `byoh` on PATH or run `node registry/scripts/install.js` once.
 
 Using **Claude Code, Codex, or agy**? Install the plugin. It bundles the MCP server and **auto-installs the binary on first load** — no Rust toolchain, no manual setup:
 
