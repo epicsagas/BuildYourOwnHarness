@@ -1,0 +1,26 @@
+{
+  "name": "byoh",
+  "description": "Standalone marketplace for the byoh plugin. Install from this repository.",
+  "owner": {
+    "name": "epicsagas"
+  },
+  "plugins": [
+    {
+      "name": "byoh",
+      "description": "BuildYourOwnHarness — profile, compile, and evolve a personalized AI agent harness via MCP tools. An LLM agent drives the flow (profile → compile → render/install → evolve); the CLI is auxiliary.",
+      "category": "development",
+      "source": {
+        "type": "local",
+        "path": "."
+      },
+      "homepage": "https://github.com/epicsagas/BuildYourOwnHarness",
+      "keywords": [
+        "ai",
+        "agent-harness",
+        "mcp",
+        "profiling",
+        "harness-compiler"
+      ]
+    }
+  ]
+}

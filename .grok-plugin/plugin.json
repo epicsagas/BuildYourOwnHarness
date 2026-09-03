@@ -1,0 +1,21 @@
+{
+  "name": "byoh",
+  "version": "0.1.0",
+  "description": "BuildYourOwnHarness — profile, compile, and evolve a personalized AI agent harness via MCP tools. An LLM agent drives the flow (profile → compile → render/install → evolve); the CLI is auxiliary.",
+  "author": {
+    "name": "epicsagas",
+    "url": "https://github.com/epicsagas"
+  },
+  "homepage": "https://github.com/epicsagas/BuildYourOwnHarness",
+  "repository": "https://github.com/epicsagas/BuildYourOwnHarness",
+  "license": "Apache-2.0",
+  "skills": "./skills/",
+  "keywords": [
+    "ai",
+    "agent-harness",
+    "mcp",
+    "profiling",
+    "harness-compiler"
+  ],
+  "agents": "./agents/"
+}
