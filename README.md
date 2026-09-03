@@ -37,6 +37,15 @@ On the next session your host loads the harness automatically — agents, skills
 
 ## Install the plugin (recommended)
 
+### Grok Build (xAI)
+
+```bash
+grok plugin install epicsagas/BuildYourOwnHarness --trust
+```
+
+Grok reads skills from `skills/` and agents from `agents/` at the plugin root. No extra configuration needed.
+Note: the MCP server (`byoh serve`) must be on PATH. The SessionStart registry installer hook is not yet wired for Grok — run `node registry/scripts/install.js` once if needed.
+
 Using **Claude Code, Codex, or agy**? Install the plugin. It bundles the MCP server and **auto-installs the binary on first load** — no Rust toolchain, no manual setup:
 
 **Claude Code:**
