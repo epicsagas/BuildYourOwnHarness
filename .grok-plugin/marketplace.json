@@ -10,8 +10,9 @@
       "description": "BuildYourOwnHarness — profile, compile, and evolve a personalized AI agent harness via MCP tools. An LLM agent drives the flow (profile → compile → render/install → evolve); the CLI is auxiliary.",
       "category": "development",
       "source": {
-        "type": "local",
-        "path": "."
+        "source": "url",
+        "url": "https://github.com/epicsagas/BuildYourOwnHarness.git",
+        "sha": "7ebf89ce59a83ae9eb370dec60214caf97357487"
       },
       "homepage": "https://github.com/epicsagas/BuildYourOwnHarness",
       "keywords": [
