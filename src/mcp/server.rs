@@ -6,17 +6,22 @@
 //! sync `fn` that calls BYOH directly (the lib has no async surface). Domain
 //! data is returned as opaque `serde_json::Value`.
 
+use std::future::Future;
 use std::path::PathBuf;
 use std::sync::Arc;
 
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::CallToolResult;
+use rmcp::model::{
+    CallToolResult, ClientJsonRpcMessage, ClientRequest, ErrorCode, ErrorData, ServerJsonRpcMessage,
+};
 use rmcp::tool;
 use rmcp::tool_handler;
 use rmcp::tool_router;
 use rmcp::transport::stdio;
-use rmcp::{ServerHandler, ServiceExt};
+use rmcp::transport::{Transport, async_rw::AsyncRwTransport};
+use rmcp::{RoleServer, ServerHandler, ServiceExt};
 use serde_json::{Value, json};
+use tokio::io::{Stdin, Stdout};
 
 use crate::adapters::{FilesystemSource, RuleInterview, RuleLlm, StdCommand};
 use crate::application::ProfileOrchestrator;
@@ -51,8 +56,9 @@ impl ByohServer {
     /// Returns a `String` error (Send + Sync) so the synchronous binary entry
     /// point can surface it via `anyhow`.
     pub async fn serve_stdio(self) -> Result<(), String> {
+        let (stdin, stdout) = stdio();
         let service = self
-            .serve(stdio())
+            .serve(AgyCompatTransport::new(stdin, stdout))
             .await
             .map_err(|e| format!("MCP serve init failed: {e}"))?;
         service
@@ -60,6 +66,69 @@ impl ByohServer {
             .await
             .map_err(|e| format!("MCP serve stopped: {e}"))?;
         Ok(())
+    }
+}
+
+/// Stdio transport that tolerates non-standard pre-`initialize` requests.
+///
+/// Antigravity's MCP client sends a custom `server/discover` request before
+/// the standard `initialize` handshake. rmcp's init loop only tolerates
+/// `ping` before `initialize` and fails the whole serve on anything else,
+/// which killed the server at startup under agyd. Strict servers answer
+/// unknown methods with JSON-RPC `-32601 Method not found`, which agyd
+/// accepts before proceeding with the normal handshake — mirror that here.
+struct AgyCompatTransport {
+    inner: AsyncRwTransport<RoleServer, Stdin, Stdout>,
+}
+
+impl AgyCompatTransport {
+    fn new(read: Stdin, write: Stdout) -> Self {
+        Self {
+            inner: AsyncRwTransport::new_server(read, write),
+        }
+    }
+}
+
+impl Transport<RoleServer> for AgyCompatTransport {
+    type Error = std::io::Error;
+
+    fn send(
+        &mut self,
+        item: ServerJsonRpcMessage,
+    ) -> impl Future<Output = Result<(), Self::Error>> + Send + 'static {
+        self.inner.send(item)
+    }
+
+    async fn receive(&mut self) -> Option<ClientJsonRpcMessage> {
+        loop {
+            match self.inner.receive().await {
+                Some(ClientJsonRpcMessage::Request(req)) => {
+                    let ClientRequest::CustomRequest(custom) = &req.request else {
+                        return Some(ClientJsonRpcMessage::Request(req));
+                    };
+                    if custom.method != "server/discover" {
+                        return Some(ClientJsonRpcMessage::Request(req));
+                    }
+                    // Answer "method not found" and keep waiting for `initialize`.
+                    let _ = self
+                        .inner
+                        .send(ServerJsonRpcMessage::error(
+                            ErrorData::new(
+                                ErrorCode::METHOD_NOT_FOUND,
+                                "Method not found: server/discover",
+                                None,
+                            ),
+                            Some(req.id.clone()),
+                        ))
+                        .await;
+                }
+                other => return other,
+            }
+        }
+    }
+
+    async fn close(&mut self) -> Result<(), Self::Error> {
+        self.inner.close().await
     }
 }
 

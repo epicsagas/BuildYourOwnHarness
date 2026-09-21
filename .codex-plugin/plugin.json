@@ -1,6 +1,6 @@
 {
   "name": "byoh",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "BuildYourOwnHarness — profile → compile → install → evolve a personalized AI agent harness. Synthesis recombines vetted skills/agents by keyword under 3 safety gates.",
   "author": {
     "name": "epicsagas",
