@@ -12,7 +12,7 @@
       "source": {
         "source": "url",
         "url": "https://github.com/epicsagas/BuildYourOwnHarness.git",
-        "sha": "7c7abb663b1b2012121e180efea4c66f32daaf05"
+        "sha": "a24f0210ea8dc6a55921af42d83e400045aec715"
       },
       "homepage": "https://github.com/epicsagas/BuildYourOwnHarness",
       "keywords": [
