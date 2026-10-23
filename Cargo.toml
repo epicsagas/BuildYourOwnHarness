@@ -1,6 +1,6 @@
 [package]
 name = "byoh"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2024"
 rust-version = "1.85"
 description = "BuildYourOwnHarness — interactive profiling + harness compiler + evolution engine. Generates a personalized AI agent harness from a user's tacit knowledge, genre, and goals."

@@ -1,5 +1,5 @@
 {
   "name": "byoh",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "BuildYourOwnHarness — personalized AI agent harness builder (profile → build → install). Loaded directly by agy (Antigravity CLI), Claude Code, and codex plugins."
 }
