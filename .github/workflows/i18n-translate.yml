@@ -22,7 +22,7 @@ jobs:
   translate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Translate README to 8 languages
         env:
@@ -78,7 +78,7 @@ jobs:
           done
 
       - name: Create translation PR
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v8
         with:
           title: 'docs(i18n): update translations'
           branch: docs/i18n-update
